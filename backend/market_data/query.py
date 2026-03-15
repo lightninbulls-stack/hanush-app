@@ -30,6 +30,12 @@ def get_candles(db: Session, symbol: str, timeframe: str,
     if to_ts:
         query = query.filter(Model.timestamp <= to_ts)
     rows = query.order_by(Model.timestamp.desc()).limit(limit).all()
+    try:
+        rows = query.order_by(Model.timestamp.desc()).limit(limit).all()
+        print(f"Fetched {len(rows)} candles for {symbol} [{timeframe}]")
+    except Exception as e:
+        print(f"DB query failed for {symbol} [{timeframe}]: {e}", exc_info=True)
+        return []
     rows.reverse()
     return [
         {"time": int(row.timestamp.timestamp()), "open": float(row.open),
