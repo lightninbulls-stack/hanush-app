@@ -1,116 +1,409 @@
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import JSONResponse
-from typing import List, Optional
-from shared.models import StockData, StockListResponse, HistoricalData, StockInfo
-from fetch_service.main import DataService, fetch_from_google_sheets, fetch_historical_data, fetch_stock_info
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-import os
+"""
+BullsEye Quant API — merged
+Keeps all original endpoints (stocks/history/info) and adds:
+- Zerodha Kite data pipeline (historical backfill + live WebSocket)
+- Dynamic symbol management (/admin/symbols)
+- Real-time WebSocket feed (/ws/live)
+- User auth (/auth/register, /auth/login)
+- Admin dashboard (/admin)
+- Health check (/healthz)
+"""
+
+import asyncio
 import logging
+import os
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import List, Optional
+
+import pytz
+from fastapi import (
+    FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect,
+    Depends, Query, BackgroundTasks
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from db import engine, get_db, Base
+import models  # noqa: registers User + all market tables on Base
+from models.market_data import TIMEFRAME_MODEL_MAP, Symbol, BackfillJob
+from kite_service.auth import kite_auth
+from kite_service.instrument_manager import instrument_manager
+from market_data.backfill import run_full_backfill, refresh_recent_1min
+from market_data.query import (
+    get_candles, get_latest_price, get_multi_symbol_latest,
+    get_data_stats, get_available_range
+)
+from market_data.symbol_registry import (
+    seed_initial_symbols, get_active_symbols, get_active_symbol_objects,
+    add_symbol, remove_symbol, get_symbol
+)
+from websocket_service.ticker import ticker_service
+from websocket_service.manager import ws_manager
+from scheduler import market_scheduler
+from shared.models import StockListResponse, HistoricalData, StockInfo
+from fetch_service.main import DataService, fetch_from_google_sheets, fetch_historical_data, fetch_stock_info
 from api_service import auth_routes
-from db import Base, engine, SessionLocal
-from models import user  # ✅ must be imported before create_all so table is registered
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+IST = pytz.timezone("Asia/Kolkata")
+data_service = DataService()
 
-# Base.metadata.create_all(bind=engine)  # ✅ now creates users table correctly
 
-app = FastAPI(title="Trading Bible API")
-app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("=== Application startup ===")
+    Base.metadata.create_all(bind=engine)
+    logger.info("DB tables verified")
+    seed_initial_symbols()
+    ws_manager.set_event_loop(asyncio.get_event_loop())
 
-# Enable CORS for frontend
+    def on_tick(symbol: str, tick: dict):
+        ws_manager.broadcast_tick_threadsafe(
+            symbol, tick.get("last_price"), tick.get("volume_traded", 0),
+            tick.get("exchange_timestamp"),
+        )
+    ticker_service.on_tick_callback = on_tick
+
+    if kite_auth.is_authenticated():
+        logger.info("Kite authenticated — loading instruments and starting ticker...")
+        instrument_manager.load_instruments()
+        ticker_service.start()
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, lambda: run_full_backfill(
+            timeframes=["1day", "1week", "1month", "1hour", "15min", "5min"]
+        ))
+    else:
+        logger.warning("Kite not authenticated. Visit /kite/login to start the data pipeline.")
+
+    market_scheduler.start()
+    yield
+    logger.info("Shutting down...")
+    ticker_service.stop()
+    market_scheduler.stop()
+
+
+app = FastAPI(title="BullsEye Quant API", version="2.0.0", lifespan=lifespan)
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
+    return JSONResponse(status_code=500,
         content={"detail": "Internal Server Error", "error": str(exc)},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*"
-        }
-    )
+        headers={"Access-Control-Allow-Origin": "*"})
 
-data_service = DataService()
 
-# ✅ Temporary debug endpoint — remove after verifying users table
-@app.get("/debug/users")
-def list_users(db: Session = Depends(get_db)):
-    from models.user import User
-    users = db.query(User).all()
-    return [{"id": u.id, "name": u.name, "email": u.email} for u in users]
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+def admin_dashboard():
+    from api_service.admin_dashboard import ADMIN_DASHBOARD_HTML
+    return HTMLResponse(content=ADMIN_DASHBOARD_HTML)
 
-@app.get("/debug/migrations")
-def check_migrations():
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        version = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
-        columns = conn.execute(text("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'users'
-        """)).fetchall()
-    return {
-        "alembic_version": version[0] if version else None,
-        "users_columns": [{"name": c[0], "type": c[1]} for c in columns]
-    }
 
+@app.get("/healthz", tags=["admin"])
+def health_check():
+    return {"status": "ok", "ticker": ticker_service.is_running(),
+            "kite_auth": kite_auth.is_authenticated(), "ts": datetime.utcnow().isoformat()}
+
+
+@app.get("/kite/login", tags=["kite-auth"])
+def kite_login():
+    return RedirectResponse(url=kite_auth.get_login_url())
+
+
+@app.get("/kite/callback", tags=["kite-auth"])
+def kite_callback(request_token: str, background_tasks: BackgroundTasks):
+    try:
+        kite_auth.generate_session(request_token)
+        background_tasks.add_task(_post_auth_startup)
+        return {"status": "ok", "message": "Kite authenticated. Data pipeline starting..."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {e}")
+
+
+async def _post_auth_startup():
+    instrument_manager.load_instruments()
+    if not ticker_service.is_running():
+        ticker_service.start()
+    asyncio.get_event_loop().run_in_executor(None, refresh_recent_1min)
+
+
+@app.get("/kite/status", tags=["kite-auth"])
+def kite_status():
+    return {"authenticated": kite_auth.is_authenticated(), "ticker_running": ticker_service.is_running(),
+            "instruments_loaded": instrument_manager.is_loaded(),
+            "instrument_count": len(instrument_manager.get_token_map()),
+            "ws_clients": ws_manager.get_connection_count()}
+
+
+@app.get("/api/chart/{symbol}", tags=["market-data"])
+def get_chart_data(
+    symbol: str,
+    timeframe: str = Query("1day"),
+    limit: Optional[int] = Query(None),
+    from_ts: Optional[int] = Query(None),
+    to_ts: Optional[int] = Query(None),
+    include_partial: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    symbol = symbol.upper()
+    if timeframe not in TIMEFRAME_MODEL_MAP:
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe. Use: {list(TIMEFRAME_MODEL_MAP.keys())}")
+    from_dt = datetime.fromtimestamp(from_ts) if from_ts else None
+    to_dt = datetime.fromtimestamp(to_ts) if to_ts else None
+    candles = get_candles(db, symbol, timeframe, from_dt, to_dt, limit, include_partial)
+    return {"symbol": symbol, "timeframe": timeframe, "data": candles, "count": len(candles)}
+
+
+@app.get("/api/price/{symbol}", tags=["market-data"])
+def get_price(symbol: str, db: Session = Depends(get_db)):
+    price = get_latest_price(db, symbol.upper())
+    if not price:
+        raise HTTPException(status_code=404, detail="No price data found")
+    return price
+
+
+@app.post("/api/prices", tags=["market-data"])
+def get_prices_bulk(symbols: List[str], db: Session = Depends(get_db)):
+    return get_multi_symbol_latest(db, [s.upper() for s in symbols])
+
+
+@app.get("/api/symbols", tags=["market-data"])
+def get_symbols_list(db: Session = Depends(get_db)):
+    syms = get_active_symbol_objects(db)
+    return {"symbols": [{"symbol": s.symbol, "exchange": s.exchange,
+                          "name": s.name, "sector": s.sector,
+                          "instrument_token": s.instrument_token} for s in syms],
+            "count": len(syms)}
+
+
+@app.websocket("/ws/live")
+async def websocket_live(websocket: WebSocket):
+    client_id = str(uuid.uuid4())
+    await ws_manager.connect(websocket, client_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "subscribe":
+                symbols = [s.upper() for s in data.get("symbols", [])]
+                await ws_manager.subscribe(client_id, symbols)
+                await websocket.send_json({"type": "subscribed", "symbols": symbols})
+            elif data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(client_id)
+    except Exception as e:
+        logger.error(f"WS error {client_id}: {e}")
+        await ws_manager.disconnect(client_id)
+
+
+@app.get("/admin/stats", tags=["admin"])
+def get_stats(db: Session = Depends(get_db)):
+    return {"tables": get_data_stats(db), "kite_authenticated": kite_auth.is_authenticated(),
+            "ticker_running": ticker_service.is_running(),
+            "ws_clients_connected": ws_manager.get_connection_count(),
+            "symbols_tracked": len(get_active_symbols()),
+            "scheduled_jobs": market_scheduler.get_jobs()}
+
+
+@app.post("/admin/backfill", tags=["admin"])
+def trigger_backfill(timeframes: Optional[List[str]] = None, symbols: Optional[List[str]] = None,
+                     force: bool = False, background_tasks: BackgroundTasks = None):
+    background_tasks.add_task(run_full_backfill, timeframes=timeframes, symbols=symbols, force=force)
+    return {"status": "started", "message": "Backfill running in background"}
+
+
+@app.get("/admin/backfill/status", tags=["admin"])
+def backfill_status(db: Session = Depends(get_db)):
+    jobs = db.query(BackfillJob).order_by(BackfillJob.symbol, BackfillJob.timeframe).all()
+    summary: dict = {}
+    for j in jobs:
+        summary[j.status] = summary.get(j.status, 0) + 1
+    return {"summary": summary,
+            "jobs": [{"symbol": j.symbol, "timeframe": j.timeframe, "status": j.status,
+                      "records": j.records_inserted, "error": j.error_msg,
+                      "completed_at": j.completed_at.isoformat() if j.completed_at else None}
+                     for j in jobs],
+            "total": len(jobs)}
+
+
+@app.post("/admin/reload-instruments", tags=["admin"])
+def reload_instruments():
+    if not kite_auth.is_authenticated():
+        raise HTTPException(status_code=401, detail="Kite not authenticated")
+    success = instrument_manager.load_instruments(force_refresh=True)
+    return {"status": "ok" if success else "failed", "count": len(instrument_manager.get_token_map())}
+
+
+class AddSymbolRequest(BaseModel):
+    symbol: str
+    exchange: str = "NSE"
+    name: Optional[str] = None
+    sector: Optional[str] = None
+    backfill: bool = True
+    timeframes: Optional[List[str]] = None
+
+
+@app.post("/admin/symbols", tags=["symbol-management"])
+def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTasks):
+    symbol = req.symbol.upper().strip()
+    try:
+        add_symbol(symbol, req.exchange, req.name, req.sector)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    token = instrument_manager.add_symbol_to_tracking(symbol)
+    if not token:
+        raise HTTPException(status_code=422,
+            detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.")
+    ticker_service.resubscribe()
+    if req.backfill:
+        tfs = req.timeframes or ["1day", "1week", "1month", "1hour", "15min", "5min", "1min"]
+        background_tasks.add_task(run_full_backfill, timeframes=tfs, symbols=[symbol])
+        bf_msg = f"Backfilling {len(tfs)} timeframes in background"
+    else:
+        bf_msg = "Skipped"
+    return {"status": "ok", "symbol": symbol, "instrument_token": token,
+            "ticker_resubscribed": ticker_service.is_running(), "backfill": bf_msg}
+
+
+@app.delete("/admin/symbols/{symbol}", tags=["symbol-management"])
+def deactivate_symbol(symbol: str):
+    symbol = symbol.upper()
+    instrument_manager.remove_symbol_from_tracking(symbol)
+    ticker_service.resubscribe()
+    if not remove_symbol(symbol):
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
+    return {"status": "ok", "symbol": symbol, "message": "Deactivated. Historical data preserved."}
+
+
+@app.post("/admin/symbols/{symbol}/reactivate", tags=["symbol-management"])
+def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks, backfill: bool = True):
+    symbol = symbol.upper()
+    try:
+        add_symbol(symbol)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    token = instrument_manager.add_symbol_to_tracking(symbol)
+    ticker_service.resubscribe()
+    if backfill:
+        background_tasks.add_task(run_full_backfill, symbols=[symbol], force=False)
+    return {"status": "ok", "symbol": symbol, "instrument_token": token}
+
+
+@app.get("/admin/symbols", tags=["symbol-management"])
+def list_all_symbols(include_inactive: bool = False, db: Session = Depends(get_db)):
+    query = db.query(Symbol)
+    if not include_inactive:
+        query = query.filter(Symbol.is_active == True)
+    syms = query.order_by(Symbol.symbol).all()
+    return {"symbols": [{"symbol": s.symbol, "exchange": s.exchange, "name": s.name,
+                          "sector": s.sector, "instrument_token": s.instrument_token,
+                          "is_active": s.is_active,
+                          "created_at": s.created_at.isoformat() if s.created_at else None,
+                          "last_updated": s.last_updated.isoformat() if s.last_updated else None}
+                         for s in syms], "count": len(syms)}
+
+
+@app.get("/admin/symbols/{symbol}", tags=["symbol-management"])
+def get_symbol_detail(symbol: str, db: Session = Depends(get_db)):
+    symbol = symbol.upper()
+    sym_obj = get_symbol(symbol, db)
+    if not sym_obj:
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
+    ranges = {}
+    for tf in TIMEFRAME_MODEL_MAP:
+        r = get_available_range(db, symbol, tf)
+        ranges[tf] = {"from": r[0].isoformat(), "to": r[1].isoformat()} if r else None
+    return {"symbol": sym_obj.symbol, "exchange": sym_obj.exchange, "name": sym_obj.name,
+            "sector": sym_obj.sector, "instrument_token": sym_obj.instrument_token,
+            "is_active": sym_obj.is_active,
+            "in_live_feed": symbol in instrument_manager.get_token_map(), "data_ranges": ranges}
+
+
+@app.delete("/admin/symbols/{symbol}/data", tags=["symbol-management"])
+def delete_symbol_data(symbol: str, db: Session = Depends(get_db)):
+    symbol = symbol.upper()
+    sym_obj = get_symbol(symbol, db)
+    if sym_obj and sym_obj.is_active:
+        raise HTTPException(status_code=409,
+            detail=f"Deactivate '{symbol}' first: DELETE /admin/symbols/{symbol}")
+    total = 0
+    for tf, Model in TIMEFRAME_MODEL_MAP.items():
+        r = db.execute(text(f"DELETE FROM {Model.__tablename__} WHERE symbol = :sym"), {"sym": symbol})
+        total += r.rowcount
+    db.execute(text("DELETE FROM backfill_jobs WHERE symbol = :sym"), {"sym": symbol})
+    if sym_obj:
+        db.delete(sym_obj)
+    db.commit()
+    return {"status": "ok", "symbol": symbol, "rows_deleted": total}
+
+
+# ─── Original endpoints (UNCHANGED — existing frontend continues to work) ──────
 
 @app.get("/stocks/{category}", response_model=StockListResponse)
 async def get_stocks(category: str):
     logger.info(f"Fetching stocks for category: {category}")
     try:
-        try:
-            cached_data = data_service.get_cached_stock_list(category)
-            if cached_data:
-                logger.info(f"Returning cached data for {category}")
-                return StockListResponse(category=category, stocks=cached_data)
-        except Exception as e:
-            logger.warning(f"Cache miss or error: {e}")
-
-        try:
-            stocks = fetch_from_google_sheets(category)
-            if stocks:
-                try:
-                    data_service.cache_stock_list(category, stocks)
-                except: pass
-                return StockListResponse(category=category, stocks=stocks)
-        except Exception as e:
-            logger.error(f"Fetch failed: {e}")
-
-        logger.warning(f"No data found for category: {category} in Excel or Google Sheets.")
+        cached = data_service.get_cached_stock_list(category)
+        if cached:
+            return StockListResponse(category=category, stocks=cached)
+        stocks = fetch_from_google_sheets(category)
+        if stocks:
+            try:
+                data_service.cache_stock_list(category, stocks)
+            except Exception:
+                pass
+            return StockListResponse(category=category, stocks=stocks)
         return StockListResponse(category=category, stocks=[])
-
     except Exception as e:
         logger.critical(f"Critical failure in get_stocks: {e}", exc_info=True)
         return StockListResponse(category=category, stocks=[])
 
-@app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
-async def get_history(symbol: str, interval: str = "1d"):
-    logger.info(f"Fetching history for symbol: {symbol}, interval: {interval}")
-    try:
-        cached_data = data_service.get_cached_historical_data(symbol, interval)
-        if cached_data:
-            return cached_data
 
+@app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
+async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(get_db)):
+    """
+    Used by TradingViewChart.tsx. Now tries PostgreSQL first (instant),
+    falls back to yfinance if backfill hasn't run yet.
+    """
+    logger.info(f"History: {symbol}, interval={interval}")
+    interval_map = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1hour",
+                    "1d": "1day", "1wk": "1week", "1mo": "1month"}
+    timeframe = interval_map.get(interval)
+    sym = symbol.upper().replace(".NS", "")
+
+    if timeframe:
+        try:
+            db_candles = get_candles(db, sym, timeframe)
+            if db_candles:
+                return [HistoricalData(time=c["time"], open=c["open"], high=c["high"],
+                                       low=c["low"], close=c["close"], volume=c["volume"])
+                        for c in db_candles]
+        except Exception as e:
+            logger.warning(f"DB chart fetch failed {sym}/{timeframe}: {e}")
+
+    # Fallback to yfinance
+    try:
+        cached = data_service.get_cached_historical_data(symbol, interval)
+        if cached:
+            return cached
         history = fetch_historical_data(symbol, interval)
         if history:
             data_service.cache_historical_data(symbol, interval, history)
@@ -120,25 +413,31 @@ async def get_history(symbol: str, interval: str = "1d"):
         logger.error(f"Error in get_history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/stocks/info/{symbol}", response_model=StockInfo)
-async def get_info(symbol: str):
-    logger.info(f"Fetching info for: {symbol}")
-    try:
-        cached_info = data_service.get_cached_stock_info(symbol)
-        if cached_info:
-            return cached_info
 
+@app.get("/stocks/info/{symbol}", response_model=StockInfo)
+async def get_info(symbol: str, db: Session = Depends(get_db)):
+    logger.info(f"Info: {symbol}")
+    try:
+        sym = symbol.upper().replace(".NS", "")
+        db_price = get_latest_price(db, sym)
+        cached = data_service.get_cached_stock_info(symbol)
+        if cached:
+            if db_price:
+                cached["price"] = db_price["price"]
+            return cached
         info = fetch_stock_info(symbol)
         if info:
+            if db_price:
+                info["price"] = db_price["price"]
             data_service.cache_stock_info(symbol, info)
             return info
-
         raise HTTPException(status_code=404, detail="Stock info not found")
     except Exception as e:
         logger.error(f"Error in get_info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
-    import uvicorn, os
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import uvicorn
+    uvicorn.run("api_service.main:app", host="0.0.0.0",
+                port=int(os.environ.get("PORT", 8000)), reload=False)

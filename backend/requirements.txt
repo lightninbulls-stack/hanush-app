@@ -1,20 +1,53 @@
+# Web framework
 fastapi
-uvicorn
+uvicorn[standard]
+python-multipart
+
+# Database (new)
+sqlalchemy==2.0.30
+psycopg2-binary
+alembic
+
+# Zerodha Kite (new)
+kiteconnect
+
+# Data
 pandas
-yfinance
+numpy
+openpyxl
+
+# Token encryption (new)
+cryptography
+
+# Auth / JWT (new)
+bcrypt
+python-jose[cryptography]
+
+# Scheduler (new)
+apscheduler
+
+# Timezone (new)
+pytz
+
+# Cache
+redis
+
+# HTTP
+requests
+
+# Config
+python-dotenv
 pydantic
 pydantic-settings
-requests
-redis
-python-dotenv
+
+# yfinance — fallback chart data + stock fundamentals
+yfinance
+
+# Google Sheets (legacy)
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
-openpyxl
-sqlalchemy
-psycopg2-binary
-bcrypt
-python-jose[cryptography]
-python-multipart
-alembic
+
+# WebSocket
+websockets

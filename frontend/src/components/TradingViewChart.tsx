@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, type IChartApi, type UTCTimestamp } from 'lightweight-charts';
+import {
+    createChart, ColorType,
+    type IChartApi, type UTCTimestamp
+} from 'lightweight-charts';
 import axios from 'axios';
 
 interface TradingViewChartProps {
@@ -14,11 +17,11 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ symbol }) => {
     const [interval, setInterval] = React.useState('1d');
 
     const timeframes = [
-        { label: '5M', value: '5m' },
+        { label: '5M',  value: '5m'  },
         { label: '15M', value: '15m' },
-        { label: '1H', value: '1h' },
-        { label: '1D', value: '1d' },
-        { label: '1W', value: '1wk' },
+        { label: '1H',  value: '1h'  },
+        { label: '1D',  value: '1d'  },
+        { label: '1W',  value: '1wk' },
         { label: '1MO', value: '1mo' },
     ];
 
@@ -57,67 +60,35 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ symbol }) => {
                     } else {
                         timestamp = time;
                     }
-                
-                    // ✅ Always convert to IST for display
-                    const istDate = new Date(timestamp * 1000 + 5.5 * 60 * 60 * 1000);
-                
+                    const date = new Date(timestamp * 1000);
                     if (interval === '5m' || interval === '15m' || interval === '1h') {
-                        const hours = istDate.getUTCHours().toString().padStart(2, '0');
-                        const minutes = istDate.getUTCMinutes().toString().padStart(2, '0');
-                
-                        // Show date at 9:15 AM IST (market open)
-                        if (hours === '09' && minutes === '15') {
-                            const day = istDate.getUTCDate().toString().padStart(2, '0');
-                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                            const month = monthNames[istDate.getUTCMonth()];
-                            return `${month} ${day}`;
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        if (hours === '00' && minutes === '00') {
+                            const day = date.getDate().toString().padStart(2, '0');
+                            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                            return `${monthNames[date.getMonth()]} ${day}`;
                         }
                         return `${hours}:${minutes}`;
-                
                     } else if (interval === '1d') {
-                        const day = istDate.getUTCDate();
-                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const month = monthNames[istDate.getUTCMonth()];
-                        const year = istDate.getUTCFullYear();
-                        if (day === 1) return `${month} ${year}`;
+                        const day = date.getDate();
+                        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        if (day === 1) return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
                         return day.toString();
-                
                     } else if (interval === '1wk') {
-                        const day = istDate.getUTCDate();
-                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const month = monthNames[istDate.getUTCMonth()];
-                        return `${month} ${day}`;
-                
+                        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        return `${monthNames[date.getMonth()]} ${date.getDate()}`;
                     } else {
-                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const month = monthNames[istDate.getUTCMonth()];
-                        const year = istDate.getUTCFullYear();
-                        return `${month} ${year}`;
+                        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
                     }
                 },
             },
-            rightPriceScale: {
-                borderColor: '#2B2B43',
-                visible: true,
-            },
+            rightPriceScale: { borderColor: '#2B2B43', visible: true },
             crosshair: {
                 mode: 0,
-                vertLine: {
-                    color: '#758696',
-                    width: 1,
-                    style: 2,
-                    labelBackgroundColor: '#c5a059',
-                },
-                horzLine: {
-                    color: '#758696',
-                    width: 1,
-                    style: 2,
-                    labelBackgroundColor: '#c5a059',
-                },
+                vertLine: { color: '#758696', width: 1, style: 2, labelBackgroundColor: '#c5a059' },
+                horzLine: { color: '#758696', width: 1, style: 2, labelBackgroundColor: '#c5a059' },
             },
             localization: {
                 timeFormatter: (time: number | string) => {
@@ -128,22 +99,15 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ symbol }) => {
                         timestamp = time;
                     }
                     const date = new Date(timestamp * 1000);
-
+                    const h = date.getHours().toString().padStart(2, '0');
+                    const m = date.getMinutes().toString().padStart(2, '0');
+                    const d = date.getDate().toString().padStart(2, '0');
+                    const mo = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const y = date.getFullYear();
                     if (interval === '5m' || interval === '15m' || interval === '1h') {
-                        // ✅ Show IST time in crosshair: add 5h30m to UTC
-                        const istDate = new Date(timestamp * 1000 + 5.5 * 60 * 60 * 1000);
-                        const hours = istDate.getUTCHours().toString().padStart(2, '0');
-                        const minutes = istDate.getUTCMinutes().toString().padStart(2, '0');
-                        const day = istDate.getUTCDate().toString().padStart(2, '0');
-                        const month = (istDate.getUTCMonth() + 1).toString().padStart(2, '0');
-                        const year = istDate.getUTCFullYear();
-                        return `${year}-${month}-${day} ${hours}:${minutes} IST`;
+                        return `${y}-${mo}-${d} ${h}:${m}`;
                     }
-
-                    const day = date.getDate().toString().padStart(2, '0');
-                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const year = date.getFullYear();
-                    return `${year}-${month}-${day}`;
+                    return `${y}-${mo}-${d}`;
                 },
             },
         });
@@ -160,52 +124,46 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ symbol }) => {
 
         const fetchData = async () => {
             try {
-                const response = await axios.get(`${API_BASE_URL}/stocks/history/${symbol}?interval=${interval}`);
+                // ── Try PostgreSQL first via /stocks/history (now backed by DB) ──
+                const response = await axios.get(
+                    `${API_BASE_URL}/stocks/history/${symbol}?interval=${interval}`
+                );
                 const history = response.data;
 
                 if (history && history.length > 0) {
-                    const processedData = history.map((d: any) => {
-                        let time: UTCTimestamp;
+                    const processedData = history
+                        .map((d: { time: string | number; open: string | number; high: string | number; low: string | number; close: string | number }) => {
+                            let time: UTCTimestamp;
+                            if (typeof d.time === 'string') {
+                                time = Math.floor(new Date(d.time).getTime() / 1000) as UTCTimestamp;
+                            } else {
+                                time = d.time as UTCTimestamp;
+                            }
+                            return {
+                                time,
+                                open:  parseFloat(String(d.open)),
+                                high:  parseFloat(String(d.high)),
+                                low:   parseFloat(String(d.low)),
+                                close: parseFloat(String(d.close)),
+                            };
+                        })
+                        .sort((a: { time: UTCTimestamp }, b: { time: UTCTimestamp }) => a.time - b.time);
 
-                        if (typeof d.time === 'string') {
-                            const dateObj = new Date(d.time);
-                            time = Math.floor(dateObj.getTime() / 1000) as UTCTimestamp;
-                        } else if (typeof d.time === 'number') {
-                            time = d.time as UTCTimestamp;
-                        } else {
-                            console.error('Invalid time format:', d.time);
-                            return null;
-                        }
-
-                        return {
-                            time,
-                            open: parseFloat(d.open),
-                            high: parseFloat(d.high),
-                            low: parseFloat(d.low),
-                            close: parseFloat(d.close),
-                        };
-                    }).filter(Boolean);
-
-                    const sortedData = processedData.sort((a: any, b: any) => a.time - b.time);
-
-                    candlestickSeries.setData(sortedData);
+                    candlestickSeries.setData(processedData);
                     chart.timeScale().fitContent();
 
                     setTimeout(() => {
                         if (chartContainerRef.current) {
-                            chart.applyOptions({
-                                width: chartContainerRef.current.clientWidth
-                            });
+                            chart.applyOptions({ width: chartContainerRef.current.clientWidth });
                         }
                     }, 100);
                 }
             } catch (error) {
-                console.error('Error fetching data for Lightweight Charts:', error);
+                console.error('Error fetching chart data:', error);
             }
         };
 
         fetchData();
-
         window.addEventListener('resize', handleResize);
 
         return () => {
@@ -214,93 +172,43 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({ symbol }) => {
         };
     }, [symbol, interval]);
 
-    // ✅ Clean display name: strip .NS suffix
-    const displayName = symbol.replace('.NS', '').replace('.BSE', '');
-
     return (
         <div className="chart-wrapper" style={{ width: '100%' }}>
-            {/* ✅ Stock name header */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-                flexWrap: 'wrap',
-                gap: '10px',
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{
-                        fontSize: '1.4rem',
-                        fontWeight: 700,
-                        color: '#c5a059',
-                        letterSpacing: '0.05em',
-                    }}>
-                        {displayName}
-                    </span>
-                    <span style={{
-                        fontSize: '0.75rem',
-                        color: '#666',
-                        background: '#1a1a1a',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid #333',
-                    }}>
-                        NSE
-                    </span>
-                </div>
-
-                {/* Timeframe selector */}
-                <div
-                    className="timeframe-selector"
-                    style={{
-                        display: 'flex',
-                        gap: '8px',
-                        flexWrap: 'wrap',
-                    }}
-                >
-                    {timeframes.map((tf) => (
-                        <button
-                            key={tf.value}
-                            onClick={() => setInterval(tf.value)}
-                            style={{
-                                padding: '6px 14px',
-                                background: interval === tf.value ? '#c5a059' : '#1a1a1a',
-                                border: interval === tf.value ? '2px solid #c5a059' : '1px solid #333',
-                                borderRadius: '4px',
-                                color: interval === tf.value ? '#000' : '#aaa',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: interval === tf.value ? 700 : 400,
-                                transition: 'all 0.2s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                                if (interval !== tf.value) {
-                                    e.currentTarget.style.background = '#2a2a2a';
-                                    e.currentTarget.style.color = '#fff';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (interval !== tf.value) {
-                                    e.currentTarget.style.background = '#1a1a1a';
-                                    e.currentTarget.style.color = '#aaa';
-                                }
-                            }}
-                        >
-                            {tf.label}
-                        </button>
-                    ))}
-                </div>
+            <div
+                className="timeframe-selector"
+                style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}
+            >
+                {timeframes.map((tf) => (
+                    <button
+                        key={tf.value}
+                        onClick={() => setInterval(tf.value)}
+                        style={{
+                            padding: '8px 16px',
+                            background: interval === tf.value ? '#c5a059' : '#333',
+                            border: interval === tf.value ? '2px solid #c5a059' : '1px solid #555',
+                            borderRadius: '4px',
+                            color: interval === tf.value ? '#000' : '#fff',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: interval === tf.value ? 'bold' : 'normal',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                            if (interval !== tf.value) e.currentTarget.style.background = '#444';
+                        }}
+                        onMouseLeave={(e) => {
+                            if (interval !== tf.value) e.currentTarget.style.background = '#333';
+                        }}
+                    >
+                        {tf.label}
+                    </button>
+                ))}
             </div>
-
             <div
                 ref={chartContainerRef}
                 style={{
-                    width: '100%',
-                    height: '600px',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    display: 'block',
-                    position: 'relative',
+                    width: '100%', height: '600px', borderRadius: '8px',
+                    overflow: 'hidden', display: 'block', position: 'relative'
                 }}
             />
         </div>

@@ -7,15 +7,17 @@ from auth import hash_password, verify_password, create_access_token
 
 router = APIRouter()
 
-# ✅ Pydantic schemas so frontend JSON body works
+
 class RegisterRequest(BaseModel):
     name: str
     email: str
     password: str
 
+
 class LoginRequest(BaseModel):
     email: str
     password: str
+
 
 def get_db():
     db = SessionLocal()
@@ -24,16 +26,15 @@ def get_db():
     finally:
         db.close()
 
+
 @router.post("/register")
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
-    if user:
+    if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    new_user = User(name=body.name, email=body.email, hashed_password=hash_password(body.password))
-    db.add(new_user)
+    db.add(User(name=body.name, email=body.email, hashed_password=hash_password(body.password)))
     db.commit()
-    db.refresh(new_user)
     return {"msg": "User registered successfully"}
+
 
 @router.post("/login")
 def login(body: LoginRequest, db: Session = Depends(get_db)):

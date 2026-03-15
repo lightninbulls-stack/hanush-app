@@ -1,6 +1,8 @@
 #!/bin/bash
-# Move up to project root where alembic.ini lives
-cd "$(dirname "$0")/.."
+set -e
+echo "=== Running Alembic migrations ==="
+cd /app
 alembic upgrade head
-cd backend
-uvicorn api_service.main:app --host 0.0.0.0 --port $PORT
+echo "=== Starting API server ==="
+cd /app/backend
+exec uvicorn api_service.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1

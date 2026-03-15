@@ -6,14 +6,20 @@ from datetime import datetime, timedelta
 import redis
 import json
 import calendar
+from pathlib import Path
 
 # Placeholder for Google Sheets integration
 # In a real scenario, you'd use google-api-python-client
 def fetch_from_excel(category: str) -> List[Dict]:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_PATH = os.path.join(BASE_DIR, "..", "data", "trading_bull.xlsx")
+    #excel_path = os.getenv("EXCEL_PATH", "/backend/data/trading_bull.xlsx")
 
-    excel_path = os.getenv("EXCEL_PATH", DATA_PATH)
+    base_dir = Path(__file__).resolve().parent.parent  # points to backend/
+    default_path = base_dir / "data" / "trading_bull.xlsx"
+    excel_path = Path(os.getenv("EXCEL_PATH", str(default_path)))
+
+    print("excel path is: ", excel_path)
+    #excel_path = os.getenv("EXCEL_PATH", "backend/data/trading_bull.xlsx") # relative path, as render deploys it in separate folder
+
     # Map friendly names to actual tab names in 'trading bull.xlsx'
     sheet_map = {
         "Momentum": "Momentum",
@@ -104,7 +110,8 @@ def fetch_historical_data(symbol: str, interval: str = "1d"):
         data = []
         for index, row in hist.iterrows():
             if interval in ["5m", "15m", "1h"]:
-                item_time = int(index.timestamp())
+                naive_dt = index.replace(tzinfo=None)
+                item_time = int(calendar.timegm(naive_dt.timetuple()))
             else:
                 item_time = index.strftime("%Y-%m-%d")
                 
