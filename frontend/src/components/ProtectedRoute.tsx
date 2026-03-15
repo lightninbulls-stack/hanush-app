@@ -1,9 +1,9 @@
 // src/components/ProtectedRoute.tsx
-import React from "react";
+import type { ReactElement } from "react";
 import { Navigate } from "react-router-dom";
 
 interface ProtectedRouteProps {
-  children: React.ReactElement;
+  children: ReactElement;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {

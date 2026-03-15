@@ -1,5 +1,6 @@
 // src/pages/Auth.tsx
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -86,13 +87,13 @@ const Auth = () => {
   );
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%", padding: "10px 12px", marginBottom: 14,
   background: "#1a1a1a", border: "1px solid #333",
   borderRadius: 6, color: "#fff", fontSize: "0.95rem", boxSizing: "border-box"
 };
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   width: "100%", padding: "12px", background: "var(--primary-gold)",
   border: "none", borderRadius: 6, color: "#000",
   fontWeight: 600, fontSize: "1rem", cursor: "pointer"
