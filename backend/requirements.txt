@@ -4,7 +4,7 @@ uvicorn[standard]
 python-multipart
 
 # Database (new)
-sqlalchemy==2.0.30
+sqlalchemy==2.0.36
 psycopg2-binary
 alembic
 

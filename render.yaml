@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: hanush-backend
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: bash backend/start.sh
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hanush-db
+          property: connectionString
+      - key: ZERODHA_API_KEY
+        sync: false
+      - key: ZERODHA_API_SECRET
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.9
+
+databases:
+  - name: hanush-db
+    plan: free
