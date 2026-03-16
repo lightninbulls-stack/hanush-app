@@ -9,7 +9,7 @@ psycopg2-binary
 alembic
 
 # Zerodha Kite
-kiteconnect
+kiteconnect==5.0.1
 
 # Data
 pandas
