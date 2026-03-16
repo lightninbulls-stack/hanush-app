@@ -1,8 +1,9 @@
 import os
 import json
 import logging
+import asyncio
 from typing import Dict, List, Optional
-from datetime import datetime, date
+from datetime import date
 
 from kite_service.auth import kite_auth
 from market_data.symbol_registry import get_active_symbols, update_symbol_token
@@ -18,11 +19,10 @@ class InstrumentManager:
         self._loaded_date: Optional[date] = None
         self._all_instruments: Dict[str, int] = {}
 
-    def _load_from_cache(self) -> bool:
+    async def _load_from_cache(self) -> bool:
         try:
             if os.path.exists(INSTRUMENT_CACHE_FILE):
-                with open(INSTRUMENT_CACHE_FILE) as f:
-                    cache = json.load(f)
+                cache = await asyncio.to_thread(self._read_cache_file)
                 if cache.get("date") == str(date.today()):
                     self._token_map = cache["token_map"]
                     self._symbol_map = {int(v): k for k, v in self._token_map.items()}
@@ -33,38 +33,52 @@ class InstrumentManager:
             logger.warning(f"Cache load failed: {e}")
         return False
 
-    def _save_to_cache(self):
+    def _read_cache_file(self):
+        with open(INSTRUMENT_CACHE_FILE) as f:
+            return json.load(f)
+
+    async def _save_to_cache(self):
         try:
-            with open(INSTRUMENT_CACHE_FILE, "w") as f:
-                json.dump({"date": str(date.today()), "token_map": self._token_map,
-                           "all_instruments": self._all_instruments}, f)
+            await asyncio.to_thread(self._write_cache_file)
         except Exception as e:
             logger.warning(f"Cache save failed: {e}")
 
-    def load_instruments(self, force_refresh: bool = False) -> bool:
-        if not force_refresh and self._load_from_cache():
-            self._sync_token_map_from_db()
+    def _write_cache_file(self):
+        with open(INSTRUMENT_CACHE_FILE, "w") as f:
+            json.dump({
+                "date": str(date.today()),
+                "token_map": self._token_map,
+                "all_instruments": self._all_instruments
+            }, f)
+
+    async def load_instruments(self, force_refresh: bool = False) -> bool:
+        if not force_refresh and await self._load_from_cache():
+            await asyncio.to_thread(self._sync_token_map_from_db)
             return True
         kite = kite_auth.get_kite()
         if not kite:
             return False
         try:
-            instruments = kite.instruments("NSE")
+            instruments = await asyncio.to_thread(kite.instruments, "NSE")
             self._all_instruments = {inst["tradingsymbol"]: inst["instrument_token"] for inst in instruments}
             active = get_active_symbols()
             token_map = {sym: self._all_instruments[sym] for sym in active if sym in self._all_instruments}
             self._token_map = token_map
             self._symbol_map = {v: k for k, v in token_map.items()}
             self._loaded_date = date.today()
-            self._save_to_cache()
-            
-            # Print counts and values
+            await self._save_to_cache()
+
             logger.info(f"Fetched {len(instruments)} instruments from NSE")
             logger.info(f"Instrument map: {self._all_instruments}")
-        
+
             for inst in instruments:
                 if inst["tradingsymbol"] in token_map:
-                    update_symbol_token(inst["tradingsymbol"], inst["instrument_token"], name=inst.get("name"))
+                    await asyncio.to_thread(
+                        update_symbol_token,
+                        inst["tradingsymbol"],
+                        inst["instrument_token"],
+                        inst.get("name")
+                    )
             logger.info(f"Token map: {len(token_map)}/{len(active)} symbols mapped")
             logger.info(f"Token map from token_map: {token_map}")
             return True
@@ -80,25 +94,25 @@ class InstrumentManager:
         self._token_map = token_map
         self._symbol_map = {v: k for k, v in token_map.items()}
 
-    def resolve_token_for_symbol(self, symbol: str) -> Optional[int]:
+    async def resolve_token_for_symbol(self, symbol: str) -> Optional[int]:
         if self._all_instruments:
             token = self._all_instruments.get(symbol.upper())
             if token:
                 return token
-        if self.load_instruments(force_refresh=True):
+        if await self.load_instruments(force_refresh=True):
             print("Symbol → Token mapping:")
-            for symbol, token in instrument_manager.get_token_map().items():
+            for symbol, token in self.get_token_map().items():
                 print(f"{symbol}: {token}")
             return self._all_instruments.get(symbol.upper())
         return None
 
-    def add_symbol_to_tracking(self, symbol: str) -> Optional[int]:
+    async def add_symbol_to_tracking(self, symbol: str) -> Optional[int]:
         symbol = symbol.upper()
-        token = self.resolve_token_for_symbol(symbol)
+        token = await self.resolve_token_for_symbol(symbol)
         if token:
             self._token_map[symbol] = token
             self._symbol_map[token] = symbol
-            update_symbol_token(symbol, token)
+            await asyncio.to_thread(update_symbol_token, symbol, token)
             return token
         return None
 

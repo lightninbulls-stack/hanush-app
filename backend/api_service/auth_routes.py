@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
-from db import SessionLocal
+from db import AsyncSessionLocal
 from models.user import User
 from auth import hash_password, verify_password, create_access_token
 
@@ -19,27 +20,36 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 @router.post("/register")
-def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == body.email).first():
+async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    stmt = select(User).where(User.email == body.email)
+    result = await db.execute(stmt)
+    existing = result.scalars().first()
+    if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    db.add(User(name=body.name, email=body.email, hashed_password=hash_password(body.password)))
-    db.commit()
+
+    user = User(
+        name=body.name,
+        email=body.email,
+        hashed_password=hash_password(body.password)
+    )
+    db.add(user)
+    await db.commit()
     return {"msg": "User registered successfully"}
 
 
 @router.post("/login")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
+async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+    stmt = select(User).where(User.email == body.email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
     token = create_access_token({"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}

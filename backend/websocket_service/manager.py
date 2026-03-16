@@ -14,10 +14,6 @@ class ConnectionManager:
     def __init__(self):
         self._clients: Dict[str, Dict] = {}
         self._lock = asyncio.Lock()
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-
-    def set_event_loop(self, loop: asyncio.AbstractEventLoop):
-        self._loop = loop
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -28,15 +24,19 @@ class ConnectionManager:
     async def disconnect(self, client_id: str):
         async with self._lock:
             self._clients.pop(client_id, None)
+        logger.info(f"WS client disconnected: {client_id}")
 
     async def subscribe(self, client_id: str, symbols: list):
         async with self._lock:
             if client_id in self._clients:
                 self._clients[client_id]["symbols"] = set(symbols)
+                logger.info(f"Client {client_id} subscribed to {symbols}")
 
     async def broadcast_tick(self, symbol: str, price: float, volume: int, timestamp: datetime):
         msg = json.dumps({
-            "type": "tick", "symbol": symbol, "price": price,
+            "type": "tick",
+            "symbol": symbol,
+            "price": price,
             "volume": volume,
             "timestamp": timestamp.isoformat() if timestamp else None,
         })
@@ -45,11 +45,15 @@ class ConnectionManager:
     async def broadcast_candle_close(self, symbol: str, timeframe: str, candle: dict):
         ts = candle["timestamp"]
         msg = json.dumps({
-            "type": "candle_close", "symbol": symbol, "timeframe": timeframe,
+            "type": "candle_close",
+            "symbol": symbol,
+            "timeframe": timeframe,
             "candle": {
                 "time": int(ts.timestamp()) if hasattr(ts, "timestamp") else ts,
-                "open": float(candle["open"]), "high": float(candle["high"]),
-                "low": float(candle["low"]),   "close": float(candle["close"]),
+                "open": float(candle["open"]),
+                "high": float(candle["high"]),
+                "low": float(candle["low"]),
+                "close": float(candle["close"]),
                 "volume": int(candle["volume"]),
             }
         })
@@ -68,11 +72,9 @@ class ConnectionManager:
         for cid in dead:
             await self.disconnect(cid)
 
-    def broadcast_tick_threadsafe(self, symbol: str, price: float, volume: int, timestamp: datetime):
-        if self._loop and not self._loop.is_closed():
-            asyncio.run_coroutine_threadsafe(
-                self.broadcast_tick(symbol, price, volume, timestamp), self._loop
-            )
+    async def broadcast_tick_threadsafe(self, symbol: str, price: float, volume: int, timestamp: datetime):
+        """Convenience method if called from non-async code: schedules broadcast in the loop."""
+        asyncio.create_task(self.broadcast_tick(symbol, price, volume, timestamp))
 
     def get_connection_count(self) -> int:
         return len(self._clients)

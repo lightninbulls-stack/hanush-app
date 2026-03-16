@@ -1,8 +1,5 @@
-"""KiteTicker WebSocket — subscribes to all active symbols, feeds aggregator."""
-
 import logging
-import threading
-import time
+import asyncio
 from datetime import datetime, time as dtime
 from typing import Optional, Callable
 
@@ -21,13 +18,11 @@ class KiteTickerService:
     def __init__(self):
         self._ticker: Optional[KiteTicker] = None
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._flush_thread: Optional[threading.Thread] = None
-        self._partial_thread: Optional[threading.Thread] = None
+        self._tasks: list[asyncio.Task] = []
         self._eod_scheduled = False
         self.on_tick_callback: Optional[Callable] = None
 
-    def start(self):
+    async def start(self):
         if self._running:
             return
         if not instrument_manager.is_loaded():
@@ -36,17 +31,16 @@ class KiteTickerService:
         if not kite_auth.get_kite():
             logger.error("Kite not authenticated.")
             return
+
         self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True, name="kite-ticker")
-        self._thread.start()
-        self._flush_thread = threading.Thread(target=self._db_flush_loop, daemon=True, name="db-flush")
-        self._flush_thread.start()
-        self._partial_thread = threading.Thread(target=self._partial_flush_loop, daemon=True, name="partial-flush")
-        self._partial_thread.start()
-        threading.Thread(target=self._eod_scheduler, daemon=True, name="eod-scheduler").start()
+        # launch async tasks
+        self._tasks.append(asyncio.create_task(self._run()))
+        self._tasks.append(asyncio.create_task(self._db_flush_loop()))
+        self._tasks.append(asyncio.create_task(self._partial_flush_loop()))
+        self._tasks.append(asyncio.create_task(self._eod_scheduler()))
         logger.info("KiteTickerService started")
 
-    def stop(self):
+    async def stop(self):
         self._running = False
         if self._ticker:
             try:
@@ -54,8 +48,11 @@ class KiteTickerService:
                 self._ticker.close()
             except Exception:
                 pass
+        for t in self._tasks:
+            t.cancel()
+        self._tasks.clear()
 
-    def resubscribe(self):
+    async def resubscribe(self):
         """Hot-add/remove symbols without restarting the connection."""
         if not self._ticker or not self._running:
             return
@@ -67,7 +64,7 @@ class KiteTickerService:
         except Exception as e:
             logger.error(f"Resubscribe failed: {e}")
 
-    def _run(self):
+    async def _run(self):
         tokens = instrument_manager.get_all_tokens()
         self._ticker = KiteTicker(kite_auth.api_key, kite_auth.get_access_token())
 
@@ -109,25 +106,28 @@ class KiteTickerService:
         self._ticker.on_error = on_error
         self._ticker.on_reconnect = on_reconnect
         self._ticker.on_noreconnect = on_noreconnect
-        self._ticker.connect(threaded=False)
 
-    def _db_flush_loop(self):
+        # blocking call, so run in executor
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: self._ticker.connect(threaded=False))
+
+    async def _db_flush_loop(self):
         while self._running:
             try:
                 aggregator.flush_db_queue()
             except Exception as e:
                 logger.error(f"Flush loop error: {e}")
-            time.sleep(5)
+            await asyncio.sleep(5)
 
-    def _partial_flush_loop(self):
+    async def _partial_flush_loop(self):
         while self._running:
             try:
                 aggregator.flush_partial_candles()
             except Exception as e:
                 logger.error(f"Partial flush error: {e}")
-            time.sleep(30)
+            await asyncio.sleep(30)
 
-    def _eod_scheduler(self):
+    async def _eod_scheduler(self):
         while self._running:
             now = datetime.now(IST)
             if now.time() >= dtime(15, 30) and not self._eod_scheduled:
@@ -139,10 +139,10 @@ class KiteTickerService:
                     logger.error(f"EOD error: {e}")
             if now.time() < dtime(9, 0):
                 self._eod_scheduled = False
-            time.sleep(30)
+            await asyncio.sleep(30)
 
     def is_running(self) -> bool:
-        return self._running and self._thread is not None and self._thread.is_alive()
+        return self._running and bool(self._tasks)
 
 
 ticker_service = KiteTickerService()

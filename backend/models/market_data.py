@@ -2,8 +2,11 @@ from sqlalchemy import (
     Column, String, BigInteger, Integer,
     DateTime, Boolean, Index, UniqueConstraint, Text, Numeric
 )
-from db import Base
+from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+
+# Use declarative base for async engine
+Base = declarative_base()
 
 
 class Symbol(Base):

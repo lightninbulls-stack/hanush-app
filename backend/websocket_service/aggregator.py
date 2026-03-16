@@ -1,7 +1,6 @@
 """Real-time tick aggregator. Builds 1min/5min/15min/1hour candles in memory, flushes to DB."""
 
 import logging
-import threading
 import calendar
 from collections import defaultdict
 from datetime import datetime, time as dtime, date, timedelta
@@ -10,9 +9,9 @@ from typing import Dict, List
 import pytz
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.market_data import TIMEFRAME_MODEL_MAP, Candle1Day, Candle1Week, Candle1Month
-from db import SessionLocal
 
 logger = logging.getLogger(__name__)
 IST = pytz.timezone("Asia/Kolkata")
@@ -36,9 +35,17 @@ class LiveCandle:
         self.oi = oi
 
     def to_dict(self):
-        return {"symbol": self.symbol, "timestamp": self.open_time,
-                "open": self.open, "high": self.high, "low": self.low,
-                "close": self.close, "volume": self.volume, "oi": self.oi, "is_partial": False}
+        return {
+            "symbol": self.symbol,
+            "timestamp": self.open_time,
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "volume": self.volume,
+            "oi": self.oi,
+            "is_partial": False,
+        }
 
 
 def get_candle_open_time(tick_time: datetime, minutes: int) -> datetime:
@@ -49,11 +56,11 @@ def get_candle_open_time(tick_time: datetime, minutes: int) -> datetime:
 class TickAggregator:
     def __init__(self):
         self.candles: Dict[str, Dict[str, LiveCandle]] = defaultdict(dict)
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self._queue: List[dict] = []
-        self._queue_lock = threading.Lock()
+        self._queue_lock = asyncio.Lock()
 
-    def process_tick(self, symbol: str, tick: dict):
+    async def process_tick(self, symbol: str, tick: dict):
         price = tick.get("last_price")
         if not price:
             return
@@ -61,20 +68,20 @@ class TickAggregator:
         tick_time = tick.get("exchange_timestamp") or datetime.now(IST)
         if not tick_time.tzinfo:
             tick_time = IST.localize(tick_time)
-        with self._lock:
+        async with self._lock:
             for tf_name, minutes in REALTIME_TIMEFRAMES.items():
                 candle_open = get_candle_open_time(tick_time, minutes)
                 existing = self.candles[symbol].get(tf_name)
                 if existing is None or existing.open_time != candle_open:
                     if existing is not None:
-                        with self._queue_lock:
+                        async with self._queue_lock:
                             self._queue.append({"timeframe": tf_name, "data": existing.to_dict()})
                     self.candles[symbol][tf_name] = LiveCandle(symbol, tf_name, candle_open, price)
                 else:
                     existing.update(price, oi=oi)
 
-    def flush_db_queue(self):
-        with self._queue_lock:
+    async def flush_db_queue(self, db: AsyncSession):
+        async with self._queue_lock:
             if not self._queue:
                 return
             batch = self._queue.copy()
@@ -82,7 +89,6 @@ class TickAggregator:
         by_tf: Dict[str, List] = defaultdict(list)
         for item in batch:
             by_tf[item["timeframe"]].append(item["data"])
-        db = SessionLocal()
         try:
             for tf, rows in by_tf.items():
                 Model = TIMEFRAME_MODEL_MAP[tf]
@@ -91,17 +97,15 @@ class TickAggregator:
                     index_elements=["symbol", "timestamp"],
                     set_={k: stmt.excluded[k] for k in ["open", "high", "low", "close", "volume", "oi", "is_partial"]}
                 )
-                db.execute(stmt)
-            db.commit()
+                await db.execute(stmt)
+            await db.commit()
         except Exception as e:
-            db.rollback()
+            await db.rollback()
             logger.error(f"DB flush error: {e}")
-        finally:
-            db.close()
 
-    def flush_partial_candles(self):
+    async def flush_partial_candles(self, db: AsyncSession):
         rows_by_tf: Dict[str, List] = defaultdict(list)
-        with self._lock:
+        async with self._lock:
             for symbol, tf_candles in self.candles.items():
                 for tf, candle in tf_candles.items():
                     row = candle.to_dict()
@@ -109,108 +113,97 @@ class TickAggregator:
                     rows_by_tf[tf].append(row)
         if not rows_by_tf:
             return
-        db = SessionLocal()
         try:
             for tf, rows in rows_by_tf.items():
                 Model = TIMEFRAME_MODEL_MAP[tf]
                 stmt = pg_insert(Model.__table__).values(rows)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["symbol", "timestamp"],
-                    set_={"high": stmt.excluded.high, "low": stmt.excluded.low,
-                          "close": stmt.excluded.close, "volume": stmt.excluded.volume,
-                          "oi": stmt.excluded.oi, "is_partial": True}
+                    set_={
+                        "high": stmt.excluded.high,
+                        "low": stmt.excluded.low,
+                        "close": stmt.excluded.close,
+                        "volume": stmt.excluded.volume,
+                        "oi": stmt.excluded.oi,
+                        "is_partial": True,
+                    }
                 )
-                db.execute(stmt)
-            db.commit()
+                await db.execute(stmt)
+            await db.commit()
         except Exception as e:
-            db.rollback()
+            await db.rollback()
             logger.error(f"Partial flush error: {e}")
-        finally:
-            db.close()
 
-    def finalize_eod_candles(self):
+    async def finalize_eod_candles(self, db: AsyncSession):
         logger.info("EOD finalization started")
-        with self._lock:
+        async with self._lock:
             for symbol, tf_candles in self.candles.items():
                 for tf, candle in tf_candles.items():
-                    with self._queue_lock:
+                    async with self._queue_lock:
                         self._queue.append({"timeframe": tf, "data": candle.to_dict()})
             self.candles.clear()
-        self.flush_db_queue()
+        await self.flush_db_queue(db)
         today = date.today()
-        self._build_daily_candle(today)
+        await self._build_daily_candle(db, today)
         if today.weekday() == 4:
-            self._build_weekly_candle(today)
+            await self._build_weekly_candle(db, today)
         if self._is_last_trading_day_of_month(today):
-            self._build_monthly_candle(today)
+            await self._build_monthly_candle(db, today)
         logger.info("EOD finalization complete")
 
-    def _build_daily_candle(self, for_date: date):
+    async def _build_daily_candle(self, db: AsyncSession, for_date: date):
         from market_data.symbol_registry import get_active_symbols
-        db = SessionLocal()
         try:
-            for symbol in get_active_symbols():
-                result = db.execute(
+            for symbol in await get_active_symbols(db):
+                result = await db.execute(
                     text("""SELECT (array_agg(open ORDER BY timestamp))[1], MAX(high), MIN(low),
                             (array_agg(close ORDER BY timestamp DESC))[1], SUM(volume)
                             FROM ohlcv_1min WHERE symbol = :sym AND timestamp::date = :d AND is_partial = false"""),
                     {"sym": symbol, "d": for_date}
-                ).fetchone()
-                if result and result[0]:
-                    row = {"symbol": symbol, "timestamp": datetime.combine(for_date, dtime(9, 15)),
-                           "open": float(result[0]), "high": float(result[1]),
-                           "low": float(result[2]), "close": float(result[3]),
-                           "volume": int(result[4] or 0), "oi": 0, "is_partial": False}
-                    stmt = pg_insert(Candle1Day.__table__).values([row])
-                    stmt = stmt.on_conflict_do_update(index_elements=["symbol", "timestamp"],
-                        set_={k: stmt.excluded[k] for k in ["open", "high", "low", "close", "volume"]})
-                    db.execute(stmt)
-            db.commit()
+                )
+                row = result.fetchone()
+                if row and row[0]:
+                    candle_row = {
+                        "symbol": symbol,
+                        "timestamp": datetime.combine(for_date, dtime(9, 15)),
+                        "open": float(row[0]),
+                        "high": float(row[1]),
+                        "low": float(row[2]),
+                        "close": float(row[3]),
+                        "volume": int(row[4] or 0),
+                        "oi": 0,
+                        "is_partial": False,
+                    }
+                    stmt = pg_insert(Candle1Day.__table__).values([candle_row])
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["symbol", "timestamp"],
+                        set_={k: stmt.excluded[k] for k in ["open", "high", "low", "close", "volume"]}
+                    )
+                    await db.execute(stmt)
+            await db.commit()
         except Exception as e:
-            db.rollback()
+            await db.rollback()
             logger.error(f"Daily candle build error: {e}")
-        finally:
-            db.close()
 
-    def _build_weekly_candle(self, friday: date):
-        self._aggregate_higher_tf(Candle1Day, Candle1Week, friday - timedelta(days=4), friday, "1week")
+    async def _build_weekly_candle(self, db: AsyncSession, friday: date):
+        await self._aggregate_higher_tf(db, Candle1Day, Candle1Week, friday - timedelta(days=4), friday, "1week")
 
-    def _build_monthly_candle(self, last_day: date):
-        self._aggregate_higher_tf(Candle1Day, Candle1Month, last_day.replace(day=1), last_day, "1month")
+    async def _build_monthly_candle(self, db: AsyncSession, last_day: date):
+        await self._aggregate_higher_tf(db, Candle1Day, Candle1Month, last_day.replace(day=1), last_day, "1month")
 
-    def _aggregate_higher_tf(self, source_model, target_model, from_date, to_date, label: str):
+    async def _aggregate_higher_tf(self, db: AsyncSession, source_model, target_model, from_date, to_date, label: str):
         from market_data.symbol_registry import get_active_symbols
-        db = SessionLocal()
         try:
-            for symbol in get_active_symbols():
-                result = db.execute(
+            for symbol in await get_active_symbols(db):
+                result = await db.execute(
                     text(f"""SELECT (array_agg(open ORDER BY timestamp))[1], MAX(high), MIN(low),
                              (array_agg(close ORDER BY timestamp DESC))[1], SUM(volume)
                              FROM {source_model.__tablename__}
                              WHERE symbol = :sym AND timestamp::date BETWEEN :from_d AND :to_d AND is_partial = false"""),
                     {"sym": symbol, "from_d": from_date, "to_d": to_date}
-                ).fetchone()
-                if result and result[0]:
-                    row = {"symbol": symbol, "timestamp": datetime.combine(from_date, dtime(0, 0)),
-                           "open": float(result[0]), "high": float(result[1]),
-                           "low": float(result[2]), "close": float(result[3]),
-                           "volume": int(result[4] or 0), "oi": 0, "is_partial": False}
-                    stmt = pg_insert(target_model.__table__).values([row])
-                    stmt = stmt.on_conflict_do_update(index_elements=["symbol", "timestamp"],
-                        set_={k: stmt.excluded[k] for k in ["open", "high", "low", "close", "volume"]})
-                    db.execute(stmt)
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error(f"{label} aggregation error: {e}")
-        finally:
-            db.close()
-
-    def _is_last_trading_day_of_month(self, d: date) -> bool:
-        last = date(d.year, d.month, calendar.monthrange(d.year, d.month)[1])
-        while last.weekday() >= 5:
-            last -= timedelta(days=1)
-        return d == last
-
-
-aggregator = TickAggregator()
+                )
+                row = result.fetchone()
+                if row and row[0]:
+                    candle_row = {
+                        "symbol": symbol,
+                        "timestamp

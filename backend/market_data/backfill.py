@@ -1,7 +1,7 @@
 """Historical data backfill from Kite API. Rate-limited to 3 req/sec."""
 
 import logging
-import time
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
@@ -25,7 +25,8 @@ MAX_DAYS_PER_REQUEST = {
 }
 
 
-def fetch_kite_historical(symbol: str, timeframe: str, from_date: datetime, to_date: datetime, kite) -> List[Dict]:
+def fetch_kite_historical(symbol: str, timeframe: str,
+                          from_date: datetime, to_date: datetime, kite) -> List[Dict]:
     token = instrument_manager.get_token(symbol)
     if not token:
         return []
@@ -33,8 +34,14 @@ def fetch_kite_historical(symbol: str, timeframe: str, from_date: datetime, to_d
     if timeframe in ("1week", "1month"):
         interval = "day"
     try:
-        return kite.historical_data(instrument_token=token, from_date=from_date,
-                                    to_date=to_date, interval=interval, continuous=False, oi=True)
+        return kite.historical_data(
+            instrument_token=token,
+            from_date=from_date,
+            to_date=to_date,
+            interval=interval,
+            continuous=False,
+            oi=True
+        )
     except Exception as e:
         logger.error(f"Kite fetch error {symbol}/{timeframe}: {e}")
         return []
@@ -47,12 +54,17 @@ def resample_to_timeframe(records: List[Dict], timeframe: str) -> List[Dict]:
     df["date"] = pd.to_datetime(df["date"])
     df.set_index("date", inplace=True)
     rule = "W-FRI" if timeframe == "1week" else "MS"
-    agg = df.resample(rule).agg({"open": "first", "high": "max", "low": "min",
-                                  "close": "last", "volume": "sum", "oi": "last"}).dropna(subset=["open"])
-    return [{"date": ts.to_pydatetime(), "open": float(r["open"]), "high": float(r["high"]),
-              "low": float(r["low"]), "close": float(r["close"]),
-              "volume": int(r["volume"]), "oi": int(r.get("oi", 0))}
-            for ts, r in agg.iterrows()]
+    agg = df.resample(rule).agg({
+        "open": "first", "high": "max", "low": "min",
+        "close": "last", "volume": "sum", "oi": "last"
+    }).dropna(subset=["open"])
+    return [
+        {"date": ts.to_pydatetime(),
+         "open": float(r["open"]), "high": float(r["high"]),
+         "low": float(r["low"]), "close": float(r["close"]),
+         "volume": int(r["volume"]), "oi": int(r.get("oi", 0))}
+        for ts, r in agg.iterrows()
+    ]
 
 
 def upsert_candles(db: Session, timeframe: str, symbol: str, records: List[Dict]) -> int:
@@ -62,9 +74,13 @@ def upsert_candles(db: Session, timeframe: str, symbol: str, records: List[Dict]
     rows = []
     for r in records:
         ts = r["date"] if isinstance(r["date"], datetime) else pd.to_datetime(r["date"]).to_pydatetime()
-        rows.append({"symbol": symbol, "timestamp": ts, "open": float(r["open"]),
-                     "high": float(r["high"]), "low": float(r["low"]), "close": float(r["close"]),
-                     "volume": int(r.get("volume", 0)), "oi": int(r.get("oi", 0)), "is_partial": False})
+        rows.append({
+            "symbol": symbol, "timestamp": ts,
+            "open": float(r["open"]), "high": float(r["high"]),
+            "low": float(r["low"]), "close": float(r["close"]),
+            "volume": int(r.get("volume", 0)), "oi": int(r.get("oi", 0)),
+            "is_partial": False
+        })
     try:
         stmt = pg_insert(Model.__table__).values(rows)
         stmt = stmt.on_conflict_do_nothing(index_elements=["symbol", "timestamp"])
@@ -78,12 +94,16 @@ def upsert_candles(db: Session, timeframe: str, symbol: str, records: List[Dict]
 
 
 def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
+    """Synchronous backfill for one symbol/timeframe."""
     db = SessionLocal()
     kite = kite_auth.get_kite()
     if not kite:
         db.close()
         return 0
-    job = db.query(BackfillJob).filter(BackfillJob.symbol == symbol, BackfillJob.timeframe == timeframe).first()
+    job = db.query(BackfillJob).filter(
+        BackfillJob.symbol == symbol,
+        BackfillJob.timeframe == timeframe
+    ).first()
     if job and job.status == "done" and not force:
         db.close()
         return 0
@@ -128,7 +148,15 @@ def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
     return total
 
 
-def run_full_backfill(timeframes: List[str] = None, symbols: List[str] = None, force: bool = False):
+# --- Async wrappers for safe use in FastAPI/Uvicorn ---
+
+async def backfill_symbol_async(symbol: str, timeframe: str, force: bool = False) -> int:
+    return await asyncio.to_thread(backfill_symbol, symbol, timeframe, force)
+
+
+async def run_full_backfill_async(timeframes: List[str] = None,
+                                  symbols: List[str] = None,
+                                  force: bool = False):
     if not instrument_manager.is_loaded():
         instrument_manager.load_instruments()
     symbols = symbols or get_active_symbols()
@@ -136,26 +164,30 @@ def run_full_backfill(timeframes: List[str] = None, symbols: List[str] = None, f
     logger.info(f"Backfill start: {len(symbols)} symbols × {len(timeframes)} timeframes")
     for tf in timeframes:
         for symbol in symbols:
-            backfill_symbol(symbol, tf, force=force)
-            time.sleep(0.1)
+            await backfill_symbol_async(symbol, tf, force=force)
+            await asyncio.sleep(0.1)
     logger.info("Backfill complete")
 
 
-def refresh_recent_1min(symbols: List[str] = None):
+async def refresh_recent_1min_async(symbols: List[str] = None):
     if not instrument_manager.is_loaded():
         instrument_manager.load_instruments()
     kite = kite_auth.get_kite()
     if not kite:
         return
     symbols = symbols or get_active_symbols()
-    db = SessionLocal()
     to_date = datetime.now()
     from_date = to_date - timedelta(days=2)
-    try:
-        for symbol in symbols:
+
+    async def refresh_one(symbol: str):
+        db = SessionLocal()
+        try:
             records = fetch_kite_historical(symbol, "1min", from_date, to_date, kite)
             if records:
                 upsert_candles(db, "1min", symbol, records)
-            time.sleep(REQUEST_DELAY)
-    finally:
-        db.close()
+        finally:
+            db.close()
+
+    for symbol in symbols:
+        await asyncio.to_thread(refresh_one, symbol)
+        await asyncio.sleep(REQUEST_DELAY)

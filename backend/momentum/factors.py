@@ -1,65 +1,61 @@
 from __future__ import annotations
 
 from typing import List, Optional
+import asyncio
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 
-def download_close_prices(tickers: List[str], start: str, end: Optional[str]) -> pd.DataFrame:
-    df = yf.download(
-        tickers=tickers,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False,
-        group_by="column",
-        threads=True,
-    )
+async def download_close_prices(tickers: List[str], start: str, end: Optional[str]) -> pd.DataFrame:
+    def _download():
+        df = yf.download(
+            tickers=tickers,
+            start=start,
+            end=end,
+            auto_adjust=True,
+            progress=False,
+            group_by="column",
+            threads=True,
+        )
+        if df.empty:
+            raise RuntimeError("No data returned from Yahoo. Check internet / tickers.")
+        if isinstance(df.columns, pd.MultiIndex):
+            if "Close" not in df.columns.get_level_values(0):
+                raise RuntimeError("Unexpected yfinance output: 'Close' not found.")
+            close = df["Close"].copy()
+        else:
+            close = df[["Close"]].rename(columns={"Close": tickers[0]})
+        return close.dropna(how="all")
 
-    if df.empty:
-        raise RuntimeError("No data returned from Yahoo. Check internet / tickers.")
-
-    if isinstance(df.columns, pd.MultiIndex):
-        if "Close" not in df.columns.get_level_values(0):
-            raise RuntimeError("Unexpected yfinance output: 'Close' not found.")
-        close = df["Close"].copy()
-    else:
-        close = df[["Close"]].rename(columns={"Close": tickers[0]})
-
-    return close.dropna(how="all")
-
-
-def latest_ret_3m(monthly: pd.DataFrame) -> pd.Series:
-    r = (monthly / monthly.shift(3)) - 1.0
-    return r.iloc[-1].dropna()
+    return await asyncio.to_thread(_download)
 
 
-def latest_mom_6_1(monthly: pd.DataFrame) -> pd.Series:
-    mom = (monthly.shift(1) / monthly.shift(7)) - 1.0
-    return mom.iloc[-1].dropna()
+async def latest_ret_3m(monthly: pd.DataFrame) -> pd.Series:
+    return await asyncio.to_thread(lambda: (monthly / monthly.shift(3) - 1.0).iloc[-1].dropna())
 
 
-def build_snapshot(monthly: pd.DataFrame) -> pd.DataFrame:
-    snap = pd.concat(
-        [
-            latest_ret_3m(monthly).rename("ret_3m"),
-            latest_mom_6_1(monthly).rename("mom_6_1"),
-        ],
-        axis=1,
-    ).dropna(how="any")
+async def latest_mom_6_1(monthly: pd.DataFrame) -> pd.Series:
+    return await asyncio.to_thread(lambda: (monthly.shift(1) / monthly.shift(7) - 1.0).iloc[-1].dropna())
+
+
+async def build_snapshot(monthly: pd.DataFrame) -> pd.DataFrame:
+    ret3m = await latest_ret_3m(monthly)
+    mom61 = await latest_mom_6_1(monthly)
+    snap = pd.concat([ret3m.rename("ret_3m"), mom61.rename("mom_6_1")], axis=1).dropna(how="any")
     snap.index.name = "Ticker"
     return snap
 
 
-def rank_snapshot(snapshot: pd.DataFrame, key: str) -> pd.DataFrame:
-    if key not in snapshot.columns:
-        raise ValueError(f"rank_by must be one of {list(snapshot.columns)}. Got: {key}")
-    out = snapshot.copy()
-    out["rank"] = out[key].rank(ascending=False, method="dense").astype(int)
-    out = out.sort_values(["rank", key], ascending=[True, False])
-    return out
+async def rank_snapshot(snapshot: pd.DataFrame, key: str) -> pd.DataFrame:
+    def _rank():
+        if key not in snapshot.columns:
+            raise ValueError(f"rank_by must be one of {list(snapshot.columns)}. Got: {key}")
+        out = snapshot.copy()
+        out["rank"] = out[key].rank(ascending=False, method="dense").astype(int)
+        return out.sort_values(["rank", key], ascending=[True, False])
+    return await asyncio.to_thread(_rank)
 
 
 def trend_arrow(m: float) -> str:
@@ -84,21 +80,18 @@ def minmax_score(series: pd.Series) -> pd.Series:
     return pd.Series([50] * len(s), index=s.index, dtype=int)
 
 
-def build_topn_ui_table(
+async def build_topn_ui_table(
     ranked: pd.DataFrame,
     sector_map: pd.DataFrame,
     asof_date: str,
     top_n: int,
 ) -> pd.DataFrame:
-    df = ranked.reset_index().merge(sector_map, on="Ticker", how="left")
-    df["Sector"] = df["Sector"].fillna("Unknown")
-
-    # score computed across full ranked universe
-    df["Score"] = minmax_score(df["mom_6_1"])
-
-    top = df.head(top_n).copy()
-    out = pd.DataFrame(
-        {
+    def _build():
+        df = ranked.reset_index().merge(sector_map, on="Ticker", how="left")
+        df["Sector"] = df["Sector"].fillna("Unknown")
+        df["Score"] = minmax_score(df["mom_6_1"])
+        top = df.head(top_n).copy()
+        return pd.DataFrame({
             "Date": [asof_date] * len(top),
             "Rank": top["rank"].astype(int),
             "Symbol": top["Ticker"].astype(str).str.replace(".NS", "", regex=False),
@@ -108,6 +101,5 @@ def build_topn_ui_table(
             "6M Return": (top["mom_6_1"] * 100).round(2),
             "Trend": top["mom_6_1"].astype(float).map(trend_arrow),
             "Notes": ["—"] * len(top),
-        }
-    )
-    return out
+        })
+    return await asyncio.to_thread(_build)
