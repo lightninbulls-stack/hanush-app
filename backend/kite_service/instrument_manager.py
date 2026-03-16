@@ -57,6 +57,11 @@ class InstrumentManager:
             self._symbol_map = {v: k for k, v in token_map.items()}
             self._loaded_date = date.today()
             self._save_to_cache()
+            
+            # Print counts and values
+            logger.info(f"Fetched {len(instruments)} instruments from NSE")
+            logger.debug(f"Instrument map: {self._all_instruments}")
+        
             for inst in instruments:
                 if inst["tradingsymbol"] in token_map:
                     update_symbol_token(inst["tradingsymbol"], inst["instrument_token"], name=inst.get("name"))
@@ -80,6 +85,9 @@ class InstrumentManager:
             if token:
                 return token
         if self.load_instruments(force_refresh=True):
+            print("Symbol → Token mapping:")
+            for symbol, token in instrument_manager.get_token_map().items():
+                print(f"{symbol}: {token}")
             return self._all_instruments.get(symbol.upper())
         return None
 
