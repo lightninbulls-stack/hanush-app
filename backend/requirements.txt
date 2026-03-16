@@ -3,12 +3,12 @@ fastapi
 uvicorn[standard]
 python-multipart
 
-# Database (new)
+# Database
 sqlalchemy==2.0.36
 psycopg2-binary
 alembic
 
-# Zerodha Kite (new)
+# Zerodha Kite
 kiteconnect
 
 # Data
@@ -16,17 +16,21 @@ pandas
 numpy
 openpyxl
 
-# Token encryption (new)
+# Token encryption
 cryptography
 
-# Auth / JWT (new)
+# Auth / JWT
 bcrypt
 python-jose[cryptography]
+passlib[bcrypt]
 
-# Scheduler (new)
+# TOTP (for Kite login automation)
+pyotp
+
+# Scheduler
 apscheduler
 
-# Timezone (new)
+# Timezone
 pytz
 
 # Cache
