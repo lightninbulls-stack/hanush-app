@@ -32,7 +32,7 @@ import models  # noqa: registers User + all market tables on Base
 from models.market_data import TIMEFRAME_MODEL_MAP, Symbol, BackfillJob
 from kite_service.auth import kite_auth
 from kite_service.instrument_manager import instrument_manager
-from market_data.backfill import run_full_backfill, refresh_recent_1min
+from market_data.backfill import run_full_backfill_async as run_full_backfill, refresh_recent_1min_async as refresh_recent_1min
 from market_data.query import (
     get_candles, get_latest_price, get_multi_symbol_latest,
     get_data_stats, get_available_range
@@ -100,12 +100,7 @@ async def lifespan(app: FastAPI):
         await _run_in_thread(instrument_manager.load_instruments)
         ticker_service.start()   # starts daemon threads internally
         # Backfill in background — does not block startup or event loop
-        asyncio.create_task(
-            _run_in_thread(
-                run_full_backfill,
-                ["1day", "1week", "1month", "1hour", "15min", "5min"]
-            )
-        )
+        asyncio.create_task(run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"]))
     else:
         logger.warning("Kite not authenticated. Visit /kite/login to authenticate.")
 
@@ -190,7 +185,7 @@ async def _post_auth_startup():
     await _run_in_thread(instrument_manager.load_instruments)
     if not ticker_service.is_running():
         ticker_service.start()
-    await _run_in_thread(refresh_recent_1min)
+    await refresh_recent_1min()
 
 
 @app.get("/kite/status", tags=["kite-auth"])
@@ -303,10 +298,7 @@ async def trigger_backfill(
     force: bool = False,
     background_tasks: BackgroundTasks = None,
 ):
-    background_tasks.add_task(
-        _run_in_thread, run_full_backfill,
-        timeframes, symbols, force
-    )
+    background_tasks.add_task(run_full_backfill, timeframes, symbols, force)
     return {"status": "started", "message": "Backfill running in background"}
 
 
@@ -370,7 +362,7 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
 
     if req.backfill:
         tfs = req.timeframes or ["1day", "1week", "1month", "1hour", "15min", "5min", "1min"]
-        background_tasks.add_task(_run_in_thread, run_full_backfill, tfs, [symbol])
+        background_tasks.add_task(run_full_backfill, tfs, [symbol])
         bf_msg = f"Backfilling {len(tfs)} timeframes in background"
     else:
         bf_msg = "Skipped"
@@ -404,7 +396,7 @@ async def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks, back
     ticker_service.resubscribe()
 
     if backfill:
-        background_tasks.add_task(_run_in_thread, run_full_backfill, None, [symbol], False)
+        background_tasks.add_task(run_full_backfill, None, [symbol], False)
 
     return {"status": "ok", "symbol": symbol, "instrument_token": token}
 
