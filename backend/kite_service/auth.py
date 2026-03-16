@@ -1,15 +1,27 @@
 """
 kite_service/auth.py — Kite Connect authentication
-Tokens stored encrypted in DB. Re-authenticate daily.
 
-Requires env vars:
+Supports two authentication modes:
+
+Mode 1 — Direct access_token (simplest, like auth_data.json approach):
+    Set KITE_ACCESS_TOKEN in Render env vars.
+    Get it from kite.zerodha.com → DevTools → Cookies → enctoken
+    OR from your local daily_login.py after generate_session().
+    Valid for 1 trading day. Update daily.
+
+Mode 2 — request_token exchange (browser login flow):
+    Set KITE_REQUEST_TOKEN in Render env vars and redeploy.
+    Only consumed once if no valid DB session exists.
+
+Mode 3 — DB session (automatic after first login):
+    Once authenticated, session is stored encrypted in DB and
+    reused automatically on restarts — no env var needed.
+
+Required env vars always:
     ZERODHA_API_KEY         — from developers.kite.trade
     ZERODHA_API_SECRET      — from developers.kite.trade
     TOKEN_ENCRYPTION_KEY    — generate once:
                               python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-
-Optional (env-var based daily auth — no browser needed):
-    KITE_REQUEST_TOKEN      — paste fresh request_token each morning, then redeploy on Render
 """
 
 import os
@@ -33,8 +45,7 @@ class KiteAuthManager:
 
         if not api_key or not api_secret:
             raise RuntimeError(
-                "ZERODHA_API_KEY and ZERODHA_API_SECRET must be set as environment variables. "
-                "Get these from https://developers.kite.trade/apps"
+                "ZERODHA_API_KEY and ZERODHA_API_SECRET must be set as environment variables."
             )
         if not fernet_key:
             raise RuntimeError(
@@ -48,47 +59,120 @@ class KiteAuthManager:
         self._kite: Optional[KiteConnect] = None
         self._access_token: Optional[str] = None
 
-        # Auto-consume KITE_REQUEST_TOKEN if set as env var on Render
-        self._consume_env_request_token()
+        # Try all auth modes in order
+        self._bootstrap()
 
-    def _consume_env_request_token(self):
+    def _bootstrap(self):
         """
-        If KITE_REQUEST_TOKEN is set as an env var, consume it on startup to
-        generate and store a fresh access_token in the DB.
+        Try authentication in this order:
+          1. KITE_ACCESS_TOKEN env var  (simplest — just paste token directly)
+          2. KITE_REQUEST_TOKEN env var  (exchange for access_token, only if no DB session)
+          3. DB session                  (automatic on restarts after first login)
+        """
+        # Mode 1: Direct access_token from env var
+        self._consume_access_token_env()
 
-        Daily workflow on Render:
-          1. Open /kite/login in browser → log in → copy request_token from redirect URL
-          2. Set KITE_REQUEST_TOKEN = <that value> in Render env vars
-          3. Click Save Changes → Render redeploys → this method runs automatically
+        # Mode 2: request_token from env var (only if Mode 1 didn't work)
+        if not self._kite:
+            self._consume_request_token_env()
+
+    def _consume_access_token_env(self):
+        """
+        Mode 1: KITE_ACCESS_TOKEN env var.
+        Equivalent to auth_data.json approach — just set the access_token directly.
+        No request_token exchange needed. Update this env var each morning.
+        """
+        access_token = os.environ.get("KITE_ACCESS_TOKEN", "").strip()
+        if not access_token:
+            return
+
+        logger.info("KITE_ACCESS_TOKEN found — validating...")
+        try:
+            kite = KiteConnect(api_key=self.api_key)
+            kite.set_access_token(access_token)
+            profile = kite.profile()  # validates the token is still alive
+
+            # Save to DB for reuse across restarts
+            self._save_access_token_to_db(access_token)
+
+            self._kite         = kite
+            self._access_token = access_token
+            logger.info(
+                f"Authenticated via KITE_ACCESS_TOKEN — {profile.get('user_name')} "
+                f"({profile.get('email')})"
+            )
+        except Exception as e:
+            logger.error(
+                f"KITE_ACCESS_TOKEN is invalid or expired: {e}\n"
+                "Get a fresh access_token and update KITE_ACCESS_TOKEN in Render env vars."
+            )
+
+    def _consume_request_token_env(self):
+        """
+        Mode 2: KITE_REQUEST_TOKEN env var.
+        Only consumed if no valid session exists in DB already.
         """
         request_token = os.environ.get("KITE_REQUEST_TOKEN", "").strip()
         if not request_token:
             return
 
-        logger.info("KITE_REQUEST_TOKEN found in environment — consuming on startup...")
+        # Skip if DB already has a valid session
+        db = SessionLocal()
+        try:
+            existing = (
+                db.query(KiteSession)
+                .filter(KiteSession.is_active == True)
+                .filter(KiteSession.expires_at > datetime.utcnow())
+                .first()
+            )
+            if existing:
+                logger.info(
+                    "KITE_REQUEST_TOKEN set but valid DB session exists — skipping."
+                )
+                return
+        finally:
+            db.close()
+
+        logger.info("KITE_REQUEST_TOKEN found — no active DB session, consuming...")
         try:
             self.generate_session(request_token)
-            logger.info(
-                "Successfully authenticated via KITE_REQUEST_TOKEN. "
-                "You can remove it from Render env vars after deployment."
-            )
+            logger.info("Authenticated via KITE_REQUEST_TOKEN. Session stored in DB.")
         except Exception as e:
             logger.error(
                 f"Failed to consume KITE_REQUEST_TOKEN: {e}\n"
-                "The token may have expired (valid only a few minutes after Zerodha login).\n"
-                "Get a fresh token from /kite/login, update KITE_REQUEST_TOKEN, and redeploy."
+                "Token may have expired. Use KITE_ACCESS_TOKEN instead — it's simpler."
             )
+
+    def _save_access_token_to_db(self, access_token: str):
+        """Encrypt and save access_token to DB for reuse across restarts."""
+        encrypted = self.fernet.encrypt(access_token.encode()).decode()
+        db = SessionLocal()
+        try:
+            db.query(KiteSession).update({"is_active": False})
+            db.add(KiteSession(
+                access_token  = encrypted,
+                request_token = "via_env_var",
+                public_token  = None,
+                is_active     = True,
+                expires_at    = datetime.utcnow() + timedelta(hours=18),
+            ))
+            db.commit()
+            logger.info("Access token saved to DB.")
+        except Exception as e:
+            logger.warning(f"Could not save token to DB: {e}")
+        finally:
+            db.close()
 
     def get_login_url(self) -> str:
         return KiteConnect(api_key=self.api_key).login_url()
 
     def generate_session(self, request_token: str) -> str:
+        """Exchange request_token for access_token and store in DB."""
         kite = KiteConnect(api_key=self.api_key)
         data = kite.generate_session(request_token, api_secret=self.api_secret)
         access_token = data["access_token"]
 
         encrypted = self.fernet.encrypt(access_token.encode()).decode()
-
         db = SessionLocal()
         try:
             db.query(KiteSession).update({"is_active": False})
@@ -110,6 +194,7 @@ class KiteAuthManager:
         return access_token
 
     def get_kite(self) -> Optional[KiteConnect]:
+        """Return authenticated KiteConnect instance, loading from DB if needed."""
         if self._kite and self._access_token:
             return self._kite
 
@@ -124,9 +209,10 @@ class KiteAuthManager:
             )
             if not session:
                 logger.warning(
-                    "No active Kite session. To authenticate:\n"
-                    "  Option 1 — Visit /kite/login in browser\n"
-                    "  Option 2 — Set KITE_REQUEST_TOKEN in Render env vars and redeploy"
+                    "No active Kite session. To authenticate set one of:\n"
+                    "  KITE_ACCESS_TOKEN   — easiest, get from kite.zerodha.com cookies\n"
+                    "  KITE_REQUEST_TOKEN  — from /kite/login redirect URL\n"
+                    "Then update Render env vars and redeploy."
                 )
                 return None
 
