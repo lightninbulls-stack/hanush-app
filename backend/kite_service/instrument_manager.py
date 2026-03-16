@@ -60,12 +60,13 @@ class InstrumentManager:
             
             # Print counts and values
             logger.info(f"Fetched {len(instruments)} instruments from NSE")
-            logger.debug(f"Instrument map: {self._all_instruments}")
+            logger.info(f"Instrument map: {self._all_instruments}")
         
             for inst in instruments:
                 if inst["tradingsymbol"] in token_map:
                     update_symbol_token(inst["tradingsymbol"], inst["instrument_token"], name=inst.get("name"))
             logger.info(f"Token map: {len(token_map)}/{len(active)} symbols mapped")
+            logger.info(f"Token map from token_map: {token_map}")
             return True
         except Exception as e:
             logger.error(f"Failed to load instruments: {e}")
