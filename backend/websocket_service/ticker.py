@@ -69,8 +69,7 @@ class KiteTickerService:
 
     def _run(self):
         tokens = instrument_manager.get_all_tokens()
-        self._ticker = KiteTicker(kite_auth.api_key, kite_auth.get_access_token(),
-                                   reconnect=True, reconnect_tries=300)
+        self._ticker = KiteTicker(kite_auth.api_key, kite_auth.get_access_token())
 
         def on_ticks(ws, ticks):
             for tick in ticks:
@@ -89,10 +88,10 @@ class KiteTickerService:
             logger.info(f"KiteTicker connected — {len(tokens)} instruments subscribed")
 
         def on_close(ws, code, reason):
-            logger.warning(f"KiteTicker closed: {code} - {reason}")
+            logger.info(f"KiteTicker closed: {code} - {reason}")
 
         def on_error(ws, code, reason):
-            logger.error(f"KiteTicker error: {code} - {reason}")
+            logger.info(f"KiteTicker error: {code} - {reason}")
 
         def on_reconnect(ws, attempts):
             logger.info(f"KiteTicker reconnecting ({attempts})...")
