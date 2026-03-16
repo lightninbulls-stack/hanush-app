@@ -13,11 +13,11 @@ IST = pytz.timezone("Asia/Kolkata")
 async def _pre_market_refresh():
     try:
         from kite_service.auth import kite_auth
-        from market_data.backfill import refresh_recent_1min
+        from market_data.backfill import refresh_recent_1min_async as refresh_recent_1min
         if kite_auth.is_authenticated():
             logger.info("[Scheduler] Pre-market 1min refresh...")
             # if refresh_recent_1min is sync, run in executor
-            await asyncio.get_event_loop().run_in_executor(None, refresh_recent_1min)
+            await refresh_recent_1min()
         else:
             logger.warning("[Scheduler] Skipped — Kite not authenticated")
     except Exception as e:
@@ -73,7 +73,7 @@ async def _purge_live_ticks():
 async def _weekly_backfill_retry():
     try:
         from kite_service.auth import kite_auth
-        from market_data.backfill import run_full_backfill
+        from market_data.backfill import run_full_backfill_async as run_full_backfill
         from db import SessionLocal
         from models.market_data import BackfillJob
         if not kite_auth.is_authenticated():
@@ -85,12 +85,10 @@ async def _weekly_backfill_retry():
             return failed
         failed = await asyncio.get_event_loop().run_in_executor(None, retry)
         if failed:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                run_full_backfill,
-                list({j.symbol for j in failed}),
-                list({j.timeframe for j in failed}),
-                True
+            await run_full_backfill(
+                symbols=list({j.symbol for j in failed}),
+                timeframes=list({j.timeframe for j in failed}),
+                force=True
             )
     except Exception as e:
         logger.error(f"[Scheduler] Weekly retry: {e}")

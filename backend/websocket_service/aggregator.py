@@ -1,6 +1,7 @@
 """Real-time tick aggregator. Builds 1min/5min/15min/1hour candles in memory, flushes to DB."""
 
 import logging
+import asyncio
 import calendar
 from collections import defaultdict
 from datetime import datetime, time as dtime, date, timedelta
@@ -206,4 +207,32 @@ class TickAggregator:
                 if row and row[0]:
                     candle_row = {
                         "symbol": symbol,
-                        "timestamp
+                        "timestamp": datetime.combine(from_date, dtime(9, 15)),
+                        "open": float(row[0]),
+                        "high": float(row[1]),
+                        "low": float(row[2]),
+                        "close": float(row[3]),
+                        "volume": int(row[4] or 0),
+                        "oi": 0,
+                        "is_partial": False,
+                    }
+                    stmt = pg_insert(target_model.__table__).values([candle_row])
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["symbol", "timestamp"],
+                        set_={k: stmt.excluded[k] for k in ["open", "high", "low", "close", "volume"]}
+                    )
+                    await db.execute(stmt)
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"{label} candle build error: {e}")
+
+    @staticmethod
+    def _is_last_trading_day_of_month(today: date) -> bool:
+        last_day = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+        while last_day.weekday() >= 5:
+            last_day -= timedelta(days=1)
+        return today == last_day
+
+
+aggregator = TickAggregator()
