@@ -285,9 +285,12 @@ async def websocket_live(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "subscribe":
-                symbols = [s.upper() for s in data.get("symbols", [])]
-                await ws_manager.subscribe(client_id, symbols)
-                await websocket.send_json({"type": "subscribed", "symbols": symbols})
+                symbols    = [s.upper() for s in data.get("symbols", [])]
+                timeframes = data.get("timeframes", [])
+                await ws_manager.subscribe(client_id, symbols, timeframes)
+                await websocket.send_json({
+                    "type": "subscribed", "symbols": symbols, "timeframes": timeframes
+                })
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
