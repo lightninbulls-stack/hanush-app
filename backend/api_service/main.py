@@ -1,7 +1,7 @@
 """
 BullsEye Quant API — fully async
 - symbol_registry functions are all async and need AsyncSession
-- market_data queries (get_candles etc.) are sync → run in thread pool
+- market_data queries (get_candles etc.) are async → use AsyncSession directly
 - Backfill is async natively (run_full_backfill_async)
 - Scheduler uses AsyncIOScheduler
 - KiteTicker uses threaded=True (twisted in own thread)
@@ -204,7 +204,7 @@ async def get_chart_data(
     from_ts: Optional[int] = Query(None),
     to_ts: Optional[int] = Query(None),
     include_partial: bool = Query(True),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     symbol = symbol.upper()
     if timeframe not in TIMEFRAME_MODEL_MAP:
@@ -212,21 +212,21 @@ async def get_chart_data(
             detail=f"Invalid timeframe. Use: {list(TIMEFRAME_MODEL_MAP.keys())}")
     from_dt = datetime.fromtimestamp(from_ts) if from_ts else None
     to_dt   = datetime.fromtimestamp(to_ts)   if to_ts   else None
-    candles = await _run_in_thread(get_candles, db, symbol, timeframe, from_dt, to_dt, limit, include_partial)
+    candles = await get_candles(db, symbol, timeframe, from_dt, to_dt, limit, include_partial)
     return {"symbol": symbol, "timeframe": timeframe, "data": candles, "count": len(candles)}
 
 
 @app.get("/api/price/{symbol}", tags=["market-data"])
-async def get_price(symbol: str, db: Session = Depends(get_db)):
-    price = await _run_in_thread(get_latest_price, db, symbol.upper())
+async def get_price(symbol: str, db: AsyncSession = Depends(get_async_db)):
+    price = await get_latest_price(db, symbol.upper())
     if not price:
         raise HTTPException(status_code=404, detail="No price data found")
     return price
 
 
 @app.post("/api/prices", tags=["market-data"])
-async def get_prices_bulk(symbols: List[str], db: Session = Depends(get_db)):
-    return await _run_in_thread(get_multi_symbol_latest, db, [s.upper() for s in symbols])
+async def get_prices_bulk(symbols: List[str], db: AsyncSession = Depends(get_async_db)):
+    return await get_multi_symbol_latest(db, [s.upper() for s in symbols])
 
 
 @app.get("/api/symbols", tags=["market-data"])
@@ -269,10 +269,9 @@ async def websocket_live(websocket: WebSocket):
 # ADMIN — STATS / BACKFILL  (sync queries → thread pool)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/admin/stats", tags=["admin"])
-async def get_stats(db: Session = Depends(get_db)):
-    stats = await _run_in_thread(get_data_stats, db)
-    async with AsyncSessionLocal() as adb:
-        symbols_tracked = len(await get_active_symbols(adb))
+async def get_stats(db: AsyncSession = Depends(get_async_db)):
+    stats = await get_data_stats(db)
+    symbols_tracked = len(await get_active_symbols(db))
     return {
         "tables": stats,
         "kite_authenticated": kite_auth.is_authenticated(),
@@ -295,10 +294,12 @@ async def trigger_backfill(
 
 
 @app.get("/admin/backfill/status", tags=["admin"])
-async def backfill_status(db: Session = Depends(get_db)):
-    jobs = await _run_in_thread(
-        lambda: db.query(BackfillJob).order_by(BackfillJob.symbol, BackfillJob.timeframe).all()
+async def backfill_status(db: AsyncSession = Depends(get_async_db)):
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(BackfillJob).order_by(BackfillJob.symbol, BackfillJob.timeframe)
     )
+    jobs = result.scalars().all()
     summary: dict = {}
     for j in jobs:
         summary[j.status] = summary.get(j.status, 0) + 1
@@ -411,8 +412,7 @@ async def list_all_symbols(include_inactive: bool = False,
 
 
 @app.get("/admin/symbols/{symbol}", tags=["symbol-management"])
-async def get_symbol_detail(symbol: str, db: AsyncSession = Depends(get_async_db),
-                            sync_db: Session = Depends(get_db)):
+async def get_symbol_detail(symbol: str, db: AsyncSession = Depends(get_async_db)):
     symbol  = symbol.upper()
     sym_obj = await get_symbol(symbol, db)
     if not sym_obj:
@@ -420,7 +420,7 @@ async def get_symbol_detail(symbol: str, db: AsyncSession = Depends(get_async_db
 
     ranges = {}
     for tf in TIMEFRAME_MODEL_MAP:
-        r = await _run_in_thread(get_available_range, sync_db, symbol, tf)
+        r = await get_available_range(db, symbol, tf)
         ranges[tf] = {"from": r[0].isoformat(), "to": r[1].isoformat()} if r else None
 
     return {
@@ -433,29 +433,22 @@ async def get_symbol_detail(symbol: str, db: AsyncSession = Depends(get_async_db
 
 
 @app.delete("/admin/symbols/{symbol}/data", tags=["symbol-management"])
-async def delete_symbol_data(symbol: str, db: AsyncSession = Depends(get_async_db),
-                             sync_db: Session = Depends(get_db)):
+async def delete_symbol_data(symbol: str, db: AsyncSession = Depends(get_async_db)):
     symbol  = symbol.upper()
     sym_obj = await get_symbol(symbol, db)
     if sym_obj and sym_obj.is_active:
         raise HTTPException(status_code=409,
             detail=f"Deactivate '{symbol}' first: DELETE /admin/symbols/{symbol}")
 
-    def _delete():
-        total = 0
-        for tf, Model in TIMEFRAME_MODEL_MAP.items():
-            r = sync_db.execute(
-                text(f"DELETE FROM {Model.__tablename__} WHERE symbol = :sym"), {"sym": symbol})
-            total += r.rowcount
-        sync_db.execute(text("DELETE FROM backfill_jobs WHERE symbol = :sym"), {"sym": symbol})
-        sync_db.commit()
-        return total
-
-    total = await _run_in_thread(_delete)
-    # Also delete Symbol row via async session
+    total = 0
+    for tf, Model in TIMEFRAME_MODEL_MAP.items():
+        result = await db.execute(
+            text(f"DELETE FROM {Model.__tablename__} WHERE symbol = :sym"), {"sym": symbol})
+        total += result.rowcount
+    await db.execute(text("DELETE FROM backfill_jobs WHERE symbol = :sym"), {"sym": symbol})
     if sym_obj:
         await db.delete(sym_obj)
-        await db.commit()
+    await db.commit()
     return {"status": "ok", "symbol": symbol, "rows_deleted": total}
 
 
@@ -483,7 +476,7 @@ async def get_stocks(category: str):
 
 
 @app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
-async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(get_db)):
+async def get_history(symbol: str, interval: str = "1d", db: AsyncSession = Depends(get_async_db)):
     logger.info(f"History: {symbol}, interval={interval}")
     interval_map = {
         "1m": "1min", "5m": "5min", "15m": "15min", "1h": "1hour",
@@ -494,7 +487,7 @@ async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(g
 
     if timeframe:
         try:
-            db_candles = await _run_in_thread(get_candles, db, sym, timeframe)
+            db_candles = await get_candles(db, sym, timeframe)
             if db_candles:
                 return [HistoricalData(time=c["time"], open=c["open"], high=c["high"],
                                        low=c["low"], close=c["close"], volume=c["volume"])
@@ -516,11 +509,11 @@ async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(g
 
 
 @app.get("/stocks/info/{symbol}", response_model=StockInfo)
-async def get_info(symbol: str, db: Session = Depends(get_db)):
+async def get_info(symbol: str, db: AsyncSession = Depends(get_async_db)):
     logger.info(f"Info: {symbol}")
     try:
         sym      = symbol.upper().replace(".NS", "")
-        db_price = await _run_in_thread(get_latest_price, db, sym)
+        db_price = await get_latest_price(db, sym)
         cached   = None  # get_cached_stock_info removed in new DataService
         if cached:
             if db_price:
