@@ -1,10 +1,10 @@
 """
 BullsEye Quant API — fully async
-- All endpoints use async/await
-- Backfill runs in ThreadPoolExecutor (CPU/IO bound, keeps event loop free)
-- Scheduler uses AsyncIOScheduler (no background threads)
-- WebSocket ticker uses threaded=True (twisted in own thread)
-- No loop.run_in_executor blocking calls in lifespan
+- symbol_registry functions are all async and need AsyncSession
+- market_data queries (get_candles etc.) are sync → run in thread pool
+- Backfill is async natively (run_full_backfill_async)
+- Scheduler uses AsyncIOScheduler
+- KiteTicker uses threaded=True (twisted in own thread)
 """
 
 import asyncio
@@ -26,13 +26,15 @@ from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import engine, get_db, Base
+from db import engine, get_db, get_async_db, AsyncSessionLocal, Base
 import models  # noqa: registers User + all market tables on Base
 from models.market_data import TIMEFRAME_MODEL_MAP, Symbol, BackfillJob
 from kite_service.auth import kite_auth
 from kite_service.instrument_manager import instrument_manager
-from market_data.backfill import run_full_backfill_async as run_full_backfill, refresh_recent_1min_async as refresh_recent_1min
+from market_data.backfill import run_full_backfill_async as run_full_backfill, \
+                                  refresh_recent_1min_async as refresh_recent_1min
 from market_data.query import (
     get_candles, get_latest_price, get_multi_symbol_latest,
     get_data_stats, get_available_range
@@ -53,17 +55,14 @@ logger = logging.getLogger(__name__)
 IST = pytz.timezone("Asia/Kolkata")
 data_service = DataService()
 
-# Shared thread pool for all blocking IO/CPU work (backfill, yfinance, etc.)
+# Thread pool for blocking sync functions (market_data queries, yfinance, kite sync calls)
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bullseye")
 
 
 async def _run_in_thread(func, *args, **kwargs):
-    """Run a blocking function in the thread pool without blocking the event loop."""
+    """Run a blocking sync function in thread pool without blocking the event loop."""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        _executor,
-        lambda: func(*args, **kwargs)
-    )
+    return await loop.run_in_executor(_executor, lambda: func(*args, **kwargs))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,38 +72,37 @@ async def _run_in_thread(func, *args, **kwargs):
 async def lifespan(app: FastAPI):
     logger.info("=== Application startup ===")
 
-    # DB tables — run sync in thread so it doesn't block the event loop
+    # Create DB tables (sync call → thread)
     await _run_in_thread(Base.metadata.create_all, engine)
     logger.info("DB tables verified")
 
-    # Seed symbols (fast DB insert, run in thread)
-    await _run_in_thread(seed_initial_symbols)
+    # Seed symbols — async, needs AsyncSession
+    async with AsyncSessionLocal() as db:
+        await seed_initial_symbols(db)
 
-    # Give ws_manager a reference to the running event loop
+    # Wire ws_manager to event loop
     loop = asyncio.get_event_loop()
     ws_manager.set_event_loop(loop)
 
-    # Wire up live tick → WebSocket broadcast
     def on_tick(symbol: str, tick: dict):
         ws_manager.broadcast_tick_threadsafe(
-            symbol,
-            tick.get("last_price"),
+            symbol, tick.get("last_price"),
             tick.get("volume_traded", 0),
             tick.get("exchange_timestamp"),
         )
     ticker_service.on_tick_callback = on_tick
 
-    # Start Kite pipeline if already authenticated
+    # Start Kite pipeline if authenticated
     if kite_auth.is_authenticated():
         logger.info("Kite authenticated — loading instruments and starting ticker...")
         await _run_in_thread(instrument_manager.load_instruments)
-        ticker_service.start()   # starts daemon threads internally
-        # Backfill in background — does not block startup or event loop
-        asyncio.create_task(run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"]))
+        ticker_service.start()
+        asyncio.create_task(
+            run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"])
+        )
     else:
         logger.warning("Kite not authenticated. Visit /kite/login to authenticate.")
 
-    # AsyncIOScheduler integrates with the running event loop — no threads needed
     market_scheduler.start()
 
     yield  # ── app is running ──
@@ -181,7 +179,6 @@ async def kite_callback(request_token: str, background_tasks: BackgroundTasks):
 
 
 async def _post_auth_startup():
-    """Called after successful Kite login — loads instruments and starts ticker."""
     await _run_in_thread(instrument_manager.load_instruments)
     if not ticker_service.is_running():
         ticker_service.start()
@@ -200,7 +197,7 @@ async def kite_status():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MARKET DATA
+# MARKET DATA  (sync DB queries → thread pool, sync get_db)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/api/chart/{symbol}", tags=["market-data"])
 async def get_chart_data(
@@ -214,15 +211,11 @@ async def get_chart_data(
 ):
     symbol = symbol.upper()
     if timeframe not in TIMEFRAME_MODEL_MAP:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid timeframe. Use: {list(TIMEFRAME_MODEL_MAP.keys())}",
-        )
+        raise HTTPException(status_code=400,
+            detail=f"Invalid timeframe. Use: {list(TIMEFRAME_MODEL_MAP.keys())}")
     from_dt = datetime.fromtimestamp(from_ts) if from_ts else None
     to_dt   = datetime.fromtimestamp(to_ts)   if to_ts   else None
-    candles = await _run_in_thread(
-        get_candles, db, symbol, timeframe, from_dt, to_dt, limit, include_partial
-    )
+    candles = await _run_in_thread(get_candles, db, symbol, timeframe, from_dt, to_dt, limit, include_partial)
     return {"symbol": symbol, "timeframe": timeframe, "data": candles, "count": len(candles)}
 
 
@@ -240,8 +233,8 @@ async def get_prices_bulk(symbols: List[str], db: Session = Depends(get_db)):
 
 
 @app.get("/api/symbols", tags=["market-data"])
-async def get_symbols_list(db: Session = Depends(get_db)):
-    syms = await _run_in_thread(get_active_symbol_objects, db)
+async def get_symbols_list(db: AsyncSession = Depends(get_async_db)):
+    syms = await get_active_symbol_objects(db)
     return {
         "symbols": [
             {"symbol": s.symbol, "exchange": s.exchange, "name": s.name,
@@ -276,17 +269,19 @@ async def websocket_live(websocket: WebSocket):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ADMIN — STATS / BACKFILL
+# ADMIN — STATS / BACKFILL  (sync queries → thread pool)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/admin/stats", tags=["admin"])
 async def get_stats(db: Session = Depends(get_db)):
     stats = await _run_in_thread(get_data_stats, db)
+    async with AsyncSessionLocal() as adb:
+        symbols_tracked = len(await get_active_symbols(adb))
     return {
         "tables": stats,
         "kite_authenticated": kite_auth.is_authenticated(),
         "ticker_running": ticker_service.is_running(),
         "ws_clients_connected": ws_manager.get_connection_count(),
-        "symbols_tracked": len(get_active_symbols()),
+        "symbols_tracked": symbols_tracked,
         "scheduled_jobs": market_scheduler.get_jobs(),
     }
 
@@ -305,9 +300,7 @@ async def trigger_backfill(
 @app.get("/admin/backfill/status", tags=["admin"])
 async def backfill_status(db: Session = Depends(get_db)):
     jobs = await _run_in_thread(
-        lambda: db.query(BackfillJob)
-                  .order_by(BackfillJob.symbol, BackfillJob.timeframe)
-                  .all()
+        lambda: db.query(BackfillJob).order_by(BackfillJob.symbol, BackfillJob.timeframe).all()
     )
     summary: dict = {}
     for j in jobs:
@@ -333,7 +326,7 @@ async def reload_instruments():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ADMIN — SYMBOL MANAGEMENT
+# ADMIN — SYMBOL MANAGEMENT  (async symbol_registry → AsyncSession)
 # ─────────────────────────────────────────────────────────────────────────────
 class AddSymbolRequest(BaseModel):
     symbol: str
@@ -345,19 +338,18 @@ class AddSymbolRequest(BaseModel):
 
 
 @app.post("/admin/symbols", tags=["symbol-management"])
-async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTasks):
+async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTasks,
+                         db: AsyncSession = Depends(get_async_db)):
     symbol = req.symbol.upper().strip()
     try:
-        await _run_in_thread(add_symbol, symbol, req.exchange, req.name, req.sector)
+        await add_symbol(symbol, req.exchange, req.name, req.sector, db=db)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
     token = await _run_in_thread(instrument_manager.add_symbol_to_tracking, symbol)
     if not token:
-        raise HTTPException(
-            status_code=422,
-            detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.",
-        )
+        raise HTTPException(status_code=422,
+            detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.")
     ticker_service.resubscribe()
 
     if req.backfill:
@@ -367,49 +359,47 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
     else:
         bf_msg = "Skipped"
 
-    return {
-        "status": "ok", "symbol": symbol, "instrument_token": token,
-        "ticker_resubscribed": ticker_service.is_running(), "backfill": bf_msg,
-    }
+    return {"status": "ok", "symbol": symbol, "instrument_token": token,
+            "ticker_resubscribed": ticker_service.is_running(), "backfill": bf_msg}
 
 
 @app.delete("/admin/symbols/{symbol}", tags=["symbol-management"])
-async def deactivate_symbol(symbol: str):
+async def deactivate_symbol(symbol: str, db: AsyncSession = Depends(get_async_db)):
     symbol = symbol.upper()
     instrument_manager.remove_symbol_from_tracking(symbol)
     ticker_service.resubscribe()
-    success = await _run_in_thread(remove_symbol, symbol)
+    success = await remove_symbol(symbol, db)
     if not success:
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
     return {"status": "ok", "symbol": symbol, "message": "Deactivated. Historical data preserved."}
 
 
 @app.post("/admin/symbols/{symbol}/reactivate", tags=["symbol-management"])
-async def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks, backfill: bool = True):
+async def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks,
+                            backfill: bool = True, db: AsyncSession = Depends(get_async_db)):
     symbol = symbol.upper()
     try:
-        await _run_in_thread(add_symbol, symbol)
+        await add_symbol(symbol, db=db)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
     token = await _run_in_thread(instrument_manager.add_symbol_to_tracking, symbol)
     ticker_service.resubscribe()
-
     if backfill:
         background_tasks.add_task(run_full_backfill, None, [symbol], False)
-
     return {"status": "ok", "symbol": symbol, "instrument_token": token}
 
 
 @app.get("/admin/symbols", tags=["symbol-management"])
-async def list_all_symbols(include_inactive: bool = False, db: Session = Depends(get_db)):
-    def _query():
-        q = db.query(Symbol)
-        if not include_inactive:
-            q = q.filter(Symbol.is_active == True)
-        return q.order_by(Symbol.symbol).all()
-
-    syms = await _run_in_thread(_query)
+async def list_all_symbols(include_inactive: bool = False,
+                           db: AsyncSession = Depends(get_async_db)):
+    from sqlalchemy import select
+    stmt = select(Symbol)
+    if not include_inactive:
+        stmt = stmt.where(Symbol.is_active == True)
+    stmt = stmt.order_by(Symbol.symbol)
+    result = await db.execute(stmt)
+    syms = result.scalars().all()
     return {
         "symbols": [
             {"symbol": s.symbol, "exchange": s.exchange, "name": s.name,
@@ -424,15 +414,16 @@ async def list_all_symbols(include_inactive: bool = False, db: Session = Depends
 
 
 @app.get("/admin/symbols/{symbol}", tags=["symbol-management"])
-async def get_symbol_detail(symbol: str, db: Session = Depends(get_db)):
+async def get_symbol_detail(symbol: str, db: AsyncSession = Depends(get_async_db),
+                            sync_db: Session = Depends(get_db)):
     symbol  = symbol.upper()
-    sym_obj = await _run_in_thread(get_symbol, symbol, db)
+    sym_obj = await get_symbol(symbol, db)
     if not sym_obj:
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
 
     ranges = {}
     for tf in TIMEFRAME_MODEL_MAP:
-        r = await _run_in_thread(get_available_range, db, symbol, tf)
+        r = await _run_in_thread(get_available_range, sync_db, symbol, tf)
         ranges[tf] = {"from": r[0].isoformat(), "to": r[1].isoformat()} if r else None
 
     return {
@@ -445,35 +436,34 @@ async def get_symbol_detail(symbol: str, db: Session = Depends(get_db)):
 
 
 @app.delete("/admin/symbols/{symbol}/data", tags=["symbol-management"])
-async def delete_symbol_data(symbol: str, db: Session = Depends(get_db)):
+async def delete_symbol_data(symbol: str, db: AsyncSession = Depends(get_async_db),
+                             sync_db: Session = Depends(get_db)):
     symbol  = symbol.upper()
-    sym_obj = await _run_in_thread(get_symbol, symbol, db)
+    sym_obj = await get_symbol(symbol, db)
     if sym_obj and sym_obj.is_active:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Deactivate '{symbol}' first: DELETE /admin/symbols/{symbol}",
-        )
+        raise HTTPException(status_code=409,
+            detail=f"Deactivate '{symbol}' first: DELETE /admin/symbols/{symbol}")
 
     def _delete():
         total = 0
         for tf, Model in TIMEFRAME_MODEL_MAP.items():
-            r = db.execute(
-                text(f"DELETE FROM {Model.__tablename__} WHERE symbol = :sym"),
-                {"sym": symbol},
-            )
+            r = sync_db.execute(
+                text(f"DELETE FROM {Model.__tablename__} WHERE symbol = :sym"), {"sym": symbol})
             total += r.rowcount
-        db.execute(text("DELETE FROM backfill_jobs WHERE symbol = :sym"), {"sym": symbol})
-        if sym_obj:
-            db.delete(sym_obj)
-        db.commit()
+        sync_db.execute(text("DELETE FROM backfill_jobs WHERE symbol = :sym"), {"sym": symbol})
+        sync_db.commit()
         return total
 
     total = await _run_in_thread(_delete)
+    # Also delete Symbol row via async session
+    if sym_obj:
+        await db.delete(sym_obj)
+        await db.commit()
     return {"status": "ok", "symbol": symbol, "rows_deleted": total}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ORIGINAL ENDPOINTS (unchanged behaviour, now async)
+# ORIGINAL ENDPOINTS
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/stocks/{category}", response_model=StockListResponse)
 async def get_stocks(category: str):
@@ -497,10 +487,6 @@ async def get_stocks(category: str):
 
 @app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
 async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(get_db)):
-    """
-    Used by TradingViewChart.tsx. Tries PostgreSQL first (instant),
-    falls back to yfinance if backfill hasn't run yet.
-    """
     logger.info(f"History: {symbol}, interval={interval}")
     interval_map = {
         "1m": "1min", "5m": "5min", "15m": "15min", "1h": "1hour",
@@ -513,17 +499,12 @@ async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(g
         try:
             db_candles = await _run_in_thread(get_candles, db, sym, timeframe)
             if db_candles:
-                return [
-                    HistoricalData(
-                        time=c["time"], open=c["open"], high=c["high"],
-                        low=c["low"],   close=c["close"], volume=c["volume"],
-                    )
-                    for c in db_candles
-                ]
+                return [HistoricalData(time=c["time"], open=c["open"], high=c["high"],
+                                       low=c["low"], close=c["close"], volume=c["volume"])
+                        for c in db_candles]
         except Exception as e:
             logger.warning(f"DB chart fetch failed {sym}/{timeframe}: {e}")
 
-    # Fallback to yfinance
     try:
         cached = data_service.get_cached_historical_data(symbol, interval)
         if cached:
@@ -563,9 +544,5 @@ async def get_info(symbol: str, db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "api_service.main:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8000)),
-        reload=False,
-    )
+    uvicorn.run("api_service.main:app", host="0.0.0.0",
+                port=int(os.environ.get("PORT", 8000)), reload=False)
