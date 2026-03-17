@@ -34,7 +34,8 @@ from models.market_data import TIMEFRAME_MODEL_MAP, Symbol, BackfillJob
 from kite_service.auth import kite_auth
 from kite_service.instrument_manager import instrument_manager
 from market_data.backfill import run_full_backfill_async as run_full_backfill, \
-                                  refresh_recent_1min_async as refresh_recent_1min
+                                  refresh_recent_1min_async as refresh_recent_1min, \
+                                  refresh_recent_all_async  as refresh_recent_all
 from market_data.query import (
     get_candles, get_latest_price, get_multi_symbol_latest,
     get_data_stats, get_available_range
