@@ -89,14 +89,29 @@ async def lifespan(app: FastAPI):
         )
     ticker_service.on_tick_callback = on_tick
 
-    # Start Kite pipeline if authenticated
+    # ── Kite data pipeline (fully automatic) ────────────────────────────────
     if kite_auth.is_authenticated():
-        logger.info("Kite authenticated — loading instruments and starting ticker...")
+        logger.info("Kite authenticated — starting full data pipeline...")
+
+        # Step 1: Load instrument tokens (needed before backfill and ticker)
         await instrument_manager.load_instruments()
+
+        # Step 2: Refresh recent data for ALL timeframes synchronously
+        # This fills any gap since last deploy (today's candles, last 3 days)
+        # Must complete BEFORE ticker starts so no duplicate candles
+        logger.info("Refreshing recent data (last 3 days)...")
+        await refresh_recent_all()
+        logger.info("Recent data refresh complete — starting ticker...")
+
+        # Step 3: Start live WebSocket ticker (streams real-time ticks)
         await ticker_service.start()
+
+        # Step 4: Full historical backfill in background (non-blocking)
+        # Does not re-fetch recent data already loaded in Step 2
         asyncio.create_task(
             run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"])
         )
+        logger.info("Historical backfill started in background")
     else:
         logger.warning("Kite not authenticated. Visit /kite/login to authenticate.")
 
@@ -177,9 +192,12 @@ async def kite_callback(request_token: str, background_tasks: BackgroundTasks):
 
 async def _post_auth_startup():
     await instrument_manager.load_instruments()
+    await refresh_recent_all()
     if not ticker_service.is_running():
         await ticker_service.start()
-    await refresh_recent_1min()
+    asyncio.create_task(
+        run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"])
+    )
 
 
 
@@ -315,6 +333,19 @@ async def get_stats(db: AsyncSession = Depends(get_async_db)):
         "symbols_tracked": symbols_tracked,
         "scheduled_jobs": market_scheduler.get_jobs(),
     }
+
+
+@app.post("/admin/refresh-recent", tags=["admin"])
+async def trigger_refresh_recent(
+    days: int = 3,
+    symbols: Optional[List[str]] = None,
+    background_tasks: BackgroundTasks = None,
+):
+    """Refresh recent N days of data for all timeframes. Use after market hours or on gap."""
+    if not kite_auth.is_authenticated():
+        raise HTTPException(status_code=401, detail="Kite not authenticated")
+    background_tasks.add_task(refresh_recent_all, symbols, days)
+    return {"status": "started", "message": f"Refreshing last {days} days in background"}
 
 
 @app.post("/admin/backfill", tags=["admin"])

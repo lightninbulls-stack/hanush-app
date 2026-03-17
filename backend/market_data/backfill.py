@@ -192,3 +192,44 @@ async def refresh_recent_1min_async(symbols: List[str] = None):
     for symbol in symbols:
         await asyncio.to_thread(refresh_one, symbol)
         await asyncio.sleep(REQUEST_DELAY)
+
+
+async def refresh_recent_all_async(symbols: List[str] = None, days: int = 3):
+    """
+    Refresh recent data for ALL intraday timeframes.
+    Called on startup to fill any gap since last deploy/restart.
+    days=3 covers weekends + any deploy gap.
+    """
+    if not instrument_manager.is_loaded():
+        await instrument_manager.load_instruments()
+    kite = kite_auth.get_kite()
+    if not kite:
+        return
+    symbols   = symbols or await _get_active_symbols_async()
+    to_date   = datetime.now()
+    from_date = to_date - timedelta(days=days)
+
+    # All intraday timeframes + daily
+    timeframes_to_refresh = ["1min", "5min", "15min", "1hour", "1day"]
+
+    logger.info(f"Refreshing recent {days} days for {len(symbols)} symbols x {timeframes_to_refresh}")
+
+    def refresh_symbol(symbol: str):
+        db = SessionLocal()
+        try:
+            for tf in timeframes_to_refresh:
+                records = fetch_kite_historical(symbol, tf, from_date, to_date, kite)
+                if tf in ("1week", "1month"):
+                    records = resample_to_timeframe(records, tf)
+                if records:
+                    upsert_candles(db, tf, symbol, records)
+        except Exception as e:
+            logger.error(f"Refresh failed {symbol}: {e}")
+        finally:
+            db.close()
+
+    for symbol in symbols:
+        await asyncio.to_thread(refresh_symbol, symbol)
+        await asyncio.sleep(REQUEST_DELAY)
+
+    logger.info("Recent data refresh complete")
