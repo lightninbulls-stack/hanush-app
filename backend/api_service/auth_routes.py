@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
-from db import AsyncSessionLocal
+from db import get_async_db
 from models.user import User
 from auth import hash_password, verify_password, create_access_token
 
@@ -20,13 +20,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
-async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        yield session
+
 
 
 @router.post("/register")
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, db: AsyncSession = Depends(get_async_db)):
     stmt = select(User).where(User.email == body.email)
     result = await db.execute(stmt)
     existing = result.scalars().first()
@@ -44,7 +42,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login")
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, db: AsyncSession = Depends(get_async_db)):
     stmt = select(User).where(User.email == body.email)
     result = await db.execute(stmt)
     user = result.scalars().first()
