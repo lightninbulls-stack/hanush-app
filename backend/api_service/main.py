@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
     yield  # ── app is running ──
 
     logger.info("Shutting down...")
-    ticker_service.stop()
+    await ticker_service.stop()
     market_scheduler.stop()
     _executor.shutdown(wait=False)
 
@@ -347,7 +347,7 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
     if not token:
         raise HTTPException(status_code=422,
             detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.")
-    ticker_service.resubscribe()
+    await ticker_service.resubscribe()
 
     if req.backfill:
         tfs = req.timeframes or ["1day", "1week", "1month", "1hour", "15min", "5min", "1min"]
@@ -364,7 +364,7 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
 async def deactivate_symbol(symbol: str, db: AsyncSession = Depends(get_async_db)):
     symbol = symbol.upper()
     instrument_manager.remove_symbol_from_tracking(symbol)
-    ticker_service.resubscribe()
+    await ticker_service.resubscribe()
     success = await remove_symbol(symbol, db)
     if not success:
         raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found")
@@ -381,7 +381,7 @@ async def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks,
         raise HTTPException(status_code=409, detail=str(e))
 
     token = await instrument_manager.add_symbol_to_tracking(symbol)
-    ticker_service.resubscribe()
+    await ticker_service.resubscribe()
     if backfill:
         background_tasks.add_task(run_full_backfill, None, [symbol], False)
     return {"status": "ok", "symbol": symbol, "instrument_token": token}
