@@ -182,6 +182,34 @@ async def _post_auth_startup():
     await refresh_recent_1min()
 
 
+
+
+async def _auto_add_and_backfill(symbol: str):
+    """
+    If symbol is not tracked but exists in Zerodha instruments,
+    auto-add it and trigger backfill. Called lazily on first data request.
+    """
+    try:
+        token = instrument_manager._all_instruments.get(symbol.upper())
+        if not token:
+            logger.warning(f"Auto-add skipped: {symbol} not in Zerodha instrument list")
+            return False
+        async with AsyncSessionLocal() as db:
+            existing = await get_symbol(symbol, db)
+            if existing and existing.is_active:
+                return True  # already tracked
+            await add_symbol(symbol, "NSE", db=db)
+        await instrument_manager.add_symbol_to_tracking(symbol)
+        await ticker_service.resubscribe()
+        asyncio.create_task(run_full_backfill(
+            ["1day", "1week", "1month", "1hour", "15min", "5min"], [symbol]
+        ))
+        logger.info(f"Auto-added and backfilling: {symbol}")
+        return True
+    except Exception as e:
+        logger.warning(f"Auto-add failed for {symbol}: {e}")
+        return False
+
 @app.get("/kite/status", tags=["kite-auth"])
 async def kite_status():
     return {
@@ -213,6 +241,10 @@ async def get_chart_data(
     from_dt = datetime.fromtimestamp(from_ts) if from_ts else None
     to_dt   = datetime.fromtimestamp(to_ts)   if to_ts   else None
     candles = await get_candles(db, symbol, timeframe, from_dt, to_dt, limit, include_partial)
+    if not candles and kite_auth.is_authenticated():
+        added = await _auto_add_and_backfill(symbol)
+        if added:
+            logger.info(f"Auto-added {symbol} — backfill running, data available shortly")
     return {"symbol": symbol, "timeframe": timeframe, "data": candles, "count": len(candles)}
 
 
@@ -323,6 +355,29 @@ async def reload_instruments():
     return {"status": "ok" if success else "failed", "count": len(instrument_manager.get_token_map())}
 
 
+
+
+@app.get("/admin/symbols/search", tags=["symbol-management"])
+async def search_symbol(q: str = Query(..., description="Partial symbol or company name")):
+    """
+    Search Zerodha instrument list for matching symbols.
+    Use this to find the exact NSE tradingsymbol before adding via POST /admin/symbols.
+    """
+    if not instrument_manager._all_instruments:
+        raise HTTPException(status_code=503,
+            detail="Instrument list not loaded. Call /admin/reload-instruments first.")
+    q_upper = q.upper()
+    matches = [
+        sym for sym in instrument_manager._all_instruments
+        if q_upper in sym
+    ]
+    return {
+        "query": q,
+        "matches": sorted(matches)[:20],
+        "count": len(matches),
+        "hint": "Use the exact symbol from matches[] in POST /admin/symbols"
+    }
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ADMIN — SYMBOL MANAGEMENT  (async symbol_registry → AsyncSession)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -346,8 +401,18 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
 
     token = await instrument_manager.add_symbol_to_tracking(symbol)
     if not token:
-        raise HTTPException(status_code=422,
-            detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.")
+        # Find close matches to help user
+        suggestions = []
+        if instrument_manager._all_instruments:
+            suggestions = sorted([
+                s for s in instrument_manager._all_instruments
+                if symbol[:4] in s or s[:4] in symbol
+            ])[:10]
+        raise HTTPException(status_code=422, detail={
+            "error": f"'{symbol}' not found in Zerodha NSE instruments.",
+            "suggestions": suggestions,
+            "hint": f"Try GET /admin/symbols/search?q={symbol[:4]} to find the exact name"
+        })
     await ticker_service.resubscribe()
 
     if req.backfill:
@@ -492,20 +557,20 @@ async def get_history(symbol: str, interval: str = "1d", db: AsyncSession = Depe
                 return [HistoricalData(time=c["time"], open=c["open"], high=c["high"],
                                        low=c["low"], close=c["close"], volume=c["volume"])
                         for c in db_candles]
+            # No DB data — auto-add symbol and trigger backfill if it exists in Zerodha
+            if kite_auth.is_authenticated():
+                added = await _auto_add_and_backfill(sym)
+                if added:
+                    logger.info(f"Auto-added {sym} — backfill triggered, returning yfinance data for now")
         except Exception as e:
             logger.warning(f"DB chart fetch failed {sym}/{timeframe}: {e}")
 
     try:
-        cached = None  # get_cached_historical_data removed in new DataService
-        if cached:
-            return cached
         history = await fetch_historical_data(symbol, interval)
-        if history:
-            return history
-        return []
+        return history or []
     except Exception as e:
-        logger.error(f"Error in get_history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning(f"yfinance fallback failed for {symbol}: {e}")
+        return []
 
 
 @app.get("/stocks/info/{symbol}", response_model=StockInfo)
@@ -519,12 +584,26 @@ async def get_info(symbol: str, db: AsyncSession = Depends(get_async_db)):
             if db_price:
                 cached["price"] = db_price["price"]
             return cached
-        info = await fetch_stock_info(symbol)
+        try:
+            info = await fetch_stock_info(symbol)
+        except Exception as e:
+            logger.warning(f"yfinance fetch failed for {symbol}: {e}")
+            info = None
+
         if info:
             if db_price:
                 info["price"] = db_price["price"]
             return info
-        raise HTTPException(status_code=404, detail="Stock info not found")
+
+        # Return minimal info from DB price if yfinance unavailable
+        if db_price:
+            return {"symbol": sym, "name": None, "sector": None, "market_cap": None,
+                    "pe_ratio": None, "high_52w": None, "low_52w": None,
+                    "summary": None, "price": db_price["price"], "change_pct": None}
+
+        raise HTTPException(status_code=404, detail=f"Stock info not found for {symbol}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in get_info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
