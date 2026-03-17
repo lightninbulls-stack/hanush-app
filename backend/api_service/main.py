@@ -80,10 +80,7 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as db:
         await seed_initial_symbols(db)
 
-    # Wire ws_manager to event loop
-    loop = asyncio.get_event_loop()
-    ws_manager.set_event_loop(loop)
-
+    # Wire live tick → WebSocket broadcast (fully async via asyncio.create_task)
     def on_tick(symbol: str, tick: dict):
         ws_manager.broadcast_tick_threadsafe(
             symbol, tick.get("last_price"),
