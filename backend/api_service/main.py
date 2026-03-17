@@ -343,7 +343,7 @@ async def add_new_symbol(req: AddSymbolRequest, background_tasks: BackgroundTask
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
-    token = await _run_in_thread(instrument_manager.add_symbol_to_tracking, symbol)
+    token = await instrument_manager.add_symbol_to_tracking(symbol)
     if not token:
         raise HTTPException(status_code=422,
             detail=f"'{symbol}' added to DB but no Kite token found. Check exact NSE symbol name.")
@@ -380,7 +380,7 @@ async def reactivate_symbol(symbol: str, background_tasks: BackgroundTasks,
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
-    token = await _run_in_thread(instrument_manager.add_symbol_to_tracking, symbol)
+    token = await instrument_manager.add_symbol_to_tracking(symbol)
     ticker_service.resubscribe()
     if backfill:
         background_tasks.add_task(run_full_backfill, None, [symbol], False)
