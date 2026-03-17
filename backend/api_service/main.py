@@ -466,13 +466,13 @@ async def delete_symbol_data(symbol: str, db: AsyncSession = Depends(get_async_d
 async def get_stocks(category: str):
     logger.info(f"Fetching stocks for category: {category}")
     try:
-        cached = data_service.get_cached_stock_list(category)
+        cached = await data_service.get_cached_stock_list(category)
         if cached:
             return StockListResponse(category=category, stocks=cached)
-        stocks = await _run_in_thread(fetch_from_google_sheets, category)
+        stocks = await fetch_from_google_sheets(category)
         if stocks:
             try:
-                data_service.cache_stock_list(category, stocks)
+                await data_service.cache_stock_list(category, stocks)
             except Exception:
                 pass
             return StockListResponse(category=category, stocks=stocks)
@@ -503,12 +503,11 @@ async def get_history(symbol: str, interval: str = "1d", db: Session = Depends(g
             logger.warning(f"DB chart fetch failed {sym}/{timeframe}: {e}")
 
     try:
-        cached = data_service.get_cached_historical_data(symbol, interval)
+        cached = None  # get_cached_historical_data removed in new DataService
         if cached:
             return cached
-        history = await _run_in_thread(fetch_historical_data, symbol, interval)
+        history = await fetch_historical_data(symbol, interval)
         if history:
-            data_service.cache_historical_data(symbol, interval, history)
             return history
         return []
     except Exception as e:
@@ -522,16 +521,15 @@ async def get_info(symbol: str, db: Session = Depends(get_db)):
     try:
         sym      = symbol.upper().replace(".NS", "")
         db_price = await _run_in_thread(get_latest_price, db, sym)
-        cached   = data_service.get_cached_stock_info(symbol)
+        cached   = None  # get_cached_stock_info removed in new DataService
         if cached:
             if db_price:
                 cached["price"] = db_price["price"]
             return cached
-        info = await _run_in_thread(fetch_stock_info, symbol)
+        info = await fetch_stock_info(symbol)
         if info:
             if db_price:
                 info["price"] = db_price["price"]
-            data_service.cache_stock_info(symbol, info)
             return info
         raise HTTPException(status_code=404, detail="Stock info not found")
     except Exception as e:
