@@ -92,8 +92,8 @@ async def lifespan(app: FastAPI):
     # Start Kite pipeline if authenticated
     if kite_auth.is_authenticated():
         logger.info("Kite authenticated — loading instruments and starting ticker...")
-        await _run_in_thread(instrument_manager.load_instruments)
-        ticker_service.start()
+        await instrument_manager.load_instruments()
+        await ticker_service.start()
         asyncio.create_task(
             run_full_backfill(["1day", "1week", "1month", "1hour", "15min", "5min"])
         )
@@ -176,9 +176,9 @@ async def kite_callback(request_token: str, background_tasks: BackgroundTasks):
 
 
 async def _post_auth_startup():
-    await _run_in_thread(instrument_manager.load_instruments)
+    await instrument_manager.load_instruments()
     if not ticker_service.is_running():
-        ticker_service.start()
+        await ticker_service.start()
     await refresh_recent_1min()
 
 
@@ -318,7 +318,7 @@ async def backfill_status(db: Session = Depends(get_db)):
 async def reload_instruments():
     if not kite_auth.is_authenticated():
         raise HTTPException(status_code=401, detail="Kite not authenticated")
-    success = await _run_in_thread(instrument_manager.load_instruments, True)
+    success = await instrument_manager.load_instruments(force_refresh=True)
     return {"status": "ok" if success else "failed", "count": len(instrument_manager.get_token_map())}
 
 

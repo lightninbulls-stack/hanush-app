@@ -14,8 +14,7 @@ from kite_service.auth import kite_auth
 from kite_service.instrument_manager import instrument_manager
 from models.market_data import TIMEFRAME_MODEL_MAP, BackfillJob
 from market_data.nse_top100 import BACKFILL_DAYS, TIMEFRAME_CONFIGS
-from market_data.symbol_registry import get_active_symbols
-from db import SessionLocal
+from db import SessionLocal, AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +35,8 @@ def fetch_kite_historical(symbol: str, timeframe: str,
         interval = "day"
     try:
         return kite.historical_data(
-            instrument_token=token,
-            from_date=from_date,
-            to_date=to_date,
-            interval=interval,
-            continuous=False,
-            oi=True
+            instrument_token=token, from_date=from_date, to_date=to_date,
+            interval=interval, continuous=False, oi=True
         )
     except Exception as e:
         logger.error(f"Kite fetch error {symbol}/{timeframe}: {e}")
@@ -60,8 +55,7 @@ def resample_to_timeframe(records: List[Dict], timeframe: str) -> List[Dict]:
         "close": "last", "volume": "sum", "oi": "last"
     }).dropna(subset=["open"])
     return [
-        {"date": ts.to_pydatetime(),
-         "open": float(r["open"]), "high": float(r["high"]),
+        {"date": ts.to_pydatetime(), "open": float(r["open"]), "high": float(r["high"]),
          "low": float(r["low"]), "close": float(r["close"]),
          "volume": int(r["volume"]), "oi": int(r.get("oi", 0))}
         for ts, r in agg.iterrows()
@@ -96,14 +90,13 @@ def upsert_candles(db: Session, timeframe: str, symbol: str, records: List[Dict]
 
 def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
     """Synchronous backfill for one symbol/timeframe."""
-    db = SessionLocal()
+    db  = SessionLocal()
     kite = kite_auth.get_kite()
     if not kite:
         db.close()
         return 0
     job = db.query(BackfillJob).filter(
-        BackfillJob.symbol == symbol,
-        BackfillJob.timeframe == timeframe
+        BackfillJob.symbol == symbol, BackfillJob.timeframe == timeframe
     ).first()
     if job and job.status == "done" and not force:
         db.close()
@@ -117,12 +110,12 @@ def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
     job.started_at = datetime.utcnow()
     db.commit()
     total = 0
-    days_back = BACKFILL_DAYS[timeframe]
-    max_days = MAX_DAYS_PER_REQUEST[timeframe]
-    to_date = datetime.now()
-    from_date = to_date - timedelta(days=days_back)
+    days_back  = BACKFILL_DAYS[timeframe]
+    max_days   = MAX_DAYS_PER_REQUEST[timeframe]
+    to_date    = datetime.now()
+    from_date  = to_date - timedelta(days=days_back)
     try:
-        current_to = to_date
+        current_to   = to_date
         current_from = max(from_date, current_to - timedelta(days=max_days))
         while current_to >= from_date:
             records = fetch_kite_historical(symbol, timeframe, current_from, current_to, kite)
@@ -131,16 +124,16 @@ def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
             if records:
                 total += upsert_candles(db, timeframe, symbol, records)
             time.sleep(REQUEST_DELAY)
-            current_to = current_from - timedelta(seconds=1)
+            current_to   = current_from - timedelta(seconds=1)
             current_from = max(from_date, current_to - timedelta(days=max_days))
             if current_to < from_date:
                 break
-        job.status = "done"
+        job.status           = "done"
         job.records_inserted = total
-        job.completed_at = datetime.utcnow()
+        job.completed_at     = datetime.utcnow()
         db.commit()
     except Exception as e:
-        job.status = "failed"
+        job.status    = "failed"
         job.error_msg = str(e)
         db.commit()
         logger.error(f"Backfill failed {symbol}/{timeframe}: {e}")
@@ -149,7 +142,14 @@ def backfill_symbol(symbol: str, timeframe: str, force: bool = False) -> int:
     return total
 
 
-# --- Async wrappers for safe use in FastAPI/Uvicorn ---
+# ── Async versions ────────────────────────────────────────────────────────────
+
+async def _get_active_symbols_async() -> List[str]:
+    """Get active symbols using a fresh AsyncSession."""
+    from market_data.symbol_registry import get_active_symbols
+    async with AsyncSessionLocal() as db:
+        return await get_active_symbols(db)
+
 
 async def backfill_symbol_async(symbol: str, timeframe: str, force: bool = False) -> int:
     return await asyncio.to_thread(backfill_symbol, symbol, timeframe, force)
@@ -159,8 +159,8 @@ async def run_full_backfill_async(timeframes: List[str] = None,
                                   symbols: List[str] = None,
                                   force: bool = False):
     if not instrument_manager.is_loaded():
-        instrument_manager.load_instruments()
-    symbols = symbols or get_active_symbols()
+        await instrument_manager.load_instruments()
+    symbols    = symbols    or await _get_active_symbols_async()
     timeframes = timeframes or ["1day", "1week", "1month", "1hour", "15min", "5min", "1min"]
     logger.info(f"Backfill start: {len(symbols)} symbols × {len(timeframes)} timeframes")
     for tf in timeframes:
@@ -172,15 +172,15 @@ async def run_full_backfill_async(timeframes: List[str] = None,
 
 async def refresh_recent_1min_async(symbols: List[str] = None):
     if not instrument_manager.is_loaded():
-        instrument_manager.load_instruments()
+        await instrument_manager.load_instruments()
     kite = kite_auth.get_kite()
     if not kite:
         return
-    symbols = symbols or get_active_symbols()
-    to_date = datetime.now()
+    symbols  = symbols or await _get_active_symbols_async()
+    to_date   = datetime.now()
     from_date = to_date - timedelta(days=2)
 
-    async def refresh_one(symbol: str):
+    def refresh_one(symbol: str):
         db = SessionLocal()
         try:
             records = fetch_kite_historical(symbol, "1min", from_date, to_date, kite)
