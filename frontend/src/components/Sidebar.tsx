@@ -35,10 +35,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, setActiveCategory, st
       ]
     },
     {
-      title: 'Technicals',
+      title: 'Regime',
       items: [
-        { name: 'Trending Upside', icon: '📈' },
-        { name: 'Trending Downside', icon: '📉' },
+        { name: 'Regime Upside', icon: '📈' },
+        { name: 'Regime Downside', icon: '📉' },
       ]
     },
     {
@@ -66,7 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, setActiveCategory, st
     <div className="sidebar">
       <div className="sidebar-logo">
         <img src="/assets/bull_logo.png" alt="Logo" style={{ borderRadius: '8px' }} />
-        <h1>BullsEye Quant</h1>
+        <h1>lightninbulls</h1>
       </div>
 
       {sections.map(section => (
