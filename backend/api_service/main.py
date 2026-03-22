@@ -14,7 +14,7 @@ from models import user  # ✅ must be imported before create_all so table is re
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Base.metadata.create_all(bind=engine)  # ✅ now creates users table correctly
+Base.metadata.create_all(bind=engine)  # ✅ now creates users table correctly
 
 app = FastAPI(title="Trading Bible API")
 app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
