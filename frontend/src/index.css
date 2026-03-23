@@ -446,3 +446,131 @@ body::before {
 .table-view-container {
   padding: 0;
 }
+.logo-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.logo-image {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.logo-lightning-bolt {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 10px;
+  height: 64px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transform: translateX(-50%) scaleY(0.2);
+  background: linear-gradient(180deg, #ffffff 0%, #00f2ff 35%, #c5a059 100%);
+  clip-path: polygon(
+    45% 0%,
+    70% 0%,
+    52% 38%,
+    76% 38%,
+    28% 100%,
+    42% 58%,
+    20% 58%
+  );
+  filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px #00f2ff);
+}
+
+.logo-lightning-bolt.bolt-two {
+  left: 60%;
+  height: 54px;
+  top: -2px;
+}
+
+.lightning-active .logo-lightning-bolt.bolt-one {
+  animation: lightningStrike 0.65s ease-out forwards;
+}
+
+.lightning-active .logo-lightning-bolt.bolt-two {
+  animation: lightningStrikeSecondary 0.65s ease-out forwards;
+}
+
+.lightning-active .logo-image {
+  animation: logoFlash 0.65s ease-out;
+}
+
+@keyframes lightningStrike {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.2);
+  }
+  15% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  45% {
+    opacity: 0.2;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(1.05);
+  }
+}
+
+@keyframes lightningStrikeSecondary {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.2);
+  }
+  22% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  50% {
+    opacity: 0.15;
+  }
+  68% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(1.02);
+  }
+}
+
+@keyframes logoFlash {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px var(--primary-gold));
+  }
+  20% {
+    filter: drop-shadow(0 0 14px #ffffff) drop-shadow(0 0 24px #00f2ff);
+  }
+  40% {
+    filter: drop-shadow(0 0 10px #ffffff) drop-shadow(0 0 18px #c5a059);
+  }
+  60% {
+    filter: drop-shadow(0 0 16px #ffffff) drop-shadow(0 0 28px #00f2ff);
+  }
+  80% {
+    filter: drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 14px #c5a059);
+  }
+}
