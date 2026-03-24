@@ -1,9 +1,9 @@
 name: Update Momentum Excel Daily
 
 on:
-  schedule:
-    - cron: "30 15 * * *"   # 9:00 PM IST = 3:30 PM UTC
   workflow_dispatch:
+  schedule:
+    - cron: "30 15 * * *"   # 9:00 PM IST = 15:30 UTC
 
 permissions:
   contents: write
@@ -13,30 +13,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout user_profile branch
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           ref: user_profile
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
 
-      - name: Run Momentum Excel updater
-        run: |
-          python backend/momentum/update_momentum_sheet.py
+      - name: Run momentum update
+        run: python backend/update_momentum_sheet.py
 
-      - name: Commit updated Excel if changed
+      - name: Commit momentum outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/data/trading_bull.xlsx
-          git diff --cached --quiet || git commit -m "daily momentum excel refresh [skip ci]"
-          git push origin HEAD:user_profile
+          git add backend/data/
+          git diff --cached --quiet || git commit -m "Daily momentum update"
+          git push origin user_profile
