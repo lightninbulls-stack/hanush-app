@@ -12,32 +12,14 @@ from factors import (
     build_topn_ui_table,
 )
 
-
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 CLOSE_PRICES_PATH = BASE_DIR / "data" / "close_prices_wide.csv"
 UNIVERSE_PATH = BASE_DIR / "data" / "yahoo_finance_ticker_universe_with_sector_business_model.xlsx"
-EXCEL_PATH = BASE_DIR / "data" / "trading_bull.xlsx"
+MOMENTUM_CSV_PATH = BASE_DIR / "data" / "momentum_latest.csv"
 
-OUTPUT_SHEET = "Momentum"
 START_DATE = "2018-01-01"
 TOP_N = 20
-
-
-def write_sheet(excel_path: Path, sheet_name: str, df: pd.DataFrame) -> None:
-    excel_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if excel_path.exists():
-        with pd.ExcelWriter(
-            excel_path,
-            engine="openpyxl",
-            mode="a",
-            if_sheet_exists="replace",
-        ) as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-    else:
-        with pd.ExcelWriter(excel_path, engine="openpyxl", mode="w") as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
 
 
 def main() -> None:
@@ -56,7 +38,6 @@ def main() -> None:
     )
     print(f"Close matrix shape: {close.shape}", flush=True)
 
-    # Month-end prices
     monthly = close.resample("ME").last().dropna(how="all")
     print(f"Monthly matrix shape: {monthly.shape}", flush=True)
 
@@ -81,8 +62,9 @@ def main() -> None:
 
     print(f"Top {TOP_N} rows prepared: {len(topn_ui)}", flush=True)
 
-    write_sheet(EXCEL_PATH, OUTPUT_SHEET, topn_ui)
-    print(f"Momentum sheet updated: {EXCEL_PATH} | Sheet: {OUTPUT_SHEET}", flush=True)
+    MOMENTUM_CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    topn_ui.to_csv(MOMENTUM_CSV_PATH, index=False)
+    print(f"Momentum CSV updated: {MOMENTUM_CSV_PATH}", flush=True)
 
     print("=" * 80, flush=True)
     print("MOMENTUM UPDATE COMPLETE", flush=True)
