@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import redis
 import json
 import calendar
-
+from fetch_service.main_momentum import fetch_from_momentum_csv
 # Placeholder for Google Sheets integration
 # In a real scenario, you'd use google-api-python-client
 def fetch_from_excel(category: str) -> List[Dict]:
@@ -68,7 +68,9 @@ def fetch_from_excel(category: str) -> List[Dict]:
         return []
 
 def fetch_from_google_sheets(category: str) -> List[Dict]:
-    # Delegating to Excel reader as requested
+    if category == "Momentum":
+        return fetch_from_momentum_csv()
+
     return fetch_from_excel(category)
 
 def fetch_historical_data(symbol: str, interval: str = "1d"):
