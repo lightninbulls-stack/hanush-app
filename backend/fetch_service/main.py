@@ -160,10 +160,14 @@ class DataService:
             self.redis_client = None # Fallback if Redis is down
 
     def cache_stock_list(self, category: str, data: List[Dict]):
+        if category == "Momentum":
+            return
         if self.redis_client:
             self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
 
     def get_cached_stock_list(self, category: str):
+        if category == "Momentum":
+            return None
         if self.redis_client:
             try:
                 data = self.redis_client.get(f"stocks:{category}")
