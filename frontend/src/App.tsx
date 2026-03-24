@@ -200,3 +200,23 @@ const App: React.FC = () => {
 };
 
 export default App;
+import "./App.css";
+import LightninbullLogo from "./components/LightninbullLogo";
+
+function App() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "radial-gradient(circle at center, #0f1724 0%, #05080f 70%, #000000 100%)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <LightninbullLogo />
+    </div>
+  );
+}
+
+export default App;
