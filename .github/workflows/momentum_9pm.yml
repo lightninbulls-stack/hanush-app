@@ -3,7 +3,7 @@ name: Update Momentum Excel Daily
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 15 * * *"   # 9:00 PM IST = 15:30 UTC
+    - cron: "30 15 * * *"   # 9:00 PM IST
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Run momentum update
-        run: python backend/update_momentum_sheet.py
+        run: python backend/momentum/update_momentum_sheet.py
 
       - name: Commit momentum outputs
         run: |
