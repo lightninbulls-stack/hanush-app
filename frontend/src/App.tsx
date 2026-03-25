@@ -1,274 +1,201 @@
-import { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import "./App.css";
 
-const API = import.meta.env.VITE_API_URL;
+import Sidebar from "./components/Sidebar";
+import StockTable from "./components/StockTable";
+import TradingViewChart from "./components/TradingViewChart";
+import StockStats from "./components/StockStats";
+import { fetchStocksByCategory, type Stock } from "./services/api";
+import Auth from "./pages/Auth";
 
-export default function Auth() {
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    return <Navigate to="/auth" replace />;
+  }
+  return children;
+};
+
+const Navbar: React.FC = () => {
   const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [countryCode, setCountryCode] = useState("+91");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [instagramId, setInstagramId] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async () => {
-    setError("");
-    setLoading(true);
-
-    try {
-      if (mode === "register") {
-        await axios.post(`${API}/auth/register`, {
-          name,
-          email,
-          country_code: countryCode,
-          phone_number: phoneNumber,
-          instagram_id: instagramId || null,
-          password,
-        });
-
-        alert("Registered successfully. Please login.");
-        setMode("login");
-        setPassword("");
-      } else {
-        const res = await axios.post(`${API}/auth/login`, {
-          email,
-          password,
-        });
-
-        localStorage.setItem("token", res.data.access_token);
-        navigate("/");
-      }
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/auth");
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={topBarStyle}>
-        <span
-          style={topLinkStyle}
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
+    <nav
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: "1rem",
+        padding: "1rem",
+      }}
+    >
+      {token ? (
+        <button
+          onClick={handleLogout}
+          style={{
+            background: "transparent",
+            border: "1px solid #FFD700",
+            color: "#FFD700",
+            padding: "6px 16px",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
         >
-          {mode === "login" ? "Login / Register" : "Back to Login"}
-        </span>
-      </div>
+          Logout
+        </button>
+      ) : (
+        <a href="/auth" style={{ color: "#FFD700" }}>
+          Login / Register
+        </a>
+      )}
+    </nav>
+  );
+};
 
-      <div style={cardStyle}>
-        <img
-          src="/lightninbull-bull.png"
-          alt="Lightninbull"
-          style={logoStyle}
-        />
+const Dashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState("Momentum");
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [starredSymbols, setStarredSymbols] = useState<string[]>(() => {
+    const saved = localStorage.getItem("starredStocks");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-        <h1 style={brandStyle}>Lightninbull</h1>
-        <p style={subBrandStyle}>Financial Analytics</p>
+  useEffect(() => {
+    localStorage.setItem("starredStocks", JSON.stringify(starredSymbols));
+  }, [starredSymbols]);
 
-        <h2 style={titleStyle}>
-          {mode === "login" ? "Login" : "Register"}
-        </h2>
+  useEffect(() => {
+    const getStocks = async () => {
+      setLoading(true);
+      try {
+        if (activeTab === "Watchlist") {
+          const data = await fetchStocksByCategory("Momentum");
+          setStocks(data.stocks.filter((s: Stock) => starredSymbols.includes(s.symbol)));
+        } else {
+          const data = await fetchStocksByCategory(activeTab);
+          setStocks(data.stocks || []);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        {mode === "register" && (
-          <input
-            placeholder="Full Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={inputStyle}
-          />
-        )}
+    getStocks();
+  }, [activeTab, starredSymbols]);
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
-        />
+  useEffect(() => {
+    setSelectedStock(null);
+  }, [activeTab]);
 
-        {mode === "register" && (
+  const handleStarClick = (symbol: string) => {
+    setStarredSymbols((prev) =>
+      prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol]
+    );
+  };
+
+  const handleStockClick = (symbol: string) => {
+    setSelectedStock(symbol);
+  };
+
+  return (
+    <div className="main-layout">
+      <Sidebar
+        activeCategory={activeTab}
+        setActiveCategory={setActiveTab}
+        starredCount={starredSymbols.length}
+      />
+
+      <div className="content-area">
+        {selectedStock ? (
+          <div className="detail-container">
+            <button className="back-btn" onClick={() => setSelectedStock(null)}>
+              <span>←</span> Back to Dashboard
+            </button>
+            <TradingViewChart symbol={selectedStock} />
+            <StockStats symbol={selectedStock} />
+          </div>
+        ) : activeTab === "Guide" ? (
+          <div className="glass-card" style={{ padding: "40px", margin: "40px" }}>
+            <h2 className="glow-text">User Guide</h2>
+            <p style={{ marginTop: "20px", color: "var(--text-dim)", lineHeight: "1.6" }}>
+              Welcome to Lightninbull Financial Analytics. This section helps you
+              understand the metrics and strategies used in the platform.
+            </p>
+          </div>
+        ) : activeTab === "Profile / Settings" ? (
+          <div className="glass-card" style={{ padding: "40px", margin: "40px" }}>
+            <h2 className="glow-text">Profile & Settings</h2>
+            <p style={{ marginTop: "20px", color: "var(--text-dim)" }}>
+              Manage your account preferences and application settings here.
+            </p>
+          </div>
+        ) : (
           <>
-            <div style={phoneRowStyle}>
-              <input
-                placeholder="+91"
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                style={{ ...inputStyle, marginBottom: 0, width: "110px" }}
-              />
-              <input
-                placeholder="Phone number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
-              />
+            <div className="screener-header">
+              <h2 className="glow-text">
+                {activeTab} <span style={{ color: "var(--primary-gold)" }}>Screener</span>
+              </h2>
+              <p className="screener-subtitle">
+                Live insights and professional quantitative metrics for {activeTab}
+              </p>
             </div>
 
-            <input
-              placeholder="Instagram ID (optional)"
-              value={instagramId}
-              onChange={(e) => setInstagramId(e.target.value)}
-              style={inputStyle}
-            />
+            <div className="table-view-container">
+              {loading ? (
+                <div className="loader-container">
+                  <div className="loader"></div>
+                  <p
+                    style={{
+                      marginTop: "20px",
+                      color: "var(--text-dim)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Loading {activeTab} data...
+                  </p>
+                </div>
+              ) : (
+                <StockTable
+                  stocks={stocks}
+                  starredSymbols={starredSymbols}
+                  onStockClick={handleStockClick}
+                  onStarClick={handleStarClick}
+                />
+              )}
+            </div>
           </>
         )}
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-        />
-
-        {error ? <div style={errorStyle}>{error}</div> : null}
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={buttonStyle}
-        >
-          {loading
-            ? "Please wait..."
-            : mode === "login"
-            ? "Login"
-            : "Register"}
-        </button>
-
-        <p style={switchTextStyle}>
-          {mode === "login" ? "No account?" : "Already registered?"}{" "}
-          <span
-            style={switchLinkStyle}
-            onClick={() => setMode(mode === "login" ? "register" : "login")}
-          >
-            {mode === "login" ? "Register" : "Login"}
-          </span>
-        </p>
       </div>
     </div>
   );
-}
-
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background:
-    "radial-gradient(circle at top, #151515 0%, #090909 45%, #000000 100%)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "24px",
-  position: "relative",
 };
 
-const topBarStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "22px",
-  right: "24px",
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Navbar />
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
 };
 
-const topLinkStyle: React.CSSProperties = {
-  color: "#f2c94c",
-  cursor: "pointer",
-  textDecoration: "underline",
-  fontWeight: 600,
-  fontSize: "0.95rem",
-};
-
-const cardStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: "460px",
-  background: "rgba(18, 18, 18, 0.92)",
-  border: "1px solid rgba(255, 215, 0, 0.14)",
-  borderRadius: "24px",
-  padding: "32px 28px",
-  boxShadow: "0 20px 60px rgba(0, 0, 0, 0.55)",
-  backdropFilter: "blur(10px)",
-  textAlign: "center",
-};
-
-const logoStyle: React.CSSProperties = {
-  width: "220px",
-  maxWidth: "100%",
-  margin: "0 auto 10px",
-  display: "block",
-};
-
-const brandStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "2rem",
-  fontWeight: 800,
-  color: "#f4d06f",
-  letterSpacing: "0.2px",
-};
-
-const subBrandStyle: React.CSSProperties = {
-  marginTop: "6px",
-  marginBottom: "22px",
-  color: "#b8b8b8",
-  fontSize: "0.98rem",
-};
-
-const titleStyle: React.CSSProperties = {
-  marginBottom: "18px",
-  color: "#ffffff",
-  fontSize: "1.7rem",
-  fontWeight: 800,
-  textAlign: "left",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  marginBottom: "14px",
-  background: "#f5f7ff",
-  border: "1px solid #d7dbe7",
-  borderRadius: "10px",
-  color: "#111111",
-  fontSize: "0.98rem",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const phoneRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  marginBottom: "14px",
-};
-
-const buttonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  borderRadius: "10px",
-  border: "none",
-  background: "linear-gradient(90deg, #d8b15a 0%, #c89f43 100%)",
-  color: "#111111",
-  fontSize: "1.05rem",
-  fontWeight: 800,
-  cursor: "pointer",
-  marginTop: "4px",
-};
-
-const errorStyle: React.CSSProperties = {
-  color: "#ff6b6b",
-  fontSize: "0.92rem",
-  marginBottom: "14px",
-  textAlign: "left",
-};
-
-const switchTextStyle: React.CSSProperties = {
-  marginTop: "18px",
-  color: "#c8c8c8",
-  fontSize: "0.96rem",
-};
-
-const switchLinkStyle: React.CSSProperties = {
-  color: "#f2c94c",
-  cursor: "pointer",
-  fontWeight: 700,
-};
+export default App;
