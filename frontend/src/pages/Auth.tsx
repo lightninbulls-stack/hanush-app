@@ -1,7 +1,52 @@
 import { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+const API = import.meta.env.VITE_API_URL;
 
 export default function Auth() {
+  const navigate = useNavigate();
+
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const isRegister = mode === "register";
+
+  const handleSubmit = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      if (isRegister) {
+        await axios.post(`${API}/auth/register`, {
+          name,
+          email,
+          password,
+        });
+
+        alert("Registration successful. Please login.");
+        setMode("login");
+        setName("");
+        setPassword("");
+      } else {
+        const res = await axios.post(`${API}/auth/login`, {
+          email,
+          password,
+        });
+
+        localStorage.setItem("token", res.data.access_token);
+        navigate("/");
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -36,6 +81,9 @@ export default function Auth() {
             margin: "0 auto 12px",
             display: "block",
           }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
         />
 
         <h1
@@ -69,45 +117,50 @@ export default function Auth() {
             textAlign: "left",
           }}
         >
-          {mode === "login" ? "Login" : "Register"}
+          {isRegister ? "Register" : "Login"}
         </h2>
 
-        {mode === "register" && (
+        {isRegister && (
           <input
-            placeholder="Email"
+            placeholder="Full name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             style={inputStyle}
           />
         )}
 
-        {mode === "register" && (
-          <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
-            <input placeholder="+91" style={{ ...inputStyle, marginBottom: 0, width: "110px" }} />
-            <input placeholder="Phone number" style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
-          </div>
-        )}
-
-        {mode === "register" && (
-          <input
-            placeholder="Instagram ID (optional)"
-            style={inputStyle}
-          />
-        )}
-
-        {mode === "login" ? (
-          <input
-            placeholder="Phone number"
-            style={inputStyle}
-          />
-        ) : null}
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={inputStyle}
+        />
 
         <input
           type="password"
           placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
         />
 
+        {error ? (
+          <div
+            style={{
+              color: "#ff6b6b",
+              fontSize: "0.92rem",
+              marginBottom: "14px",
+              textAlign: "left",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
         <button
-          onClick={() => alert("UI is working. Backend wiring next.")}
+          onClick={handleSubmit}
+          disabled={loading}
           style={{
             width: "100%",
             padding: "13px 14px",
@@ -121,7 +174,7 @@ export default function Auth() {
             marginTop: "4px",
           }}
         >
-          {mode === "login" ? "Login" : "Register"}
+          {loading ? "Please wait..." : isRegister ? "Register" : "Login"}
         </button>
 
         <p
@@ -131,16 +184,19 @@ export default function Auth() {
             fontSize: "0.96rem",
           }}
         >
-          {mode === "login" ? "No account?" : "Already registered?"}{" "}
+          {isRegister ? "Already registered?" : "No account?"}{" "}
           <span
             style={{
               color: "#f2c94c",
               cursor: "pointer",
               fontWeight: 700,
             }}
-            onClick={() => setMode(mode === "login" ? "register" : "login")}
+            onClick={() => {
+              setMode(isRegister ? "login" : "register");
+              setError("");
+            }}
           >
-            {mode === "login" ? "Register" : "Login"}
+            {isRegister ? "Login" : "Register"}
           </span>
         </p>
       </div>
