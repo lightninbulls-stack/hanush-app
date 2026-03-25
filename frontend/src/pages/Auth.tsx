@@ -8,13 +8,12 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<"login" | "register">("login");
-
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [instagramId, setInstagramId] = useState("");
   const [password, setPassword] = useState("");
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,6 +24,7 @@ export default function Auth() {
     try {
       if (mode === "register") {
         await axios.post(`${API}/auth/register`, {
+          name,
           email,
           country_code: countryCode,
           phone_number: phoneNumber,
@@ -45,7 +45,7 @@ export default function Auth() {
         navigate("/");
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Something went wrong");
+      setError(err?.response?.data?.detail || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -53,24 +53,37 @@ export default function Auth() {
 
   return (
     <div style={pageStyle}>
+      <div style={topBarStyle}>
+        <span
+          style={topLinkStyle}
+          onClick={() => setMode(mode === "login" ? "register" : "login")}
+        >
+          {mode === "login" ? "Login / Register" : "Back to Login"}
+        </span>
+      </div>
+
       <div style={cardStyle}>
         <img
           src="/lightninbull-bull.png"
           alt="Lightninbull"
-          style={{
-            width: "220px",
-            maxWidth: "100%",
-            margin: "0 auto 14px",
-            display: "block",
-          }}
+          style={logoStyle}
         />
 
         <h1 style={brandStyle}>Lightninbull</h1>
         <p style={subBrandStyle}>Financial Analytics</p>
 
         <h2 style={titleStyle}>
-          {mode === "login" ? "Login to your account" : "Create your account"}
+          {mode === "login" ? "Login" : "Register"}
         </h2>
+
+        {mode === "register" && (
+          <input
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={inputStyle}
+          />
+        )}
 
         <input
           type="email"
@@ -87,7 +100,7 @@ export default function Auth() {
                 placeholder="+91"
                 value={countryCode}
                 onChange={(e) => setCountryCode(e.target.value)}
-                style={{ ...inputStyle, marginBottom: 0, flex: "0 0 110px" }}
+                style={{ ...inputStyle, marginBottom: 0, width: "110px" }}
               />
               <input
                 placeholder="Phone number"
@@ -131,8 +144,8 @@ export default function Auth() {
         <p style={switchTextStyle}>
           {mode === "login" ? "No account?" : "Already registered?"}{" "}
           <span
-            onClick={() => setMode(mode === "login" ? "register" : "login")}
             style={switchLinkStyle}
+            onClick={() => setMode(mode === "login" ? "register" : "login")}
           >
             {mode === "login" ? "Register" : "Login"}
           </span>
@@ -150,13 +163,112 @@ const pageStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "24px",
+  position: "relative",
+};
+
+const topBarStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "22px",
+  right: "24px",
+};
+
+const topLinkStyle: React.CSSProperties = {
+  color: "#f2c94c",
+  cursor: "pointer",
+  textDecoration: "underline",
+  fontWeight: 600,
+  fontSize: "0.95rem",
 };
 
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: "460px",
-  background: "rgba(20,20,20,0.92)",
-  border: "1px solid rgba(255,215,0,0.18)",
-  borderRadius: "22px",
+  background: "rgba(18, 18, 18, 0.92)",
+  border: "1px solid rgba(255, 215, 0, 0.14)",
+  borderRadius: "24px",
   padding: "32px 28px",
-  boxShadow: "0 20px
+  boxShadow: "0 20px 60px rgba(0, 0, 0, 0.55)",
+  backdropFilter: "blur(10px)",
+  textAlign: "center",
+};
+
+const logoStyle: React.CSSProperties = {
+  width: "220px",
+  maxWidth: "100%",
+  margin: "0 auto 10px",
+  display: "block",
+};
+
+const brandStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "2rem",
+  fontWeight: 800,
+  color: "#f4d06f",
+  letterSpacing: "0.2px",
+};
+
+const subBrandStyle: React.CSSProperties = {
+  marginTop: "6px",
+  marginBottom: "22px",
+  color: "#b8b8b8",
+  fontSize: "0.98rem",
+};
+
+const titleStyle: React.CSSProperties = {
+  marginBottom: "18px",
+  color: "#ffffff",
+  fontSize: "1.7rem",
+  fontWeight: 800,
+  textAlign: "left",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  marginBottom: "14px",
+  background: "#f5f7ff",
+  border: "1px solid #d7dbe7",
+  borderRadius: "10px",
+  color: "#111111",
+  fontSize: "0.98rem",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const phoneRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  marginBottom: "14px",
+};
+
+const buttonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: "10px",
+  border: "none",
+  background: "linear-gradient(90deg, #d8b15a 0%, #c89f43 100%)",
+  color: "#111111",
+  fontSize: "1.05rem",
+  fontWeight: 800,
+  cursor: "pointer",
+  marginTop: "4px",
+};
+
+const errorStyle: React.CSSProperties = {
+  color: "#ff6b6b",
+  fontSize: "0.92rem",
+  marginBottom: "14px",
+  textAlign: "left",
+};
+
+const switchTextStyle: React.CSSProperties = {
+  marginTop: "18px",
+  color: "#c8c8c8",
+  fontSize: "0.96rem",
+};
+
+const switchLinkStyle: React.CSSProperties = {
+  color: "#f2c94c",
+  cursor: "pointer",
+  fontWeight: 700,
+};
