@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface SidebarProps {
   activeCategory: string;
@@ -22,6 +22,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   setActiveCategory,
   starredCount,
 }) => {
+  const [logoBurst, setLogoBurst] = useState(0);
+
+  const triggerCategory = (category: string) => {
+    setActiveCategory(category);
+    setLogoBurst((prev) => prev + 1);
+  };
+
   const sections: NavSection[] = [
     {
       title: 'Navigation',
@@ -67,39 +74,54 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div
         className="sidebar-logo"
         style={{
-          padding: '0 24px 32px',
+          padding: '0 24px 34px',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
+          gap: '14px',
         }}
       >
-        <img
-          src="/lightninbull-bull.png"
-          alt="Lightninbull"
+        <button
+          key={logoBurst}
+          type="button"
+          className="logo-trigger lightning-active"
+          onClick={() => triggerCategory('Momentum')}
+          aria-label="Lightninbull Home"
           style={{
-            width: '130px',
-            maxWidth: '100%',
-            height: 'auto',
-            borderRadius: '12px',
-            filter: 'drop-shadow(0 0 10px rgba(197,160,89,0.45))',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
           }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        >
+          <span className="logo-lightning-bolt bolt-one"></span>
+          <span className="logo-lightning-bolt bolt-two"></span>
 
-        <div
+          <img
+            src="/lightninbull-bull.png"
+            alt="Lightninbull"
+            className="logo-image"
+            style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '10px',
+              objectFit: 'cover',
+            }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </button>
+
+        <h1
           style={{
-            fontSize: '1.2rem',
-            fontWeight: 800,
+            fontSize: '1.3rem',
+            fontWeight: 900,
             color: '#f4d06f',
             letterSpacing: '0.2px',
+            margin: 0,
           }}
         >
           Lightninbull
-        </div>
+        </h1>
       </div>
 
       {sections.map((section) => (
@@ -110,10 +132,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div
               key={item.name}
               className={`nav-item-link ${activeCategory === item.name ? 'active' : ''}`}
-              onClick={() => setActiveCategory(item.name)}
+              onClick={() => triggerCategory(item.name)}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-text">{item.name}</span>
+
               {item.badge !== undefined && item.badge !== null && (
                 <span className="nav-badge">{item.badge}</span>
               )}
