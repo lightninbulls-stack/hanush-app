@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface SidebarProps {
   activeCategory: string;
@@ -23,11 +23,22 @@ const Sidebar: React.FC<SidebarProps> = ({
   starredCount,
 }) => {
   const [logoBurst, setLogoBurst] = useState(0);
+  const [shockItem, setShockItem] = useState<string | null>(null);
 
   const triggerCategory = (category: string) => {
     setActiveCategory(category);
     setLogoBurst((prev) => prev + 1);
+    setShockItem(category);
   };
+
+  useEffect(() => {
+    if (!shockItem) return;
+    const timer = window.setTimeout(() => {
+      setShockItem(null);
+    }, 850);
+
+    return () => window.clearTimeout(timer);
+  }, [shockItem]);
 
   const sections: NavSection[] = [
     {
@@ -92,8 +103,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             padding: 0,
           }}
         >
+          <span className="logo-flash-ring ring-one"></span>
+          <span className="logo-flash-ring ring-two"></span>
           <span className="logo-lightning-bolt bolt-one"></span>
           <span className="logo-lightning-bolt bolt-two"></span>
+          <span className="logo-lightning-arc arc-left"></span>
+          <span className="logo-lightning-arc arc-right"></span>
 
           <img
             src="/lightninbull-bull.png"
@@ -131,9 +146,12 @@ const Sidebar: React.FC<SidebarProps> = ({
           {section.items.map((item) => (
             <div
               key={item.name}
-              className={`nav-item-link ${activeCategory === item.name ? 'active' : ''}`}
+              className={`nav-item-link ${activeCategory === item.name ? 'active' : ''} ${
+                shockItem === item.name ? 'electric-active' : ''
+              }`}
               onClick={() => triggerCategory(item.name)}
             >
+              <span className="nav-electric-line"></span>
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-text">{item.name}</span>
 
