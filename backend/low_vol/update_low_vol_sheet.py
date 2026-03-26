@@ -2,14 +2,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from factors import (
-    load_universe_metadata,
-    load_close_prices_from_csv,
-    build_snapshot,
-    rank_snapshot,
-    build_topn_ui_table,
-    TRADING_DAYS_6M,
-)
+try:
+    from .factors import (
+        load_universe_metadata,
+        load_close_prices_from_csv,
+        build_snapshot,
+        rank_snapshot,
+        build_topn_ui_table,
+        TRADING_DAYS_6M,
+    )
+except ImportError:
+    from factors import (
+        load_universe_metadata,
+        load_close_prices_from_csv,
+        build_snapshot,
+        rank_snapshot,
+        build_topn_ui_table,
+        TRADING_DAYS_6M,
+    )
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
