@@ -42,7 +42,7 @@ def fetch_from_low_vol_csv() -> List[Dict]:
                     "return_3m": float(ret3m) if not pd.isna(ret3m) else 0.0,
                     "return_6m": float(ret6m) if not pd.isna(ret6m) else 0.0,
                     "volatility_6m": float(vol6m) if not pd.isna(vol6m) else 0.0,
-                    "volatility_bucket": str(vol_bucket) if not pd.isna(vol_bucket) else "N/A",
+                    # "volatility_bucket": str(vol_bucket) if not pd.isna(vol_bucket) else "N/A",
                 }
             )
 
