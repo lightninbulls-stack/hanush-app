@@ -5,7 +5,7 @@ import "./App.css";
 import Auth from "./pages/Auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const MarketingHome = lazy(() => import("./pages/MarketingHome"));
+const HomeLanding = lazy(() => import("./pages/HomeLanding"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
@@ -40,7 +40,7 @@ const App: React.FC = () => {
         }
       >
         <Routes>
-          <Route path="/" element={<MarketingHome />} />
+          <Route path="/" element={<HomeLanding />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/factors/:slug" element={<FactorPage />} />
           <Route
