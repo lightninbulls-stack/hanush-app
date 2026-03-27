@@ -7,8 +7,14 @@ export interface Stock {
     symbol: string;
     sector: string;
     score: number;
-    return_3m: number;
-    return_6m: number;
+
+    return_1w?: number;
+    return_1m?: number;
+    return_3m?: number;
+    return_6m?: number;
+
+    volatility_6m?: number;
+    volatility_bucket?: string;
 }
 
 export const fetchStocksByCategory = async (category: string) => {
