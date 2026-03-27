@@ -9,8 +9,13 @@ interface StockTableProps {
     onStockClick: (symbol: string) => void;
     onStarClick: (symbol: string) => void;
 }
-
-const StockTable: React.FC<StockTableProps> = ({ stocks, starredSymbols, onStockClick, onStarClick }) => {
+const StockTable: React.FC<StockTableProps> = ({
+    category,
+    stocks,
+    starredSymbols,
+    onStockClick,
+    onStarClick,
+}) => {
     return (
         <div className="stock-table-container">
             <div className="table-header">
