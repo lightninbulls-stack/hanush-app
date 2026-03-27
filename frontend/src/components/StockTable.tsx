@@ -3,6 +3,7 @@ import React from 'react';
 import { type Stock } from '../services/api';
 
 interface StockTableProps {
+    category: string;
     stocks: Stock[];
     starredSymbols: string[];
     onStockClick: (symbol: string) => void;
