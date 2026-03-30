@@ -5,7 +5,7 @@ import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
 import { fetchStocksByCategory, type Stock } from "../services/api";
 
-const NON_SCREENER_TABS = ["Watchlist", "Guide", "Profile / Settings"];
+const NON_FEATURE_TABS = ["Watchlist", "Guide", "Profile / Settings"];
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
@@ -66,7 +66,7 @@ const Dashboard: React.FC = () => {
     setSelectedStock(symbol);
   };
 
-  const handleScreenBack = () => {
+  const handleBackToDashboard = () => {
     if (selectedStock) {
       setSelectedStock(null);
       return;
@@ -80,8 +80,8 @@ const Dashboard: React.FC = () => {
     setActiveTab("Watchlist");
   };
 
-  const showScreenerBackButton =
-    !selectedStock && !NON_SCREENER_TABS.includes(activeTab);
+  const showFeatureBackButton =
+    !selectedStock && !NON_FEATURE_TABS.includes(activeTab);
 
   return (
     <div className="main-layout">
@@ -94,7 +94,7 @@ const Dashboard: React.FC = () => {
       <div className="content-area">
         {selectedStock ? (
           <div className="detail-container">
-            <button className="back-btn" onClick={() => setSelectedStock(null)}>
+            <button className="back-btn" onClick={handleBackToDashboard}>
               <span>←</span> Back to Dashboard
             </button>
             <TradingViewChart symbol={selectedStock} />
@@ -123,10 +123,10 @@ const Dashboard: React.FC = () => {
           </div>
         ) : (
           <>
-            {showScreenerBackButton && (
+            {showFeatureBackButton && (
               <div className="screener-toolbar">
-                <button className="screen-back-btn" onClick={handleScreenBack}>
-                  <span>←</span> Back
+                <button className="back-btn screen-back-btn" onClick={handleBackToDashboard}>
+                  <span>←</span> Back to Dashboard
                 </button>
               </div>
             )}
