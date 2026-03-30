@@ -28,8 +28,12 @@ def fetch_from_momentum_csv() -> List[Dict]:
 
             sector = row.get("Sector", "N/A")
             score = row.get("Score", 0)
+            ret1w = row.get("1W Return", 0)
+            ret1m = row.get("1M Return", 0)
             ret3m = row.get("3M Return", 0)
             ret6m = row.get("6M Return", 0)
+            vol6m = row.get("6M Volatility", 0)
+            vol_bucket = row.get("Volatility Bucket", "N/A")
 
             stocks.append(
                 {
@@ -37,8 +41,12 @@ def fetch_from_momentum_csv() -> List[Dict]:
                     "symbol": str(symbol),
                     "sector": str(sector) if not pd.isna(sector) else "N/A",
                     "score": int(float(score)) if not pd.isna(score) else 0,
+                    "return_1w": float(ret1w) if not pd.isna(ret1w) else 0.0,
+                    "return_1m": float(ret1m) if not pd.isna(ret1m) else 0.0,
                     "return_3m": float(ret3m) if not pd.isna(ret3m) else 0.0,
                     "return_6m": float(ret6m) if not pd.isna(ret6m) else 0.0,
+                    "volatility_6m": float(vol6m) if not pd.isna(vol6m) else 0.0,
+                    "volatility_bucket": str(vol_bucket) if not pd.isna(vol_bucket) else "N/A",
                 }
             )
 
