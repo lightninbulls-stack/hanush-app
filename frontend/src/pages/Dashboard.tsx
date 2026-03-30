@@ -99,6 +99,7 @@ const Dashboard: React.FC = () => {
             <button className="back-btn" onClick={handleBackToDashboard}>
               <span>←</span> Back to Dashboard
             </button>
+
             <TradingViewChart symbol={selectedStock} />
             <StockStats symbol={selectedStock} />
           </div>
