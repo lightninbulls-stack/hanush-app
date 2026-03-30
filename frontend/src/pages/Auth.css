@@ -1,33 +1,42 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap");
 
 :root {
-  --lb-auth-bg: #f4f5f7;
-  --lb-auth-card: #ffffff;
-  --lb-auth-primary: #58b7db;
-  --lb-auth-primary-dark: #2997c0;
-  --lb-auth-text: #20242a;
-  --lb-auth-muted: #697586;
-  --lb-auth-border: #dce4ec;
-  --lb-auth-shadow: 0 20px 60px rgba(34, 44, 58, 0.16);
+  --lb-bg: #050608;
+  --lb-bg-soft: #0b0f14;
+  --lb-card: rgba(10, 12, 16, 0.92);
+  --lb-card-2: rgba(255, 255, 255, 0.04);
+  --lb-border: rgba(255, 255, 255, 0.08);
+  --lb-text: #f6f3ee;
+  --lb-muted: rgba(255, 255, 255, 0.64);
+  --lb-gold: #d2a85f;
+  --lb-gold-dark: #b8863d;
+  --lb-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 .lb-auth-page {
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgba(88,183,219,0.08), transparent 20%),
-    #f4f5f7;
-  color: var(--lb-auth-text);
+    radial-gradient(circle at top, rgba(210, 168, 95, 0.08), transparent 22%),
+    linear-gradient(180deg, #050608 0%, #0b1118 100%);
+  color: var(--lb-text);
   font-family: "Inter", system-ui, sans-serif;
 }
 
 .lb-auth-header {
-  padding: 20px 0;
-  background: #56b6db;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  padding: 22px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
 }
 
 .lb-auth-header-inner {
@@ -38,7 +47,7 @@
 .lb-auth-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   text-decoration: none;
 }
 
@@ -46,35 +55,38 @@
   width: 58px;
   height: 58px;
   object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(210, 168, 95, 0.22));
 }
 
 .lb-auth-brand-copy {
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 
 .lb-auth-brand-title {
   color: #ffffff;
-  font-size: 1.9rem;
+  font-size: 1.8rem;
   font-weight: 800;
   letter-spacing: -0.03em;
 }
 
 .lb-auth-brand-subtitle {
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 0.95rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.86rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .lb-auth-main {
   width: min(1240px, calc(100% - 48px));
   margin: 0 auto;
-  min-height: calc(100vh - 98px);
+  min-height: calc(100vh - 103px);
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
-  gap: 50px;
+  gap: 48px;
   align-items: center;
-  padding: 42px 0 50px;
+  padding: 40px 0 50px;
 }
 
 .lb-auth-left {
@@ -83,31 +95,31 @@
 
 .lb-auth-eyebrow {
   margin: 0 0 18px;
-  color: #4ea9cf;
-  font-size: 0.8rem;
+  color: #e0bf85;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.24em;
 }
 
 .lb-auth-hero-title {
   margin: 0;
   font-family: "Playfair Display", Georgia, serif;
-  font-size: clamp(3rem, 6vw, 5rem);
-  line-height: 0.98;
+  font-size: clamp(3.2rem, 6vw, 5.4rem);
+  line-height: 0.96;
   letter-spacing: -0.04em;
-  color: #1f2430;
+  color: #f5f1eb;
 }
 
 .lb-auth-hero-title span {
-  color: #57b6da;
+  color: var(--lb-gold);
 }
 
 .lb-auth-hero-text {
-  max-width: 580px;
+  max-width: 600px;
   margin-top: 24px;
   font-size: 1.08rem;
   line-height: 1.85;
-  color: #5e6979;
+  color: var(--lb-muted);
 }
 
 .lb-auth-points {
@@ -120,11 +132,10 @@
 .lb-auth-points span {
   padding: 10px 14px;
   border-radius: 999px;
-  border: 1px solid #d6e5ee;
-  background: #ffffff;
-  color: #4a5666;
+  border: 1px solid var(--lb-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.92rem;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
 }
 
 .lb-auth-right {
@@ -135,43 +146,46 @@
 .lb-auth-card {
   width: 100%;
   max-width: 520px;
-  background: var(--lb-auth-card);
+  background: var(--lb-card);
   border-radius: 28px;
   padding: 34px 34px 30px;
-  box-shadow: var(--lb-auth-shadow);
-  border: 1px solid #e7eef4;
+  box-shadow: var(--lb-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
 }
 
 .lb-auth-card-title {
   margin: 0 0 22px;
   text-align: center;
-  font-size: 2.2rem;
+  font-size: 2.4rem;
   font-weight: 800;
-  color: #2b3340;
+  color: #ffffff;
 }
 
 .lb-auth-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border: 1px solid #91cfe4;
-  border-radius: 10px;
+  border: 1px solid rgba(210, 168, 95, 0.35);
+  border-radius: 12px;
   overflow: hidden;
   margin-bottom: 26px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .lb-auth-switch button {
   border: none;
-  padding: 13px 12px;
-  background: #ffffff;
-  color: #506070;
+  padding: 14px 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 0.96rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  transition: 0.25s ease;
 }
 
 .lb-auth-switch button.active {
-  background: #57b6da;
-  color: #ffffff;
+  background: linear-gradient(135deg, #ecd3a4 0%, #c08b3a 100%);
+  color: #111111;
 }
 
 .lb-auth-form {
@@ -187,28 +201,33 @@
   display: block;
   margin-bottom: 8px;
   font-size: 0.92rem;
-  color: #6b7686;
+  color: rgba(255, 255, 255, 0.72);
   font-weight: 600;
 }
 
 .lb-auth-field input {
   width: 100%;
   padding: 14px 14px;
-  border: none;
-  border-bottom: 1.5px solid #d7e0e8;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
   outline: none;
   font-size: 1rem;
-  color: #20242a;
+  color: #ffffff;
+}
+
+.lb-auth-field input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .lb-auth-field input:focus {
-  border-bottom-color: #57b6da;
+  border-color: rgba(210, 168, 95, 0.65);
+  box-shadow: 0 0 0 3px rgba(210, 168, 95, 0.10);
 }
 
 .lb-auth-error {
   margin-bottom: 14px;
-  color: #d64545;
+  color: #ff7a7a;
   font-size: 0.93rem;
   font-weight: 600;
 }
@@ -216,19 +235,20 @@
 .lb-auth-submit {
   margin-top: 10px;
   width: 100%;
-  padding: 14px 18px;
+  padding: 15px 18px;
   border: none;
-  border-radius: 10px;
-  background: #57b6da;
-  color: #ffffff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ecd3a4 0%, #c08b3a 100%);
+  color: #111111;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(87, 182, 218, 0.24);
+  box-shadow: 0 14px 34px rgba(210, 168, 95, 0.24);
+  transition: 0.25s ease;
 }
 
 .lb-auth-submit:hover {
-  background: var(--lb-auth-primary-dark);
+  transform: translateY(-1px);
 }
 
 .lb-auth-submit:disabled {
@@ -239,12 +259,12 @@
 .lb-auth-footer-text {
   margin-top: 20px;
   text-align: center;
-  color: #697586;
+  color: rgba(255, 255, 255, 0.66);
   font-size: 0.96rem;
 }
 
 .lb-auth-footer-text span {
-  color: #57b6da;
+  color: var(--lb-gold);
   font-weight: 700;
   cursor: pointer;
 }
@@ -252,8 +272,8 @@
 @media (max-width: 980px) {
   .lb-auth-main {
     grid-template-columns: 1fr;
-    gap: 28px;
-    padding-top: 30px;
+    gap: 30px;
+    padding-top: 28px;
   }
 
   .lb-auth-left {
@@ -272,7 +292,7 @@
   }
 
   .lb-auth-brand-title {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
   }
 
   .lb-auth-card {
@@ -280,6 +300,6 @@
   }
 
   .lb-auth-card-title {
-    font-size: 1.8rem;
+    font-size: 2rem;
   }
 }
