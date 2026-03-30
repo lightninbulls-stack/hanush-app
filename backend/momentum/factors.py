@@ -21,7 +21,7 @@ def load_universe_metadata(
     sheet_name: str = UNIVERSE_SHEET,
 ) -> pd.DataFrame:
     """
-    Reads the uploaded universe workbook and keeps the columns needed for:
+    Reads the universe workbook and keeps the columns needed for:
     - Yahoo ticker matching
     - NSE symbol display
     - sector mapping
@@ -135,18 +135,32 @@ def latest_mom_6_1(monthly: pd.DataFrame) -> pd.Series:
     Classic 6-1 momentum:
     previous month close / close 7 months ago - 1
     """
+    if len(monthly) < 8:
+        raise RuntimeError(
+            "Not enough monthly history for 6-1 momentum. "
+            "Need at least 8 month-end observations."
+        )
+
     mom = (monthly.shift(1) / monthly.shift(7)) - 1.0
     return mom.iloc[-1].dropna()
 
 
 def build_snapshot(close: pd.DataFrame) -> pd.DataFrame:
     """
-    Keep momentum strategy intact:
-    - ranking is still done on mom_6_1
+    Momentum strategy remains unchanged:
+    ranking is still done using mom_6_1.
 
-    But add extra columns so the final UI output matches low-vol format.
+    But we also compute the same display columns used in low-vol output:
+    1W Return, 1M Return, 3M Return, 6M Return, 6M Volatility, Volatility Bucket.
     """
-    monthly = close.resample("M").last()
+    if len(close) < TRADING_DAYS_6M + 1:
+        raise RuntimeError(
+            "Not enough daily history to compute 6M return/volatility. "
+            f"Need at least {TRADING_DAYS_6M + 1} rows."
+        )
+
+    # pandas 3.x: use ME instead of M
+    monthly = close.resample("ME").last()
 
     snapshot = pd.concat(
         [
@@ -164,10 +178,12 @@ def build_snapshot(close: pd.DataFrame) -> pd.DataFrame:
     return snapshot
 
 
-def rank_snapshot(snapshot: pd.DataFrame, key: str = "mom_6_1") -> pd.DataFrame:
+def rank_snapshot(
+    snapshot: pd.DataFrame,
+    key: str = "mom_6_1",
+) -> pd.DataFrame:
     """
     Higher momentum gets better rank.
-    Strategy remains momentum-based.
     """
     if key not in snapshot.columns:
         raise ValueError(f"rank key must be one of {list(snapshot.columns)}. Got: {key}")
@@ -212,8 +228,8 @@ def build_topn_ui_table(
     top_n: int,
 ) -> pd.DataFrame:
     """
-    Momentum strategy stays the same.
-    Only output columns are aligned to low-vol format.
+    Momentum ranking stays the same.
+    Only output columns are aligned to the low-vol format.
     """
     merged = ranked.reset_index().merge(universe_meta, on="Ticker", how="left")
 
@@ -223,8 +239,7 @@ def build_topn_ui_table(
     )
     merged["Company"] = merged["Company"].fillna("")
 
-    # IMPORTANT:
-    # Score is still based on momentum, not volatility
+    # Score is based on momentum, not volatility
     merged["Score"] = minmax_score(merged["mom_6_1"])
 
     top = merged.head(top_n).copy()
