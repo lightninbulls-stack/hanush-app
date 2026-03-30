@@ -8,6 +8,7 @@ import yfinance as yf
 
 from fetch_service.main_momentum import fetch_from_momentum_csv
 from fetch_service.main_regime import fetch_from_regime_csv
+from fetch_service.main_value import fetch_from_value_csv
 
 
 def fetch_from_excel(category: str) -> List[Dict]:
@@ -17,7 +18,6 @@ def fetch_from_excel(category: str) -> List[Dict]:
     excel_path = os.getenv("EXCEL_PATH", DATA_PATH)
 
     sheet_map = {
-        "Value": "Value",
         "Quality": "Quality",
         "Trending Upside": "Technical_analysis_upside",
         "Trending Downside": "Technical_analysis_downside",
@@ -51,36 +51,12 @@ def fetch_from_excel(category: str) -> List[Dict]:
 
             sector = get_val(row, ["Sector", "SECTOR", "sector"], "N/A")
             score = get_val(row, ["Score", "SCORE", "score"], 0)
-            ret1w = get_val(
-                row,
-                ["1W Return", "1W RETURN", "return_1w", "1w_return", "1W return"],
-                None,
-            )
-            ret1m = get_val(
-                row,
-                ["1M Return", "1M RETURN", "return_1m", "1m_return", "1M return"],
-                None,
-            )
-            ret3m = get_val(
-                row,
-                ["3M Return", "3M RETURN", "return_3m", "3m_return", "3M return"],
-                None,
-            )
-            ret6m = get_val(
-                row,
-                ["6M Return", "6M RETURN", "return_6m", "6m_return", "6M return"],
-                None,
-            )
-            vol6m = get_val(
-                row,
-                ["6M Volatility", "6M VOLATILITY", "volatility_6m", "6m_volatility"],
-                None,
-            )
-            vol_bucket = get_val(
-                row,
-                ["Volatility Bucket", "VOLATILITY BUCKET", "volatility_bucket"],
-                None,
-            )
+            ret1w = get_val(row, ["1W Return", "1W RETURN", "return_1w"], None)
+            ret1m = get_val(row, ["1M Return", "1M RETURN", "return_1m"], None)
+            ret3m = get_val(row, ["3M Return", "3M RETURN", "return_3m"], None)
+            ret6m = get_val(row, ["6M Return", "6M RETURN", "return_6m"], None)
+            vol6m = get_val(row, ["6M Volatility", "6M VOLATILITY", "volatility_6m"], None)
+            vol_bucket = get_val(row, ["Volatility Bucket", "VOLATILITY BUCKET", "volatility_bucket"], None)
 
             stocks.append(
                 {
@@ -162,6 +138,9 @@ def fetch_from_google_sheets(category: str) -> List[Dict]:
 
     if category == "Low Vol":
         return fetch_from_low_vol_csv()
+
+    if category == "Value":
+        return fetch_from_value_csv()
 
     if category in {"Regime Upside", "Regime Downside"}:
         return fetch_from_regime_csv(category)
@@ -288,14 +267,14 @@ class DataService:
             self.redis_client = None
 
     def cache_stock_list(self, category: str, data: List[Dict]):
-        if category in {"Momentum", "Low Vol", "Regime Upside", "Regime Downside"}:
+        if category in {"Momentum", "Low Vol", "Value", "Regime Upside", "Regime Downside"}:
             return
 
         if self.redis_client:
             self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
 
     def get_cached_stock_list(self, category: str):
-        if category in {"Momentum", "Low Vol", "Regime Upside", "Regime Downside"}:
+        if category in {"Momentum", "Low Vol", "Value", "Regime Upside", "Regime Downside"}:
             return None
 
         if self.redis_client:
