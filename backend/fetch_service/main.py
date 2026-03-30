@@ -7,6 +7,7 @@ import redis
 import yfinance as yf
 
 from fetch_service.main_momentum import fetch_from_momentum_csv
+from fetch_service.main_regime import fetch_from_regime_csv
 
 
 def fetch_from_excel(category: str) -> List[Dict]:
@@ -138,6 +139,9 @@ def fetch_from_google_sheets(category: str) -> List[Dict]:
 
     if category == "Low Vol":
         return fetch_from_low_vol_csv()
+
+    if category in {"Regime Upside", "Regime Downside"}:
+        return fetch_from_regime_csv(category)
 
     return fetch_from_excel(category)
 
