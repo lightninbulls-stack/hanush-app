@@ -1,0 +1,18 @@
+Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
+2026-03-30,1,PREMIERENE,Capital Goods,100,3.11,22.24,1.67,-14.65,37.66,Very High Vol,EMA Ensemble Upside
+2026-03-30,2,WAAREEENER,Capital Goods,100,-1.77,14.82,2.07,-10.89,42.26,Very High Vol,EMA Ensemble Upside
+2026-03-30,3,AUROPHARMA,Healthcare,100,1.01,7.67,8.14,19.57,26.39,High Vol,EMA Ensemble Upside
+2026-03-30,4,ONGC,Oil Gas & Consumable Fuels,100,7.25,2.6,21.37,19.34,25.36,High Vol,EMA Ensemble Upside
+2026-03-30,5,LUPIN,Healthcare,100,-0.37,0.95,9.54,16.22,18.59,Medium Vol,EMA Ensemble Upside
+2026-03-30,6,DMART,Consumer Services,100,4.93,1.76,4.47,-14.83,21.4,Medium Vol,EMA Ensemble Upside
+2026-03-30,7,OIL,Oil Gas & Consumable Fuels,100,-0.01,1.11,18.05,16.93,30.46,High Vol,EMA Ensemble Upside
+2026-03-30,8,SAMMAANCAP,Financial Services,80,8.37,-5.33,6.89,10.51,42.94,Very High Vol,EMA Ensemble Upside
+2026-03-30,9,POWERINDIA,Capital Goods,80,-3.16,-3.01,32.07,27.57,46.86,Very High Vol,EMA Ensemble Upside
+2026-03-30,10,GLENMARK,Healthcare,80,-2.22,2.24,6.02,5.6,26.57,High Vol,EMA Ensemble Upside
+2026-03-30,11,NATIONALUM,Metals & Mining,80,4.78,7.31,25.83,87.35,43.95,Very High Vol,EMA Ensemble Upside
+2026-03-30,12,DELHIVERY,Services,80,-1.45,-5.22,2.32,-8.62,32.37,High Vol,EMA Ensemble Upside
+2026-03-30,13,COALINDIA,Oil Gas & Consumable Fuels,60,-3.78,2.7,12.01,14.66,25.45,High Vol,EMA Ensemble Upside
+2026-03-30,14,SUNPHARMA,Healthcare,60,-1.12,-0.4,2.19,8.0,18.23,Medium Vol,EMA Ensemble Upside
+2026-03-30,15,OFSS,Information Technology,60,2.29,1.8,-13.45,-25.72,30.0,High Vol,EMA Ensemble Upside
+2026-03-30,16,PAGEIND,Textiles,60,-0.72,-2.9,-12.87,-25.07,21.63,Medium Vol,EMA Ensemble Upside
+2026-03-30,17,ANGELONE,Financial Services,60,-1.64,-8.62,-8.83,3.31,40.85,Very High Vol,EMA Ensemble Upside
