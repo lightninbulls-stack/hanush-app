@@ -52,9 +52,6 @@ const HomeLanding: React.FC = () => {
               <Link to="/dashboard" className="lb-home-primary-btn">
                 Open Dashboard
               </Link>
-              <Link to="/auth" className="lb-home-secondary-btn">
-                Member Login
-              </Link>
             </div>
 
             <div className="lb-home-features">
