@@ -16,7 +16,6 @@ def fetch_from_excel(category: str) -> List[Dict]:
 
     excel_path = os.getenv("EXCEL_PATH", DATA_PATH)
 
-    # Only categories that still come from Excel
     sheet_map = {
         "Value": "Value",
         "Quality": "Quality",
@@ -52,25 +51,49 @@ def fetch_from_excel(category: str) -> List[Dict]:
 
             sector = get_val(row, ["Sector", "SECTOR", "sector"], "N/A")
             score = get_val(row, ["Score", "SCORE", "score"], 0)
+            ret1w = get_val(
+                row,
+                ["1W Return", "1W RETURN", "return_1w", "1w_return", "1W return"],
+                None,
+            )
+            ret1m = get_val(
+                row,
+                ["1M Return", "1M RETURN", "return_1m", "1m_return", "1M return"],
+                None,
+            )
             ret3m = get_val(
                 row,
                 ["3M Return", "3M RETURN", "return_3m", "3m_return", "3M return"],
-                0,
+                None,
             )
             ret6m = get_val(
                 row,
                 ["6M Return", "6M RETURN", "return_6m", "6m_return", "6M return"],
-                0,
+                None,
+            )
+            vol6m = get_val(
+                row,
+                ["6M Volatility", "6M VOLATILITY", "volatility_6m", "6m_volatility"],
+                None,
+            )
+            vol_bucket = get_val(
+                row,
+                ["Volatility Bucket", "VOLATILITY BUCKET", "volatility_bucket"],
+                None,
             )
 
             stocks.append(
                 {
-                    "rank": i + 1,
+                    "rank": int(get_val(row, ["Rank", "RANK", "rank"], i + 1)),
                     "symbol": str(symbol),
                     "sector": str(sector),
-                    "score": int(score),
-                    "return_3m": float(ret3m),
-                    "return_6m": float(ret6m),
+                    "score": int(float(score)) if score is not None else 0,
+                    "return_1w": float(ret1w) if ret1w is not None else None,
+                    "return_1m": float(ret1m) if ret1m is not None else None,
+                    "return_3m": float(ret3m) if ret3m is not None else None,
+                    "return_6m": float(ret6m) if ret6m is not None else None,
+                    "volatility_6m": float(vol6m) if vol6m is not None else None,
+                    "volatility_bucket": str(vol_bucket) if vol_bucket is not None else None,
                 }
             )
 
@@ -265,14 +288,14 @@ class DataService:
             self.redis_client = None
 
     def cache_stock_list(self, category: str, data: List[Dict]):
-        if category in {"Momentum", "Low Vol"}:
+        if category in {"Momentum", "Low Vol", "Regime Upside", "Regime Downside"}:
             return
 
         if self.redis_client:
             self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
 
     def get_cached_stock_list(self, category: str):
-        if category in {"Momentum", "Low Vol"}:
+        if category in {"Momentum", "Low Vol", "Regime Upside", "Regime Downside"}:
             return None
 
         if self.redis_client:
