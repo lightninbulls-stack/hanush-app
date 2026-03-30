@@ -29,7 +29,9 @@ const Dashboard: React.FC = () => {
         if (activeTab === "Watchlist") {
           const data = await fetchStocksByCategory("Momentum");
           setStocks(
-            data.stocks.filter((s: Stock) => starredSymbols.includes(s.symbol))
+            (data.stocks || []).filter((s: Stock) =>
+              starredSymbols.includes(s.symbol)
+            )
           );
         } else {
           const data = await fetchStocksByCategory(activeTab);
@@ -101,37 +103,32 @@ const Dashboard: React.FC = () => {
             <StockStats symbol={selectedStock} />
           </div>
         ) : activeTab === "Guide" ? (
-          <div className="glass-card" style={{ padding: "40px", margin: "40px" }}>
+          <div className="glass-card helper-card">
             <h2 className="glow-text">User Guide</h2>
-            <p
-              style={{
-                marginTop: "20px",
-                color: "var(--text-dim)",
-                lineHeight: "1.6",
-              }}
-            >
+            <p>
               Welcome to Lightninbull Financial Analytics. This section helps you
               understand the metrics and strategies used in the platform.
             </p>
           </div>
         ) : activeTab === "Profile / Settings" ? (
-          <div className="glass-card" style={{ padding: "40px", margin: "40px" }}>
+          <div className="glass-card helper-card">
             <h2 className="glow-text">Profile & Settings</h2>
-            <p style={{ marginTop: "20px", color: "var(--text-dim)" }}>
-              Manage your account preferences and application settings here.
-            </p>
+            <p>Manage your account preferences and application settings here.</p>
           </div>
         ) : (
           <>
             {showFeatureBackButton && (
               <div className="screener-toolbar">
-                <button className="back-btn screen-back-btn" onClick={handleBackToDashboard}>
+                <button
+                  className="back-btn screen-back-btn"
+                  onClick={handleBackToDashboard}
+                >
                   <span>←</span> Back to Dashboard
                 </button>
               </div>
             )}
 
-            <div className="screener-header">
+            <div className="screener-header compact-screener-header">
               <h2 className="glow-text">
                 {activeTab}{" "}
                 <span style={{ color: "var(--primary-gold)" }}>Screener</span>
@@ -145,15 +142,7 @@ const Dashboard: React.FC = () => {
               {loading ? (
                 <div className="loader-container">
                   <div className="loader"></div>
-                  <p
-                    style={{
-                      marginTop: "20px",
-                      color: "var(--text-dim)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Loading {activeTab} data...
-                  </p>
+                  <p className="loader-text">Loading {activeTab} data...</p>
                 </div>
               ) : (
                 <StockTable
