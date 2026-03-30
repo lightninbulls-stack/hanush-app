@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import "./Auth.css";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -31,6 +32,7 @@ export default function Auth() {
         alert("Registration successful. Please login.");
         setMode("login");
         setName("");
+        setEmail("");
         setPassword("");
       } else {
         const res = await axios.post(`${API}/auth/login`, {
@@ -39,7 +41,7 @@ export default function Auth() {
         });
 
         localStorage.setItem("token", res.data.access_token);
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (err: any) {
       setError(err?.response?.data?.detail || "Something went wrong");
@@ -49,170 +51,132 @@ export default function Auth() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, #151515 0%, #090909 45%, #000000 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "460px",
-          background: "rgba(18, 18, 18, 0.92)",
-          border: "1px solid rgba(255, 215, 0, 0.14)",
-          borderRadius: "24px",
-          padding: "32px 28px",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.55)",
-          textAlign: "center",
-        }}
-      >
-        <img
-          src="/lightninbull-bull.png"
-          alt="Lightninbull"
-          style={{
-            width: "220px",
-            maxWidth: "100%",
-            margin: "0 auto 12px",
-            display: "block",
-          }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+    <div className="lb-auth-page">
+      <header className="lb-auth-header">
+        <div className="lb-auth-header-inner">
+          <Link to="/" className="lb-auth-brand">
+            <img
+              src="/lightninbull-bull.png"
+              alt="Lightnin Bull"
+              className="lb-auth-brand-logo"
+            />
+            <div className="lb-auth-brand-copy">
+              <span className="lb-auth-brand-title">Lightnin Bull</span>
+              <span className="lb-auth-brand-subtitle">Financial Analytics</span>
+            </div>
+          </Link>
+        </div>
+      </header>
 
-        <h1
-          style={{
-            margin: 0,
-            fontSize: "2rem",
-            fontWeight: 800,
-            color: "#f4d06f",
-          }}
-        >
-          Lightninbull
-        </h1>
+      <main className="lb-auth-main">
+        <section className="lb-auth-left">
+          <p className="lb-auth-eyebrow">BACKTESTING • FACTORS • MARKET INTELLIGENCE</p>
 
-        <p
-          style={{
-            marginTop: "6px",
-            marginBottom: "24px",
-            color: "#b8b8b8",
-            fontSize: "0.98rem",
-          }}
-        >
-          Financial Analytics
-        </p>
+          <h1 className="lb-auth-hero-title">
+            Start your
+            <br />
+            <span>market research</span> here
+          </h1>
 
-        <h2
-          style={{
-            marginBottom: "18px",
-            color: "#ffffff",
-            fontSize: "1.7rem",
-            fontWeight: 800,
-            textAlign: "left",
-          }}
-        >
-          {isRegister ? "Register" : "Login"}
-        </h2>
+          <p className="lb-auth-hero-text">
+            Access premium dashboards for Momentum, Low Volatility, Value,
+            Quality, and derivative-driven opportunity screening for Indian markets.
+          </p>
 
-        {isRegister && (
-          <input
-            placeholder="Full name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={inputStyle}
-          />
-        )}
-
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-        />
-
-        {error ? (
-          <div
-            style={{
-              color: "#ff6b6b",
-              fontSize: "0.92rem",
-              marginBottom: "14px",
-              textAlign: "left",
-            }}
-          >
-            {error}
+          <div className="lb-auth-points">
+            <span>Factor Dashboards</span>
+            <span>Ranked Stock Views</span>
+            <span>Derivative Analytics</span>
+            <span>Clean Research Workflow</span>
           </div>
-        ) : null}
+        </section>
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "13px 14px",
-            borderRadius: "10px",
-            border: "none",
-            background: "linear-gradient(90deg, #d8b15a 0%, #c89f43 100%)",
-            color: "#111111",
-            fontSize: "1.05rem",
-            fontWeight: 800,
-            cursor: "pointer",
-            marginTop: "4px",
-          }}
-        >
-          {loading ? "Please wait..." : isRegister ? "Register" : "Login"}
-        </button>
+        <section className="lb-auth-right">
+          <div className="lb-auth-card">
+            <h2 className="lb-auth-card-title">{isRegister ? "Sign Up" : "Login"}</h2>
 
-        <p
-          style={{
-            marginTop: "18px",
-            color: "#c8c8c8",
-            fontSize: "0.96rem",
-          }}
-        >
-          {isRegister ? "Already registered?" : "No account?"}{" "}
-          <span
-            style={{
-              color: "#f2c94c",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-            onClick={() => {
-              setMode(isRegister ? "login" : "register");
-              setError("");
-            }}
-          >
-            {isRegister ? "Login" : "Register"}
-          </span>
-        </p>
-      </div>
+            <div className="lb-auth-switch">
+              <button
+                type="button"
+                className={!isRegister ? "active" : ""}
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                }}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                className={isRegister ? "active" : ""}
+                onClick={() => {
+                  setMode("register");
+                  setError("");
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            <div className="lb-auth-form">
+              {isRegister && (
+                <div className="lb-auth-field">
+                  <label>Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="lb-auth-field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="lb-auth-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              {error ? <div className="lb-auth-error">{error}</div> : null}
+
+              <button
+                type="button"
+                className="lb-auth-submit"
+                disabled={loading}
+                onClick={handleSubmit}
+              >
+                {loading ? "Please wait..." : isRegister ? "Create Account" : "Login"}
+              </button>
+
+              <p className="lb-auth-footer-text">
+                {isRegister ? "Already have an account?" : "Don’t have an account?"}{" "}
+                <span
+                  onClick={() => {
+                    setMode(isRegister ? "login" : "register");
+                    setError("");
+                  }}
+                >
+                  {isRegister ? "Login" : "Sign Up"}
+                </span>
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  marginBottom: "14px",
-  background: "#f5f7ff",
-  border: "1px solid #d7dbe7",
-  borderRadius: "10px",
-  color: "#111111",
-  fontSize: "0.98rem",
-  outline: "none",
-  boxSizing: "border-box",
-};
