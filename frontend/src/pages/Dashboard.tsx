@@ -5,8 +5,11 @@ import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
 import { fetchStocksByCategory, type Stock } from "../services/api";
 
+const NON_SCREENER_TABS = ["Watchlist", "Guide", "Profile / Settings"];
+
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
+  const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [starredSymbols, setStarredSymbols] = useState<string[]>(() => {
     const saved = localStorage.getItem("starredStocks");
@@ -44,6 +47,13 @@ const Dashboard: React.FC = () => {
     setSelectedStock(null);
   }, [activeTab]);
 
+  const handleCategoryChange = (nextTab: string) => {
+    if (nextTab !== activeTab) {
+      setPreviousTab(activeTab);
+      setActiveTab(nextTab);
+    }
+  };
+
   const handleStarClick = (symbol: string) => {
     setStarredSymbols((prev) =>
       prev.includes(symbol)
@@ -56,11 +66,28 @@ const Dashboard: React.FC = () => {
     setSelectedStock(symbol);
   };
 
+  const handleScreenBack = () => {
+    if (selectedStock) {
+      setSelectedStock(null);
+      return;
+    }
+
+    if (previousTab && previousTab !== activeTab) {
+      setActiveTab(previousTab);
+      return;
+    }
+
+    setActiveTab("Watchlist");
+  };
+
+  const showScreenerBackButton =
+    !selectedStock && !NON_SCREENER_TABS.includes(activeTab);
+
   return (
     <div className="main-layout">
       <Sidebar
         activeCategory={activeTab}
-        setActiveCategory={setActiveTab}
+        setActiveCategory={handleCategoryChange}
         starredCount={starredSymbols.length}
       />
 
@@ -96,6 +123,14 @@ const Dashboard: React.FC = () => {
           </div>
         ) : (
           <>
+            {showScreenerBackButton && (
+              <div className="screener-toolbar">
+                <button className="screen-back-btn" onClick={handleScreenBack}>
+                  <span>←</span> Back
+                </button>
+              </div>
+            )}
+
             <div className="screener-header">
               <h2 className="glow-text">
                 {activeTab}{" "}
