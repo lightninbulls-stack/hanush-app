@@ -5,7 +5,6 @@ import "./App.css";
 import Auth from "./pages/Auth";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const HomeLanding = lazy(() => import("./pages/HomeLanding"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
@@ -14,7 +13,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   const token = localStorage.getItem("token");
 
   if (!token) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -40,8 +39,8 @@ const App: React.FC = () => {
         }
       >
         <Routes>
-          <Route path="/" element={<HomeLanding />} />
-          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<Auth />} />
+          <Route path="/auth" element={<Navigate to="/" replace />} />
           <Route path="/factors/:slug" element={<FactorPage />} />
           <Route
             path="/dashboard"
