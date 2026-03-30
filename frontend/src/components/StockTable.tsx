@@ -39,26 +39,16 @@ const getTone = (value?: number) => {
   return value >= 0 ? "positive" : "negative";
 };
 
-const getColumnsForCategory = (category: string): ColumnDef[] => {
-  if (category === "Low Vol") {
-    return [
-      { key: "rank", label: "Rank", align: "center" },
-      { key: "ticker", label: "Ticker", align: "left" },
-      { key: "score", label: "Score", align: "center" },
-      { key: "return_1w", label: "1W Return", align: "center" },
-      { key: "return_1m", label: "1M Return", align: "center" },
-      { key: "return_3m", label: "3M Return", align: "center" },
-      { key: "return_6m", label: "6M Return", align: "center" },
-      { key: "volatility_6m", label: "6M Volatility", align: "center" },
-    ];
-  }
-
+const getColumnsForCategory = (_category: string): ColumnDef[] => {
   return [
     { key: "rank", label: "Rank", align: "center" },
     { key: "ticker", label: "Ticker", align: "left" },
     { key: "score", label: "Score", align: "center" },
+    { key: "return_1w", label: "1W Return", align: "center" },
+    { key: "return_1m", label: "1M Return", align: "center" },
     { key: "return_3m", label: "3M Return", align: "center" },
     { key: "return_6m", label: "6M Return", align: "center" },
+    { key: "volatility_6m", label: "6M Volatility", align: "center" },
   ];
 };
 
