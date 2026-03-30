@@ -47,7 +47,7 @@ def main() -> None:
             "Need at least 8 monthly observations."
         )
 
-    snapshot = build_snapshot(monthly)
+    snapshot = build_snapshot(close)
     print(f"Snapshot rows: {len(snapshot)}", flush=True)
 
     ranked = rank_snapshot(snapshot, key="mom_6_1")
