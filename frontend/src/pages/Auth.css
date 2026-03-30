@@ -1,0 +1,285 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap");
+
+:root {
+  --lb-auth-bg: #f4f5f7;
+  --lb-auth-card: #ffffff;
+  --lb-auth-primary: #58b7db;
+  --lb-auth-primary-dark: #2997c0;
+  --lb-auth-text: #20242a;
+  --lb-auth-muted: #697586;
+  --lb-auth-border: #dce4ec;
+  --lb-auth-shadow: 0 20px 60px rgba(34, 44, 58, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.lb-auth-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(88,183,219,0.08), transparent 20%),
+    #f4f5f7;
+  color: var(--lb-auth-text);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.lb-auth-header {
+  padding: 20px 0;
+  background: #56b6db;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.lb-auth-header-inner {
+  width: min(1240px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.lb-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.lb-auth-brand-logo {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.lb-auth-brand-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-auth-brand-title {
+  color: #ffffff;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.lb-auth-brand-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.lb-auth-main {
+  width: min(1240px, calc(100% - 48px));
+  margin: 0 auto;
+  min-height: calc(100vh - 98px);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 50px;
+  align-items: center;
+  padding: 42px 0 50px;
+}
+
+.lb-auth-left {
+  padding-right: 10px;
+}
+
+.lb-auth-eyebrow {
+  margin: 0 0 18px;
+  color: #4ea9cf;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.lb-auth-hero-title {
+  margin: 0;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(3rem, 6vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  color: #1f2430;
+}
+
+.lb-auth-hero-title span {
+  color: #57b6da;
+}
+
+.lb-auth-hero-text {
+  max-width: 580px;
+  margin-top: 24px;
+  font-size: 1.08rem;
+  line-height: 1.85;
+  color: #5e6979;
+}
+
+.lb-auth-points {
+  margin-top: 28px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lb-auth-points span {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid #d6e5ee;
+  background: #ffffff;
+  color: #4a5666;
+  font-size: 0.92rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+}
+
+.lb-auth-right {
+  display: flex;
+  justify-content: center;
+}
+
+.lb-auth-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--lb-auth-card);
+  border-radius: 28px;
+  padding: 34px 34px 30px;
+  box-shadow: var(--lb-auth-shadow);
+  border: 1px solid #e7eef4;
+}
+
+.lb-auth-card-title {
+  margin: 0 0 22px;
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #2b3340;
+}
+
+.lb-auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #91cfe4;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 26px;
+}
+
+.lb-auth-switch button {
+  border: none;
+  padding: 13px 12px;
+  background: #ffffff;
+  color: #506070;
+  font-size: 0.96rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lb-auth-switch button.active {
+  background: #57b6da;
+  color: #ffffff;
+}
+
+.lb-auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-auth-field {
+  margin-bottom: 18px;
+}
+
+.lb-auth-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.92rem;
+  color: #6b7686;
+  font-weight: 600;
+}
+
+.lb-auth-field input {
+  width: 100%;
+  padding: 14px 14px;
+  border: none;
+  border-bottom: 1.5px solid #d7e0e8;
+  background: transparent;
+  outline: none;
+  font-size: 1rem;
+  color: #20242a;
+}
+
+.lb-auth-field input:focus {
+  border-bottom-color: #57b6da;
+}
+
+.lb-auth-error {
+  margin-bottom: 14px;
+  color: #d64545;
+  font-size: 0.93rem;
+  font-weight: 600;
+}
+
+.lb-auth-submit {
+  margin-top: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 10px;
+  background: #57b6da;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(87, 182, 218, 0.24);
+}
+
+.lb-auth-submit:hover {
+  background: var(--lb-auth-primary-dark);
+}
+
+.lb-auth-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.lb-auth-footer-text {
+  margin-top: 20px;
+  text-align: center;
+  color: #697586;
+  font-size: 0.96rem;
+}
+
+.lb-auth-footer-text span {
+  color: #57b6da;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .lb-auth-main {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding-top: 30px;
+  }
+
+  .lb-auth-left {
+    padding-right: 0;
+  }
+
+  .lb-auth-card {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .lb-auth-header-inner,
+  .lb-auth-main {
+    width: min(100%, calc(100% - 24px));
+  }
+
+  .lb-auth-brand-title {
+    font-size: 1.5rem;
+  }
+
+  .lb-auth-card {
+    padding: 24px 20px;
+  }
+
+  .lb-auth-card-title {
+    font-size: 1.8rem;
+  }
+}
