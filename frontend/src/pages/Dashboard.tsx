@@ -7,6 +7,17 @@ import { fetchStocksByCategory, type Stock } from "../services/api";
 
 const NON_FEATURE_TABS = ["Watchlist", "Guide", "Profile / Settings"];
 
+const WATCHLIST_SOURCE_CATEGORIES = [
+  "Momentum",
+  "Low Vol",
+  "Value",
+  "Quality",
+  "Regime Upside",
+  "Regime Downside",
+  "Aggressive Call Option Stocks",
+  "Aggressive Put Option Stocks",
+];
+
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
   const [previousTab, setPreviousTab] = useState("Watchlist");
@@ -25,14 +36,36 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const getStocks = async () => {
       setLoading(true);
+
       try {
         if (activeTab === "Watchlist") {
-          const data = await fetchStocksByCategory("Momentum");
-          setStocks(
-            (data.stocks || []).filter((s: Stock) =>
-              starredSymbols.includes(s.symbol)
+          if (starredSymbols.length === 0) {
+            setStocks([]);
+            return;
+          }
+
+          const results = await Promise.all(
+            WATCHLIST_SOURCE_CATEGORIES.map((category) =>
+              fetchStocksByCategory(category)
             )
           );
+
+          const stockMap = new Map<string, Stock>();
+
+          for (const result of results) {
+            const categoryStocks: Stock[] = result?.stocks || [];
+            for (const stock of categoryStocks) {
+              if (!stockMap.has(stock.symbol)) {
+                stockMap.set(stock.symbol, stock);
+              }
+            }
+          }
+
+          const watchlistStocks = starredSymbols
+            .map((symbol) => stockMap.get(symbol))
+            .filter((stock): stock is Stock => Boolean(stock));
+
+          setStocks(watchlistStocks);
         } else {
           const data = await fetchStocksByCategory(activeTab);
           setStocks(data.stocks || []);
