@@ -9,6 +9,7 @@ import yfinance as yf
 from fetch_service.main_momentum import fetch_from_momentum_csv
 from fetch_service.main_regime import fetch_from_regime_csv
 from fetch_service.main_value import fetch_from_value_csv
+from fetch_service.main_quality import fetch_from_quality_csv
 
 
 def fetch_from_excel(category: str) -> List[Dict]:
@@ -18,7 +19,6 @@ def fetch_from_excel(category: str) -> List[Dict]:
     excel_path = os.getenv("EXCEL_PATH", DATA_PATH)
 
     sheet_map = {
-        "Quality": "Quality",
         "Trending Upside": "Technical_analysis_upside",
         "Trending Downside": "Technical_analysis_downside",
         "Aggressive Call Option Stocks": "Derivaties_trading_ce",
@@ -141,6 +141,9 @@ def fetch_from_google_sheets(category: str) -> List[Dict]:
 
     if category == "Value":
         return fetch_from_value_csv()
+
+    if category == "Quality":
+        return fetch_from_quality_csv()
 
     if category in {"Regime Upside", "Regime Downside"}:
         return fetch_from_regime_csv(category)
@@ -267,14 +270,14 @@ class DataService:
             self.redis_client = None
 
     def cache_stock_list(self, category: str, data: List[Dict]):
-        if category in {"Momentum", "Low Vol", "Value", "Regime Upside", "Regime Downside"}:
+        if category in {"Momentum", "Low Vol", "Value", "Quality", "Regime Upside", "Regime Downside"}:
             return
 
         if self.redis_client:
             self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
 
     def get_cached_stock_list(self, category: str):
-        if category in {"Momentum", "Low Vol", "Value", "Regime Upside", "Regime Downside"}:
+        if category in {"Momentum", "Low Vol", "Value", "Quality", "Regime Upside", "Regime Downside"}:
             return None
 
         if self.redis_client:
