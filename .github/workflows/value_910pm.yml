@@ -1,0 +1,27 @@
+name: Update Value
+
+on:
+  schedule:
+    - cron: '40 15 * * 1-5'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r backend/requirements.txt
+
+      - run: python backend/value/update_value_sheet.py
+
+      - run: |
+          git config user.name "bot"
+          git config user.email "bot@github.com"
+          git add backend/data/value_latest.csv
+          git commit -m "update value" || echo "no changes"
+          git push
