@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
 import logging
-from api_service import auth_routes
+from api_service import auth_routes, portfolio_routes
 from db import Base, engine, SessionLocal
 from models import user  # ✅ must be imported before create_all so table is registered
 
