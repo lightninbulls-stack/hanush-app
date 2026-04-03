@@ -4,6 +4,11 @@ import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
 import { fetchStocksByCategory, type Stock } from "../services/api";
+import {
+  fetchWatchlistSymbols,
+  addWatchlistSymbol,
+  removeWatchlistSymbol,
+} from "../services/watchlistApi";
 
 const NON_FEATURE_TABS = ["Watchlist", "Guide", "Profile / Settings"];
 
