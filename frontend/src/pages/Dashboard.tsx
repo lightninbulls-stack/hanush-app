@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
+import PortfolioBacktestPanel from "../components/PortfolioBacktestPanel";
 import { fetchStocksByCategory, type Stock } from "../services/api";
 import {
   fetchWatchlistSymbols,
@@ -10,7 +11,12 @@ import {
   removeWatchlistSymbol,
 } from "../services/watchlistApi";
 
-const NON_FEATURE_TABS = ["Watchlist", "Guide", "Profile / Settings"];
+const NON_FEATURE_TABS = [
+  "Watchlist",
+  "Guide",
+  "Profile / Settings",
+  "Portfolio Backtest",
+];
 
 const WATCHLIST_SOURCE_CATEGORIES = [
   "Momentum",
@@ -23,23 +29,58 @@ const WATCHLIST_SOURCE_CATEGORIES = [
   "Aggressive Put Option Stocks",
 ];
 
+const MOBILE_BREAKPOINT = 900;
+
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
   const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
-  const [starredSymbols, setStarredSymbols] = useState<string[]>(() => {
-    const saved = localStorage.getItem("starredStocks");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
+  const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    localStorage.setItem("starredStocks", JSON.stringify(starredSymbols));
-  }, [starredSymbols]);
+    const handleResize = () => {
+      const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      setIsMobile(mobile);
+
+      if (!mobile) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const bootstrapWatchlist = async () => {
+      try {
+        const symbols = await fetchWatchlistSymbols();
+        setStarredSymbols(symbols.map((s) => s.trim().toUpperCase()));
+      } catch (error) {
+        console.error("Failed to load watchlist from Cloudflare:", error);
+        setStarredSymbols([]);
+      } finally {
+        setWatchlistBootstrapped(true);
+      }
+    };
+
+    bootstrapWatchlist();
+  }, []);
 
   useEffect(() => {
     const getStocks = async () => {
+      if (!watchlistBootstrapped) {
+        return;
+      }
+
       setLoading(true);
 
       try {
@@ -60,20 +101,30 @@ const Dashboard: React.FC = () => {
           for (const result of results) {
             const categoryStocks: Stock[] = result?.stocks || [];
             for (const stock of categoryStocks) {
-              if (!stockMap.has(stock.symbol)) {
-                stockMap.set(stock.symbol, stock);
+              const normalizedSymbol = stock.symbol.trim().toUpperCase();
+              if (!stockMap.has(normalizedSymbol)) {
+                stockMap.set(normalizedSymbol, {
+                  ...stock,
+                  symbol: normalizedSymbol,
+                });
               }
             }
           }
 
           const watchlistStocks = starredSymbols
-            .map((symbol) => stockMap.get(symbol))
+            .map((symbol) => stockMap.get(symbol.trim().toUpperCase()))
             .filter((stock): stock is Stock => Boolean(stock));
 
           setStocks(watchlistStocks);
+        } else if (activeTab === "Portfolio Backtest") {
+          setStocks([]);
         } else {
           const data = await fetchStocksByCategory(activeTab);
-          setStocks(data.stocks || []);
+          const normalizedStocks = (data.stocks || []).map((stock: Stock) => ({
+            ...stock,
+            symbol: stock.symbol.trim().toUpperCase(),
+          }));
+          setStocks(normalizedStocks);
         }
       } finally {
         setLoading(false);
@@ -81,7 +132,7 @@ const Dashboard: React.FC = () => {
     };
 
     getStocks();
-  }, [activeTab, starredSymbols]);
+  }, [activeTab, starredSymbols, watchlistBootstrapped]);
 
   useEffect(() => {
     setSelectedStock(null);
@@ -92,23 +143,55 @@ const Dashboard: React.FC = () => {
       setPreviousTab(activeTab);
       setActiveTab(nextTab);
     }
+
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
   };
 
-  const handleStarClick = (symbol: string) => {
-    setStarredSymbols((prev) =>
-      prev.includes(symbol)
-        ? prev.filter((s) => s !== symbol)
-        : [...prev, symbol]
-    );
+  const handleStarClick = async (symbol: string) => {
+    const normalized = symbol.trim().toUpperCase();
+    const wasStarred = starredSymbols.includes(normalized);
+    const previous = starredSymbols;
+
+    const optimistic = wasStarred
+      ? starredSymbols.filter((s) => s !== normalized)
+      : [...starredSymbols, normalized];
+
+    setStarredSymbols(optimistic);
+
+    try {
+      const updated = wasStarred
+        ? await removeWatchlistSymbol(normalized)
+        : await addWatchlistSymbol(normalized);
+
+      setStarredSymbols(updated.map((s) => s.trim().toUpperCase()));
+    } catch (error) {
+      console.error("Failed to update Cloudflare watchlist:", error);
+      setStarredSymbols(previous);
+    }
   };
 
   const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
+
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
   };
 
   const handleBackToDashboard = () => {
     if (selectedStock) {
       setSelectedStock(null);
+
+      if (isMobile) {
+        setMobileSidebarOpen(true);
+      }
+      return;
+    }
+
+    if (isMobile) {
+      setMobileSidebarOpen(true);
       return;
     }
 
@@ -129,9 +212,22 @@ const Dashboard: React.FC = () => {
         activeCategory={activeTab}
         setActiveCategory={handleCategoryChange}
         starredCount={starredSymbols.length}
+        isMobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       <div className="content-area">
+        {isMobile && (
+          <div className="mobile-topbar">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              ☰ Menu
+            </button>
+          </div>
+        )}
+
         {selectedStock ? (
           <div className="detail-container">
             <button className="back-btn" onClick={handleBackToDashboard}>
@@ -154,6 +250,8 @@ const Dashboard: React.FC = () => {
             <h2 className="glow-text">Profile & Settings</h2>
             <p>Manage your account preferences and application settings here.</p>
           </div>
+        ) : activeTab === "Portfolio Backtest" ? (
+          <PortfolioBacktestPanel />
         ) : (
           <>
             {showFeatureBackButton && (
