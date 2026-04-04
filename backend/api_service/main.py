@@ -10,6 +10,9 @@ import logging
 from api_service import auth_routes, portfolio_routes
 from db import Base, engine, SessionLocal
 from models import user  # ✅ must be imported before create_all so table is registered
+from api_service import portfolio_routes
+
+app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
