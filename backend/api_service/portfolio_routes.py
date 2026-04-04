@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+import logging
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -13,6 +14,11 @@ from shared.backtest_models import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = BACKEND_DIR / "data"
+CLOSE_PRICES_PATH = DATA_DIR / "close_prices_wide.csv"
 
 
 class WatchlistBacktestRequest(BaseModel):
@@ -22,10 +28,15 @@ class WatchlistBacktestRequest(BaseModel):
 @router.post("/backtest/watchlist", response_model=PortfolioBacktestResponse)
 def backtest_watchlist(body: WatchlistBacktestRequest):
     try:
+        if not CLOSE_PRICES_PATH.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"close_prices_wide.csv not found at: {CLOSE_PRICES_PATH}",
+            )
+
         metrics, curve_df, holdings_df = run_watchlist_backtest(
             user_symbols=body.symbols,
-            universe_path=Path("backend/data/yahoo_finance_ticker_universe_with_sector_business_model.xlsx"),
-            close_prices_path=Path("backend/data/close_prices_wide.csv"),
+            close_prices_path=CLOSE_PRICES_PATH,
             lookback_days=252,
         )
 
@@ -52,7 +63,11 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
                 for _, row in holdings_df.iterrows()
             ],
         )
+
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.exception("Watchlist backtest failed")
         raise HTTPException(status_code=500, detail=str(e))
