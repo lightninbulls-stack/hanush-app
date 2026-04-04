@@ -1,34 +1,33 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
-from typing import List, Optional
-from shared.models import StockData, StockListResponse, HistoricalData, StockInfo
-from fetch_service.main import DataService, fetch_from_google_sheets, fetch_historical_data, fetch_stock_info
+from typing import List
+from shared.models import StockListResponse, HistoricalData, StockInfo
+from fetch_service.main import (
+    DataService,
+    fetch_from_google_sheets,
+    fetch_historical_data,
+    fetch_stock_info,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
 import logging
+
 from api_service import auth_routes, portfolio_routes
 from db import Base, engine, SessionLocal
-from models import user  # ✅ must be imported before create_all so table is registered
+from models import user  # register users table before create_all
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-Base.metadata.create_all(bind=engine)  # ✅ now creates users table correctly
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trading Bible API")
 
-# ✅ ADD THIS HERE (below app creation)
-from api_service import portfolio_routes
+app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
 app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
 
-# existing auth router
-app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
-
-
-
-# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,12 +37,14 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -54,32 +55,41 @@ async def global_exception_handler(request: Request, exc: Exception):
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*"
-        }
+            "Access-Control-Allow-Headers": "*",
+        },
     )
+
 
 data_service = DataService()
 
-# ✅ Temporary debug endpoint — remove after verifying users table
+
 @app.get("/debug/users")
 def list_users(db: Session = Depends(get_db)):
     from models.user import User
+
     users = db.query(User).all()
     return [{"id": u.id, "name": u.name, "email": u.email} for u in users]
+
 
 @app.get("/debug/migrations")
 def check_migrations():
     from sqlalchemy import text
+
     with engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
-        columns = conn.execute(text("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'users'
-        """)).fetchall()
+        columns = conn.execute(
+            text(
+                """
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = 'users'
+                """
+            )
+        ).fetchall()
+
     return {
         "alembic_version": version[0] if version else None,
-        "users_columns": [{"name": c[0], "type": c[1]} for c in columns]
+        "users_columns": [{"name": c[0], "type": c[1]} for c in columns],
     }
 
 
@@ -100,17 +110,19 @@ async def get_stocks(category: str):
             if stocks:
                 try:
                     data_service.cache_stock_list(category, stocks)
-                except: pass
+                except Exception:
+                    pass
                 return StockListResponse(category=category, stocks=stocks)
         except Exception as e:
             logger.error(f"Fetch failed: {e}")
 
-        logger.warning(f"No data found for category: {category} in Excel or Google Sheets.")
+        logger.warning(f"No data found for category: {category}")
         return StockListResponse(category=category, stocks=[])
 
     except Exception as e:
         logger.critical(f"Critical failure in get_stocks: {e}", exc_info=True)
         return StockListResponse(category=category, stocks=[])
+
 
 @app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
 async def get_history(symbol: str, interval: str = "1d"):
@@ -124,10 +136,13 @@ async def get_history(symbol: str, interval: str = "1d"):
         if history:
             data_service.cache_historical_data(symbol, interval, history)
             return history
+
         return []
+
     except Exception as e:
         logger.error(f"Error in get_history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/stocks/info/{symbol}", response_model=StockInfo)
 async def get_info(symbol: str):
@@ -143,11 +158,14 @@ async def get_info(symbol: str):
             return info
 
         raise HTTPException(status_code=404, detail="Stock info not found")
+
     except Exception as e:
         logger.error(f"Error in get_info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
-    import uvicorn, os
+    import uvicorn
+
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
