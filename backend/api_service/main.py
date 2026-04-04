@@ -15,7 +15,7 @@ import logging
 
 from api_service import auth_routes, portfolio_routes
 from db import Base, engine, SessionLocal
-from models import user  # register users table before create_all
+from models import user
 
 
 logging.basicConfig(level=logging.INFO)
