@@ -8,9 +8,11 @@ export interface PortfolioMetrics {
   annualized_volatility_pct: number;
   sharpe: number;
   max_drawdown_pct: number;
+  return_1w_pct?: number | null;
   return_1m_pct?: number | null;
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
+  var_95_pct?: number | null;
 }
 
 export interface PortfolioPoint {
