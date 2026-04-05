@@ -14,11 +14,6 @@ def normalize_symbol(value: str) -> str:
 
 
 def symbol_aliases(symbol: str) -> List[str]:
-    """
-    Generate a few safe aliases so matching works whether the CSV columns are:
-    - RELIANCE
-    - RELIANCE.NS
-    """
     s = normalize_symbol(symbol)
     aliases = {s}
 
@@ -42,13 +37,6 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
 
 
 def build_column_lookup(columns: List[str]) -> Dict[str, str]:
-    """
-    Maps normalized symbol aliases to the actual CSV column name.
-    Example:
-    RELIANCE -> RELIANCE
-    RELIANCE.NS -> RELIANCE.NS
-    RELIANCE -> RELIANCE.NS (fallback alias)
-    """
     lookup: Dict[str, str] = {}
 
     for col in columns:
@@ -76,6 +64,22 @@ def period_return(nav: pd.Series, window: int):
     return float((nav.iloc[-1] / nav.iloc[-window - 1] - 1.0) * 100.0)
 
 
+def historical_var_pct(returns: pd.Series, confidence: float = 0.95):
+    """
+    1-day historical VaR at the given confidence.
+    Returned as a positive loss percentage.
+    Example:
+    2.35 means a 1-day loss of 2.35% or worse is expected only 5% of the time.
+    """
+    clean = returns.dropna()
+    if clean.empty:
+        return None
+
+    alpha = 1.0 - confidence
+    cutoff = np.quantile(clean, alpha)
+    return abs(float(cutoff) * 100.0)
+
+
 def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
     cumulative_return = float((nav.iloc[-1] - 1.0) * 100.0)
 
@@ -98,9 +102,12 @@ def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
     drawdown = nav / running_max - 1.0
     mdd = float(drawdown.min() * 100.0)
 
+    r1w = period_return(nav, 5)
     r1m = period_return(nav, 21)
     r3m = period_return(nav, 63)
     r6m = period_return(nav, 126)
+
+    var_95 = historical_var_pct(portfolio_ret, confidence=0.95)
 
     return {
         "cumulative_return_pct": round(cumulative_return, 2),
@@ -108,9 +115,11 @@ def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
         "annualized_volatility_pct": round(vol, 2),
         "sharpe": round(sharpe, 2),
         "max_drawdown_pct": round(mdd, 2),
+        "return_1w_pct": round(r1w, 2) if r1w is not None else None,
         "return_1m_pct": round(r1m, 2) if r1m is not None else None,
         "return_3m_pct": round(r3m, 2) if r3m is not None else None,
         "return_6m_pct": round(r6m, 2) if r6m is not None else None,
+        "var_95_pct": round(var_95, 2) if var_95 is not None else None,
     }
 
 
@@ -159,7 +168,6 @@ def run_watchlist_backtest(
 
     surviving_columns = close_subset.columns.tolist()
 
-    # Reverse map actual CSV column -> user requested symbol
     column_to_requested: Dict[str, str] = {}
     for requested_symbol, actual_column in matched_pairs:
         if actual_column in surviving_columns:
