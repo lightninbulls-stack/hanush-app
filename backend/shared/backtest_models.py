@@ -21,9 +21,11 @@ class PortfolioMetrics(BaseModel):
     annualized_volatility_pct: float
     sharpe: float
     max_drawdown_pct: float
+    return_1w_pct: Optional[float] = None
     return_1m_pct: Optional[float] = None
     return_3m_pct: Optional[float] = None
     return_6m_pct: Optional[float] = None
+    var_95_pct: Optional[float] = None
 
 
 class PortfolioBacktestResponse(BaseModel):
