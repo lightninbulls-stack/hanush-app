@@ -111,11 +111,28 @@ const Dashboard: React.FC = () => {
             }
           }
 
-          const watchlistStocks = starredSymbols
+          const matchedStocks = starredSymbols
             .map((symbol) => stockMap.get(symbol.trim().toUpperCase()))
             .filter((stock): stock is Stock => Boolean(stock));
 
-          setStocks(watchlistStocks);
+          const missingSymbols = starredSymbols.filter(
+            (symbol) => !stockMap.has(symbol.trim().toUpperCase())
+          );
+
+          const placeholderStocks: Stock[] = missingSymbols.map((symbol, index) => ({
+            rank: matchedStocks.length + index + 1,
+            symbol,
+            sector: "Saved Watchlist",
+            score: 0,
+            return_1w: null,
+            return_1m: null,
+            return_3m: null,
+            return_6m: null,
+            volatility_6m: null,
+            volatility_bucket: null,
+          }));
+
+          setStocks([...matchedStocks, ...placeholderStocks]);
         } else if (activeTab === "Portfolio Backtest") {
           setStocks([]);
         } else {
@@ -126,6 +143,9 @@ const Dashboard: React.FC = () => {
           }));
           setStocks(normalizedStocks);
         }
+      } catch (error) {
+        console.error(`Failed to load ${activeTab} stocks:`, error);
+        setStocks([]);
       } finally {
         setLoading(false);
       }
@@ -152,7 +172,7 @@ const Dashboard: React.FC = () => {
   const handleStarClick = async (symbol: string) => {
     const normalized = symbol.trim().toUpperCase();
     const wasStarred = starredSymbols.includes(normalized);
-    const previous = starredSymbols;
+    const previous = [...starredSymbols];
 
     const optimistic = wasStarred
       ? starredSymbols.filter((s) => s !== normalized)
