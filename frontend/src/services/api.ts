@@ -1,30 +1,120 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const RENDER_API_URL = (
+  import.meta.env.VITE_API_URL || "https://hanush-backend-service1.onrender.com"
+).replace(/\/+$/, "");
 
-export interface Stock {
-    rank: number;
-    symbol: string;
-    sector: string;
-    score: number;
-    return_3m: number;
-    return_6m: number;
+const WATCHLIST_STORAGE_KEY = "lightninbull:watchlist:v1";
+
+export interface PortfolioMetrics {
+  cumulative_return_pct: number;
+  cagr_pct: number;
+  annualized_volatility_pct: number;
+  sharpe: number;
+  max_drawdown_pct: number;
+  return_1w_pct?: number | null;
+  return_1m_pct?: number | null;
+  return_3m_pct?: number | null;
+  return_6m_pct?: number | null;
+  var_95_pct?: number | null;
 }
 
-export const fetchStocksByCategory = async (category: string) => {
-    try {
-        const response = await axios.get(`${API_BASE_URL}/stocks/${category}`);
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching stocks:', error);
-        // Return mock data for development if backend is not running
-        return {
-            category,
-            stocks: [
-                { rank: 1, symbol: "SHRIRAMFIN", sector: "Financial Services", score: 100, return_3m: 5.65, return_6m: 87.61 },
-                { rank: 2, symbol: "VEDL", sector: "Metals & Mining", score: 86, return_3m: 18.58, return_6m: 87.61 },
-                { rank: 3, symbol: "CANBK", sector: "Private Sector", score: 86, return_3m: 0.37, return_6m: 70.71 },
-            ]
-        };
+export interface PortfolioPoint {
+  date: string;
+  nav: number;
+}
+
+export interface PortfolioHolding {
+  symbol: string;
+  weight: number;
+  start_price: number;
+  end_price: number;
+  total_return_pct: number;
+}
+
+export interface PortfolioBacktestResponse {
+  requested_symbols: string[];
+  matched_symbols: string[];
+  metrics: PortfolioMetrics;
+  curve: PortfolioPoint[];
+  holdings: PortfolioHolding[];
+}
+
+function normalizeSymbol(symbol: string): string {
+  return String(symbol || "").trim().toUpperCase();
+}
+
+function readWatchlistFromStorage(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    if (!raw) {
+      return [];
     }
-};
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((symbol) => normalizeSymbol(String(symbol)))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function writeWatchlistToStorage(symbols: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const uniqueSymbols = Array.from(
+    new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean))
+  );
+
+  window.localStorage.setItem(
+    WATCHLIST_STORAGE_KEY,
+    JSON.stringify(uniqueSymbols)
+  );
+}
+
+export async function fetchWatchlistSymbols(): Promise<string[]> {
+  return readWatchlistFromStorage();
+}
+
+export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
+  const normalized = normalizeSymbol(symbol);
+  const existing = readWatchlistFromStorage();
+
+  if (!normalized) {
+    return existing;
+  }
+
+  const updated = Array.from(new Set([...existing, normalized]));
+  writeWatchlistToStorage(updated);
+  return updated;
+}
+
+export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
+  const normalized = normalizeSymbol(symbol);
+  const existing = readWatchlistFromStorage();
+
+  const updated = existing.filter((item) => item !== normalized);
+  writeWatchlistToStorage(updated);
+  return updated;
+}
+
+export async function runWatchlistBacktest(
+  symbols: string[]
+): Promise<PortfolioBacktestResponse> {
+  const response = await axios.post(
+    `${RENDER_API_URL}/portfolio/backtest/watchlist`,
+    { symbols }
+  );
+  return response.data;
+}
