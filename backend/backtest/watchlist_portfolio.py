@@ -14,15 +14,6 @@ def normalize_symbol(value: str) -> str:
 
 
 def canonical_symbol(value: str) -> str:
-    """
-    Aggressive normalizer used only for matching.
-    Examples:
-    - MCX -> MCX
-    - MCX.NS -> MCX
-    - NSE:MCX-EQ -> MCX
-    - BSE:VEDL-EQ -> VEDL
-    - RELIANCE.NS -> RELIANCE
-    """
     s = normalize_symbol(value)
 
     if not s:
@@ -41,10 +32,6 @@ def canonical_symbol(value: str) -> str:
 
 
 def symbol_aliases(symbol: str) -> List[str]:
-    """
-    Build a rich alias set for matching requested symbols
-    against close_prices_wide.csv columns.
-    """
     raw = normalize_symbol(symbol)
     canon = canonical_symbol(symbol)
 
@@ -78,9 +65,6 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
 
 
 def build_column_lookup(columns: List[str]) -> Dict[str, str]:
-    """
-    Map many possible aliases to the real CSV column name.
-    """
     lookup: Dict[str, str] = {}
 
     for col in columns:
@@ -119,12 +103,6 @@ def period_return(nav: pd.Series, window: int):
 
 
 def historical_var_pct(returns: pd.Series, confidence: float = 0.95):
-    """
-    1-day historical VaR at the given confidence.
-    Returned as a positive loss percentage.
-    Example:
-    2.35 means a 1-day loss of 2.35% or worse is expected only 5% of the time.
-    """
     clean = returns.dropna()
     if clean.empty:
         return None
@@ -216,14 +194,11 @@ def run_watchlist_backtest(
     selected_columns = list(dict.fromkeys(requested_to_column.values()))
 
     close_subset = close[selected_columns].copy().tail(lookback_days + 1)
-
-    # forward fill small gaps, then remove dead columns
     close_subset = close_subset.ffill().dropna(axis=1, how="all")
 
     if close_subset.shape[1] == 0:
         raise ValueError("No matched symbols had sufficient price history for backtest.")
 
-    # keep only columns with enough valid history
     valid_columns = [
         col for col in close_subset.columns
         if close_subset[col].dropna().shape[0] >= 2
@@ -233,7 +208,6 @@ def run_watchlist_backtest(
     if close_subset.shape[1] == 0:
         raise ValueError("Matched symbols were found, but none survived after price-history filtering.")
 
-    # after column filtering, remove rows that still have no data at all
     close_subset = close_subset.dropna(axis=0, how="all").ffill()
 
     surviving_columns = close_subset.columns.tolist()
