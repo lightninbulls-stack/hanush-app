@@ -13,16 +13,57 @@ def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
 
 
+def canonical_symbol(value: str) -> str:
+    """
+    Aggressive normalizer used only for matching.
+    Examples:
+    - MCX -> MCX
+    - MCX.NS -> MCX
+    - NSE:MCX-EQ -> MCX
+    - BSE:VEDL-EQ -> VEDL
+    - RELIANCE.NS -> RELIANCE
+    """
+    s = normalize_symbol(value)
+
+    if not s:
+        return ""
+
+    for prefix in ("NSE:", "BSE:"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+
+    for suffix in (".NS", ".BO", "-EQ"):
+        if s.endswith(suffix):
+            s = s[: -len(suffix)]
+
+    cleaned = "".join(ch for ch in s if ch.isalnum())
+    return cleaned
+
+
 def symbol_aliases(symbol: str) -> List[str]:
-    s = normalize_symbol(symbol)
-    aliases = {s}
+    """
+    Build a rich alias set for matching requested symbols
+    against close_prices_wide.csv columns.
+    """
+    raw = normalize_symbol(symbol)
+    canon = canonical_symbol(symbol)
 
-    if s.endswith(".NS"):
-        aliases.add(s[:-3])
-    else:
-        aliases.add(f"{s}.NS")
+    aliases = set()
 
-    return [a for a in aliases if a]
+    if raw:
+        aliases.add(raw)
+
+    if canon:
+        aliases.add(canon)
+        aliases.add(f"{canon}.NS")
+        aliases.add(f"{canon}.BO")
+        aliases.add(f"{canon}-EQ")
+        aliases.add(f"NSE:{canon}")
+        aliases.add(f"BSE:{canon}")
+        aliases.add(f"NSE:{canon}-EQ")
+        aliases.add(f"BSE:{canon}-EQ")
+
+    return [alias for alias in aliases if alias]
 
 
 def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
@@ -37,23 +78,36 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
 
 
 def build_column_lookup(columns: List[str]) -> Dict[str, str]:
+    """
+    Map many possible aliases to the real CSV column name.
+    """
     lookup: Dict[str, str] = {}
 
     for col in columns:
         raw = str(col).strip()
-        norm = normalize_symbol(raw)
+        raw_norm = normalize_symbol(raw)
+        canon = canonical_symbol(raw)
 
-        if norm not in lookup:
-            lookup[norm] = raw
+        aliases = set()
 
-        if norm.endswith(".NS"):
-            base = norm[:-3]
-            if base and base not in lookup:
-                lookup[base] = raw
-        else:
-            ns_alias = f"{norm}.NS"
-            if ns_alias not in lookup:
-                lookup[ns_alias] = raw
+        if raw:
+            aliases.add(raw)
+        if raw_norm:
+            aliases.add(raw_norm)
+        if canon:
+            aliases.add(canon)
+            aliases.add(f"{canon}.NS")
+            aliases.add(f"{canon}.BO")
+            aliases.add(f"{canon}-EQ")
+            aliases.add(f"NSE:{canon}")
+            aliases.add(f"BSE:{canon}")
+            aliases.add(f"NSE:{canon}-EQ")
+            aliases.add(f"BSE:{canon}-EQ")
+
+        for alias in aliases:
+            normalized_alias = normalize_symbol(alias)
+            if normalized_alias and normalized_alias not in lookup:
+                lookup[normalized_alias] = raw
 
     return lookup
 
@@ -147,8 +201,9 @@ def run_watchlist_backtest(
 
         matched_column = None
         for alias in symbol_aliases(requested_symbol):
-            if alias in column_lookup:
-                matched_column = column_lookup[alias]
+            alias_norm = normalize_symbol(alias)
+            if alias_norm in column_lookup:
+                matched_column = column_lookup[alias_norm]
                 break
 
         if matched_column:
@@ -158,13 +213,28 @@ def run_watchlist_backtest(
         raise ValueError("None of the watchlist symbols matched close_prices_wide.csv.")
 
     requested_to_column = dict(matched_pairs)
-    selected_columns = list(requested_to_column.values())
+    selected_columns = list(dict.fromkeys(requested_to_column.values()))
 
     close_subset = close[selected_columns].copy().tail(lookback_days + 1)
-    close_subset = close_subset.ffill().dropna(axis=1, how="any")
+
+    # forward fill small gaps, then remove dead columns
+    close_subset = close_subset.ffill().dropna(axis=1, how="all")
 
     if close_subset.shape[1] == 0:
         raise ValueError("No matched symbols had sufficient price history for backtest.")
+
+    # keep only columns with enough valid history
+    valid_columns = [
+        col for col in close_subset.columns
+        if close_subset[col].dropna().shape[0] >= 2
+    ]
+    close_subset = close_subset[valid_columns]
+
+    if close_subset.shape[1] == 0:
+        raise ValueError("Matched symbols were found, but none survived after price-history filtering.")
+
+    # after column filtering, remove rows that still have no data at all
+    close_subset = close_subset.dropna(axis=0, how="all").ffill()
 
     surviving_columns = close_subset.columns.tolist()
 
@@ -176,7 +246,15 @@ def run_watchlist_backtest(
     if not column_to_requested:
         raise ValueError("Matched symbols were found, but none survived after price-history filtering.")
 
+    close_subset = close_subset[surviving_columns].dropna(axis=0, how="any")
+
+    if close_subset.shape[0] < 2:
+        raise ValueError("Not enough overlapping price history to run backtest.")
+
     daily_ret = close_subset.pct_change().dropna()
+
+    if daily_ret.empty:
+        raise ValueError("Could not compute daily returns for the matched symbols.")
 
     n = daily_ret.shape[1]
     weights = np.repeat(1.0 / n, n)
