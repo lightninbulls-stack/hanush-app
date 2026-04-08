@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from backtest.watchlist_portfolio import run_watchlist_backtest
 from shared.backtest_models import (
+    BenchmarkMetrics,
     PortfolioBacktestResponse,
     PortfolioHolding,
     PortfolioMetrics,
@@ -44,7 +45,14 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
 
         logger.info("Requested watchlist symbols: %s", requested_symbols)
 
-        metrics, curve_df, holdings_df = run_watchlist_backtest(
+        (
+            metrics,
+            curve_df,
+            holdings_df,
+            benchmark_name,
+            benchmark_curve_df,
+            benchmark_metrics,
+        ) = run_watchlist_backtest(
             user_symbols=requested_symbols,
             close_prices_path=CLOSE_PRICES_PATH,
             lookback_days=252,
@@ -72,6 +80,16 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
                 )
                 for _, row in holdings_df.iterrows()
             ],
+            benchmark_name=benchmark_name,
+            benchmark_metrics=BenchmarkMetrics(**benchmark_metrics)
+            if benchmark_metrics
+            else None,
+            benchmark_curve=[
+                PortfolioPoint(date=row["date"], nav=float(row["nav"]))
+                for _, row in benchmark_curve_df.iterrows()
+            ]
+            if benchmark_curve_df is not None
+            else None,
         )
 
     except HTTPException:
