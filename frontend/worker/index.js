@@ -58,7 +58,7 @@ async function requireUserEmail(request, env) {
         Accept: "application/json",
       },
     });
-  } catch (error) {
+  } catch {
     throw new HttpError(502, "Auth service is unavailable");
   }
 
@@ -163,12 +163,8 @@ export default {
 
     try {
       if (pathname === "/api/watchlist") {
-        if (request.method === "GET") {
-          return await getWatchlist(request, env);
-        }
-        if (request.method === "POST") {
-          return await addWatchlist(request, env);
-        }
+        if (request.method === "GET") return await getWatchlist(request, env);
+        if (request.method === "POST") return await addWatchlist(request, env);
         return json({ detail: "Method not allowed" }, 405);
       }
 
