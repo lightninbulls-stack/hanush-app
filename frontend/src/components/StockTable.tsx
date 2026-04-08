@@ -25,14 +25,14 @@ type ColumnDef = {
   align?: "left" | "center" | "right";
 };
 
-const formatPct = (value?: number) => {
+const formatPct = (value?: number | null) => {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "—";
   }
   return `${value.toFixed(2)}%`;
 };
 
-const getTone = (value?: number) => {
+const getTone = (value?: number | null) => {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "neutral";
   }
