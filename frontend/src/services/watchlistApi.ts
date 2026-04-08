@@ -1,8 +1,10 @@
 import axios from "axios";
 
 const RENDER_API_URL = (
-  import.meta.env.VITE_API_URL || "https://hanush-backend-service.onrender.com"
+  import.meta.env.VITE_API_URL || "https://hanush-backend-service1.onrender.com"
 ).replace(/\/+$/, "");
+
+const WATCHLIST_STORAGE_KEY = "starredStocks";
 
 export interface PortfolioMetrics {
   cumulative_return_pct: number;
@@ -38,35 +40,73 @@ export interface PortfolioBacktestResponse {
   holdings: PortfolioHolding[];
 }
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function normalizeSymbol(symbol: string): string {
+  return String(symbol || "").trim().toUpperCase();
+}
+
+function readWatchlistFromStorage(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((symbol) => normalizeSymbol(String(symbol)))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function writeWatchlistToStorage(symbols: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const uniqueSymbols = Array.from(
+    new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean))
+  );
+
+  window.localStorage.setItem(
+    WATCHLIST_STORAGE_KEY,
+    JSON.stringify(uniqueSymbols)
+  );
 }
 
 export async function fetchWatchlistSymbols(): Promise<string[]> {
-  const response = await axios.get("/api/watchlist", {
-    headers: getAuthHeaders(),
-  });
-  return response.data?.symbols || [];
+  return readWatchlistFromStorage();
 }
 
 export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
-  const response = await axios.post(
-    "/api/watchlist",
-    { symbol },
-    { headers: getAuthHeaders() }
-  );
-  return response.data?.symbols || [];
+  const normalized = normalizeSymbol(symbol);
+  const existing = readWatchlistFromStorage();
+
+  if (!normalized) {
+    return existing;
+  }
+
+  const updated = Array.from(new Set([...existing, normalized]));
+  writeWatchlistToStorage(updated);
+  return updated;
 }
 
 export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
-  const response = await axios.delete(
-    `/api/watchlist/${encodeURIComponent(symbol)}`,
-    {
-      headers: getAuthHeaders(),
-    }
-  );
-  return response.data?.symbols || [];
+  const normalized = normalizeSymbol(symbol);
+  const existing = readWatchlistFromStorage();
+
+  const updated = existing.filter((item) => item !== normalized);
+  writeWatchlistToStorage(updated);
+  return updated;
 }
 
 export async function runWatchlistBacktest(
