@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const RENDER_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const RENDER_API_URL = (
+  import.meta.env.VITE_API_URL || "https://hanush-backend-service.onrender.com"
+).replace(/\/+$/, "");
 
 export interface PortfolioMetrics {
   cumulative_return_pct: number;
@@ -58,17 +60,21 @@ export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
 }
 
 export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
-  const response = await axios.delete(`/api/watchlist/${encodeURIComponent(symbol)}`, {
-    headers: getAuthHeaders(),
-  });
+  const response = await axios.delete(
+    `/api/watchlist/${encodeURIComponent(symbol)}`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
   return response.data?.symbols || [];
 }
 
 export async function runWatchlistBacktest(
   symbols: string[]
 ): Promise<PortfolioBacktestResponse> {
-  const response = await axios.post(`${RENDER_API_URL}/portfolio/backtest/watchlist`, {
-    symbols,
-  });
+  const response = await axios.post(
+    `${RENDER_API_URL}/portfolio/backtest/watchlist`,
+    { symbols }
+  );
   return response.data;
 }
