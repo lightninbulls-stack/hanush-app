@@ -13,6 +13,16 @@ ANNUALIZATION_FACTOR = 252
 UNIVERSE_FILE_NAME = "yahoo_finance_ticker_universe_with_sector_business_model.xlsx"
 UNIVERSE_SHEET = "Yahoo_Ticker_Map"
 
+BENCHMARK_CANDIDATES = [
+    "NIFTY 50",
+    "NIFTY50",
+    "NIFTY_50",
+    "NIFTY-50",
+    "^NSEI",
+    "NSEI",
+    "NIFTY50.NS",
+]
+
 
 def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
@@ -259,6 +269,29 @@ def resolve_symbol_to_column(
     return None
 
 
+def resolve_benchmark_column(
+    all_columns: List[str],
+    normalized_column_lookup: Dict[str, str],
+    canonical_column_lookup: Dict[str, str],
+) -> str | None:
+    for candidate in BENCHMARK_CANDIDATES:
+        for alias in symbol_aliases(candidate):
+            if alias in normalized_column_lookup:
+                return normalized_column_lookup[alias]
+
+            alias_canon = canonical_symbol(alias)
+            if alias_canon and alias_canon in canonical_column_lookup:
+                return canonical_column_lookup[alias_canon]
+
+    benchmark_canonical_targets = {canonical_symbol(x) for x in BENCHMARK_CANDIDATES}
+
+    for col in all_columns:
+        if canonical_symbol(col) in benchmark_canonical_targets:
+            return col
+
+    return None
+
+
 def period_return(nav: pd.Series, window: int):
     if len(nav) <= window:
         return None
@@ -275,21 +308,21 @@ def historical_var_pct(returns: pd.Series, confidence: float = 0.95):
     return abs(float(cutoff) * 100.0)
 
 
-def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
+def compute_metrics(returns: pd.Series, nav: pd.Series) -> dict:
     cumulative_return = float((nav.iloc[-1] - 1.0) * 100.0)
 
-    years = len(portfolio_ret) / ANNUALIZATION_FACTOR
+    years = len(returns) / ANNUALIZATION_FACTOR
     cagr = (
         float((nav.iloc[-1] ** (1.0 / years) - 1.0) * 100.0)
         if years > 0
         else 0.0
     )
 
-    vol = float(portfolio_ret.std() * np.sqrt(ANNUALIZATION_FACTOR) * 100.0)
+    vol = float(returns.std() * np.sqrt(ANNUALIZATION_FACTOR) * 100.0)
 
     sharpe = (
-        float((portfolio_ret.mean() / portfolio_ret.std()) * np.sqrt(ANNUALIZATION_FACTOR))
-        if portfolio_ret.std() > 0
+        float((returns.mean() / returns.std()) * np.sqrt(ANNUALIZATION_FACTOR))
+        if returns.std() > 0
         else 0.0
     )
 
@@ -302,7 +335,7 @@ def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
     r3m = period_return(nav, 63)
     r6m = period_return(nav, 126)
 
-    var_95 = historical_var_pct(portfolio_ret, confidence=0.95)
+    var_95 = historical_var_pct(returns, confidence=0.95)
 
     return {
         "cumulative_return_pct": round(cumulative_return, 2),
@@ -318,11 +351,40 @@ def compute_metrics(portfolio_ret: pd.Series, nav: pd.Series) -> dict:
     }
 
 
+def build_curve(nav: pd.Series) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": nav.index.strftime("%Y-%m-%d"),
+            "nav": nav.round(6).values,
+        }
+    )
+
+
+def compute_beta_and_correlation(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+) -> Tuple[float | None, float | None]:
+    common_index = portfolio_returns.index.intersection(benchmark_returns.index)
+    if len(common_index) < 2:
+        return None, None
+
+    p = portfolio_returns.loc[common_index]
+    b = benchmark_returns.loc[common_index]
+
+    benchmark_var = float(b.var())
+    beta = None
+    if benchmark_var > 0:
+        beta = float(p.cov(b) / benchmark_var)
+
+    correlation = float(p.corr(b)) if b.std() > 0 and p.std() > 0 else None
+    return beta, correlation
+
+
 def run_watchlist_backtest(
     user_symbols: List[str],
     close_prices_path: Path,
     lookback_days: int = 252,
-) -> Tuple[dict, pd.DataFrame, pd.DataFrame]:
+) -> Tuple[dict, pd.DataFrame, pd.DataFrame, str | None, pd.DataFrame | None, dict | None]:
     if not user_symbols:
         raise ValueError("Watchlist is empty.")
 
@@ -361,7 +423,6 @@ def run_watchlist_backtest(
     logger.info("Matched watchlist pairs: %s", matched_pairs)
     if unmatched_symbols:
         logger.warning("Unmatched watchlist symbols: %s", unmatched_symbols)
-        logger.warning("Sample close_prices_wide columns: %s", all_columns[:50])
 
     if not matched_pairs:
         raise ValueError("None of the watchlist symbols matched close_prices_wide.csv.")
@@ -388,7 +449,6 @@ def run_watchlist_backtest(
 
     surviving_columns = close_subset.columns.tolist()
 
-    # map actual csv column -> original watchlist symbol
     column_to_requested: Dict[str, str] = {}
     for requested_symbol, actual_column in matched_pairs:
         if actual_column in surviving_columns:
@@ -410,26 +470,67 @@ def run_watchlist_backtest(
     n = daily_ret.shape[1]
     weights = np.repeat(1.0 / n, n)
 
-    portfolio_ret = daily_ret.dot(weights)
-    nav = (1.0 + portfolio_ret).cumprod()
+    portfolio_returns = daily_ret.dot(weights)
+    portfolio_nav = (1.0 + portfolio_returns).cumprod()
 
-    metrics = compute_metrics(portfolio_ret, nav)
+    metrics = compute_metrics(portfolio_returns, portfolio_nav)
 
-    curve = pd.DataFrame(
-        {
-            "date": nav.index.strftime("%Y-%m-%d"),
-            "nav": nav.round(6).values,
-        }
+    benchmark_name: str | None = None
+    benchmark_curve_df: pd.DataFrame | None = None
+    benchmark_metrics: dict | None = None
+
+    benchmark_column = resolve_benchmark_column(
+        all_columns=all_columns,
+        normalized_column_lookup=normalized_column_lookup,
+        canonical_column_lookup=canonical_column_lookup,
     )
+
+    if benchmark_column:
+        benchmark_name = benchmark_column
+
+        benchmark_prices = close[benchmark_column].copy().tail(lookback_days + 1)
+        benchmark_prices = benchmark_prices.reindex(close_subset.index).ffill().dropna()
+
+        common_price_index = close_subset.index.intersection(benchmark_prices.index)
+        close_subset = close_subset.loc[common_price_index]
+        benchmark_prices = benchmark_prices.loc[common_price_index]
+
+        portfolio_returns = close_subset.pct_change().dropna().dot(weights)
+        benchmark_returns = benchmark_prices.pct_change().dropna()
+
+        common_return_index = portfolio_returns.index.intersection(benchmark_returns.index)
+        portfolio_returns = portfolio_returns.loc[common_return_index]
+        benchmark_returns = benchmark_returns.loc[common_return_index]
+
+        portfolio_nav = (1.0 + portfolio_returns).cumprod()
+        benchmark_nav = (1.0 + benchmark_returns).cumprod()
+
+        metrics = compute_metrics(portfolio_returns, portfolio_nav)
+        benchmark_metrics = compute_metrics(benchmark_returns, benchmark_nav)
+        benchmark_curve_df = build_curve(benchmark_nav)
+
+        beta, correlation = compute_beta_and_correlation(
+            portfolio_returns=portfolio_returns,
+            benchmark_returns=benchmark_returns,
+        )
+        metrics["beta_to_benchmark"] = round(beta, 4) if beta is not None else None
+        metrics["correlation_to_benchmark"] = (
+            round(correlation, 4) if correlation is not None else None
+        )
+    else:
+        logger.warning("No benchmark column found for NIFTY 50 candidates.")
+        metrics["beta_to_benchmark"] = None
+        metrics["correlation_to_benchmark"] = None
+
+    curve_df = build_curve(portfolio_nav)
 
     start_prices = close_subset.iloc[0]
     end_prices = close_subset.iloc[-1]
 
     holdings = pd.DataFrame(
         {
-            "Symbol": [column_to_requested[col] for col in surviving_columns],
-            "MatchedColumn": surviving_columns,
-            "weight": weights,
+            "Symbol": [column_to_requested[col] for col in close_subset.columns],
+            "weight": np.repeat(1.0 / len(close_subset.columns), len(close_subset.columns)),
             "start_price": start_prices.values,
             "end_price": end_prices.values,
             "total_return_pct": (
@@ -440,4 +541,4 @@ def run_watchlist_backtest(
 
     holdings = holdings.sort_values("Symbol").reset_index(drop=True)
 
-    return metrics, curve, holdings
+    return metrics, curve_df, holdings, benchmark_name, benchmark_curve_df, benchmark_metrics
