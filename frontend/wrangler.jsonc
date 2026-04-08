@@ -2,9 +2,13 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "hanush-app",
   "main": "./worker/index.js",
-  "compatibility_date": "2026-04-04",
+  "compatibility_date": "2026-04-08",
+  "keep_vars": true,
   "observability": {
     "enabled": true
+  },
+  "vars": {
+    "BACKEND_BASE_URL": "https://hanush-backend-service.onrender.com"
   },
   "assets": {
     "directory": "./dist",
@@ -16,7 +20,8 @@
     {
       "binding": "DB",
       "database_name": "lightninbull-watchlist",
-      "database_id": "b4a4eadf-699c-411b-a2b3-b4882896abd7"
+      "database_id": "b4a4eadf-699c-411b-a2b3-b4882896abd7",
+      "migrations_dir": "./migrations"
     }
   ]
 }
