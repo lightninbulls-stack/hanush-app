@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
 import pandas as pd
 
 ANNUALIZATION_FACTOR = 252
+UNIVERSE_FILE_NAME = "yahoo_finance_ticker_universe_with_sector_business_model.xlsx"
+UNIVERSE_SHEET = "Yahoo_Ticker_Map"
 
 
 def normalize_symbol(value: str) -> str:
@@ -96,6 +98,83 @@ def build_column_lookup(columns: List[str]) -> Dict[str, str]:
     return lookup
 
 
+def load_universe_alias_map(close_prices_path: Path) -> Dict[str, List[str]]:
+    universe_path = close_prices_path.parent / UNIVERSE_FILE_NAME
+    if not universe_path.exists():
+        return {}
+
+    try:
+        universe = pd.read_excel(universe_path, sheet_name=UNIVERSE_SHEET)
+    except Exception:
+        return {}
+
+    available_columns = {str(col).strip(): col for col in universe.columns}
+    nse_symbol_col = available_columns.get("NSE Symbol")
+    yahoo_ticker_col = available_columns.get("Yahoo Finance Ticker")
+    underlying_col = available_columns.get("Underlying")
+
+    if nse_symbol_col is None and yahoo_ticker_col is None:
+        return {}
+
+    alias_map: Dict[str, Set[str]] = {}
+
+    def register(key: str, aliases: List[str]) -> None:
+        normalized_key = normalize_symbol(key)
+        canonical_key = canonical_symbol(key)
+
+        for candidate_key in (normalized_key, canonical_key):
+            if not candidate_key:
+                continue
+
+            alias_map.setdefault(candidate_key, set()).update(
+                normalize_symbol(alias)
+                for alias in aliases
+                if normalize_symbol(alias)
+            )
+
+    for _, row in universe.iterrows():
+        alias_seed: List[str] = []
+
+        nse_symbol = row[nse_symbol_col] if nse_symbol_col is not None else ""
+        yahoo_ticker = row[yahoo_ticker_col] if yahoo_ticker_col is not None else ""
+        underlying = row[underlying_col] if underlying_col is not None else ""
+
+        for value in (nse_symbol, yahoo_ticker, underlying):
+            alias_seed.extend(symbol_aliases(str(value)))
+
+        if not alias_seed:
+            continue
+
+        register(str(nse_symbol), alias_seed)
+        register(str(yahoo_ticker), alias_seed)
+        register(str(underlying), alias_seed)
+
+    return {key: sorted(values) for key, values in alias_map.items()}
+
+
+def expanded_symbol_aliases(
+    symbol: str,
+    universe_alias_map: Dict[str, List[str]],
+) -> List[str]:
+    ordered: List[str] = []
+    seen: Set[str] = set()
+
+    def add(alias: str) -> None:
+        normalized_alias = normalize_symbol(alias)
+        if normalized_alias and normalized_alias not in seen:
+            seen.add(normalized_alias)
+            ordered.append(normalized_alias)
+
+    for alias in symbol_aliases(symbol):
+        add(alias)
+
+    for key in (normalize_symbol(symbol), canonical_symbol(symbol)):
+        for alias in universe_alias_map.get(key, []):
+            add(alias)
+
+    return ordered
+
+
 def period_return(nav: pd.Series, window: int):
     if len(nav) <= window:
         return None
@@ -165,6 +244,7 @@ def run_watchlist_backtest(
 
     close = load_close_prices(close_prices_path)
     column_lookup = build_column_lookup(close.columns.tolist())
+    universe_alias_map = load_universe_alias_map(close_prices_path)
 
     matched_pairs: List[Tuple[str, str]] = []
     seen_requested = set()
@@ -178,10 +258,9 @@ def run_watchlist_backtest(
         seen_requested.add(requested_symbol)
 
         matched_column = None
-        for alias in symbol_aliases(requested_symbol):
-            alias_norm = normalize_symbol(alias)
-            if alias_norm in column_lookup:
-                matched_column = column_lookup[alias_norm]
+        for alias in expanded_symbol_aliases(requested_symbol, universe_alias_map):
+            if alias in column_lookup:
+                matched_column = column_lookup[alias]
                 break
 
         if matched_column:
