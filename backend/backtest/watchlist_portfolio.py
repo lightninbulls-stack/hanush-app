@@ -74,9 +74,46 @@ def symbol_aliases(symbol: str) -> List[str]:
     return ordered_unique(aliases)
 
 
+def _looks_like_broken_header(columns: List[str]) -> bool:
+    if not columns:
+        return False
+
+    unnamed_count = sum(
+        1 for c in columns if str(c).strip().upper().startswith("UNNAMED:")
+    )
+    return unnamed_count >= max(3, len(columns) // 2)
+
+
+def _promote_first_row_as_header(raw_df: pd.DataFrame) -> pd.DataFrame:
+    if raw_df.empty:
+        return raw_df
+
+    first_row = raw_df.iloc[0].tolist()
+    promoted_columns = [str(x).strip() for x in first_row]
+
+    fixed = raw_df.iloc[1:].copy()
+    fixed.columns = promoted_columns
+    return fixed
+
+
 def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
     close = pd.read_csv(close_prices_path, index_col=0)
-    close.index = pd.to_datetime(close.index, errors="coerce")
+
+    if _looks_like_broken_header(close.columns.tolist()):
+        logger.warning(
+            "Detected broken CSV header in close_prices_wide.csv. Attempting header repair."
+        )
+
+        raw = pd.read_csv(close_prices_path, header=0)
+        raw = _promote_first_row_as_header(raw)
+
+        first_col = raw.columns[0]
+        raw = raw.rename(columns={first_col: "Date"})
+        raw = raw.set_index("Date")
+
+        close = raw.copy()
+
+    close.index = pd.to_datetime(close.index, errors="coerce", dayfirst=True)
     close = close[~close.index.isna()].sort_index()
 
     close.columns = [str(c).strip() for c in close.columns]
@@ -87,6 +124,7 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
     if close.empty:
         raise ValueError("close_prices_wide.csv loaded but contains no valid data.")
 
+    logger.info("Final close_prices_wide columns sample: %s", close.columns[:20].tolist())
     return close
 
 
@@ -189,19 +227,19 @@ def resolve_symbol_to_column(
 
     candidates = ordered_unique(candidates)
 
-    # Pass 1: normalized exact match
     for candidate in candidates:
         if candidate in normalized_column_lookup:
             return normalized_column_lookup[candidate]
 
-    # Pass 2: canonical exact match
     for candidate in candidates:
         candidate_canon = canonical_symbol(candidate)
         if candidate_canon and candidate_canon in canonical_column_lookup:
             return canonical_column_lookup[candidate_canon]
 
-    # Pass 3: unique fuzzy contains match
-    candidate_canons = ordered_unique([canonical_symbol(c) for c in candidates if canonical_symbol(c)])
+    candidate_canons = ordered_unique(
+        [canonical_symbol(c) for c in candidates if canonical_symbol(c)]
+    )
+
     if candidate_canons:
         fuzzy_matches: List[str] = []
 
@@ -350,6 +388,7 @@ def run_watchlist_backtest(
 
     surviving_columns = close_subset.columns.tolist()
 
+    # map actual csv column -> original watchlist symbol
     column_to_requested: Dict[str, str] = {}
     for requested_symbol, actual_column in matched_pairs:
         if actual_column in surviving_columns:
@@ -389,6 +428,7 @@ def run_watchlist_backtest(
     holdings = pd.DataFrame(
         {
             "Symbol": [column_to_requested[col] for col in surviving_columns],
+            "MatchedColumn": surviving_columns,
             "weight": weights,
             "start_price": start_prices.values,
             "end_price": end_prices.values,
