@@ -17,6 +17,21 @@ export interface PortfolioMetrics {
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
   var_95_pct?: number | null;
+  beta_to_benchmark?: number | null;
+  correlation_to_benchmark?: number | null;
+}
+
+export interface BenchmarkMetrics {
+  cumulative_return_pct: number;
+  cagr_pct: number;
+  annualized_volatility_pct: number;
+  sharpe: number;
+  max_drawdown_pct: number;
+  return_1w_pct?: number | null;
+  return_1m_pct?: number | null;
+  return_3m_pct?: number | null;
+  return_6m_pct?: number | null;
+  var_95_pct?: number | null;
 }
 
 export interface PortfolioPoint {
@@ -38,6 +53,9 @@ export interface PortfolioBacktestResponse {
   metrics: PortfolioMetrics;
   curve: PortfolioPoint[];
   holdings: PortfolioHolding[];
+  benchmark_name?: string | null;
+  benchmark_metrics?: BenchmarkMetrics | null;
+  benchmark_curve?: PortfolioPoint[] | null;
 }
 
 function normalizeSymbol(symbol: string): string {
