@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Set
+from typing import List
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -29,54 +29,6 @@ def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
 
 
-def canonical_symbol(value: str) -> str:
-    s = normalize_symbol(value)
-
-    if not s:
-        return ""
-
-    for prefix in ("NSE:", "BSE:"):
-        if s.startswith(prefix):
-            s = s[len(prefix):]
-
-    for suffix in (".NS", ".BO", "-EQ"):
-        if s.endswith(suffix):
-            s = s[: -len(suffix)]
-
-    cleaned = "".join(ch for ch in s if ch.isalnum())
-    return cleaned
-
-
-def expand_request_symbols(symbols: List[str]) -> List[str]:
-    expanded: List[str] = []
-    seen: Set[str] = set()
-
-    def add(value: str) -> None:
-        normalized = normalize_symbol(value)
-        if normalized and normalized not in seen:
-            seen.add(normalized)
-            expanded.append(normalized)
-
-    for raw in symbols:
-        original = normalize_symbol(raw)
-        canon = canonical_symbol(raw)
-
-        if original:
-            add(original)
-
-        if canon:
-            add(canon)
-            add(f"{canon}.NS")
-            add(f"{canon}.BO")
-            add(f"{canon}-EQ")
-            add(f"NSE:{canon}")
-            add(f"BSE:{canon}")
-            add(f"NSE:{canon}-EQ")
-            add(f"BSE:{canon}-EQ")
-
-    return expanded
-
-
 @router.post("/backtest/watchlist", response_model=PortfolioBacktestResponse)
 def backtest_watchlist(body: WatchlistBacktestRequest):
     try:
@@ -86,14 +38,14 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
                 detail=f"close_prices_wide.csv not found at: {CLOSE_PRICES_PATH}",
             )
 
-        requested_symbols = [str(s).strip().upper() for s in body.symbols if str(s).strip()]
-        expanded_symbols = expand_request_symbols(requested_symbols)
+        requested_symbols = [
+            normalize_symbol(s) for s in body.symbols if normalize_symbol(s)
+        ]
 
         logger.info("Requested watchlist symbols: %s", requested_symbols)
-        logger.info("Expanded watchlist symbols: %s", expanded_symbols[:100])
 
         metrics, curve_df, holdings_df = run_watchlist_backtest(
-            user_symbols=expanded_symbols,
+            user_symbols=requested_symbols,
             close_prices_path=CLOSE_PRICES_PATH,
             lookback_days=252,
         )
