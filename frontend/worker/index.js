@@ -1,11 +1,9 @@
-import { jwtVerify } from "jose";
-
-const JSON_HEADERS = {
+const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
   "access-control-allow-headers": "Content-Type, Authorization",
-};
+});
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -22,66 +20,74 @@ function json(data, status = 200) {
 }
 
 function normalizeSymbol(symbol) {
-  return String(symbol || "").trim().toUpperCase();
+  return String(symbol ?? "").trim().toUpperCase();
 }
 
-async function ensureSchema(env) {
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS watchlist_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_email TEXT NOT NULL,
-      symbol TEXT NOT NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_email, symbol)
-    );
-  `).run();
-}
-
-function getJwtSecret(env) {
-  const secret = env.JWT_SECRET || env.SECRET_KEY;
-  if (!secret) {
-    throw new HttpError(500, "JWT secret is not configured");
+function getBackendBaseUrl(env) {
+  const value = String(env.BACKEND_BASE_URL ?? "").trim();
+  if (!value) {
+    throw new HttpError(500, "BACKEND_BASE_URL is not configured");
   }
-  return secret;
+  return value.replace(/\/+$/, "");
 }
 
-async function requireUserEmail(request, env) {
+function getBearerToken(request) {
   const authHeader = request.headers.get("Authorization") || "";
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice("Bearer ".length).trim()
-    : "";
+  if (!authHeader.startsWith("Bearer ")) {
+    throw new HttpError(401, "Missing bearer token");
+  }
 
+  const token = authHeader.slice("Bearer ".length).trim();
   if (!token) {
     throw new HttpError(401, "Missing bearer token");
   }
 
+  return token;
+}
+
+async function requireUserEmail(request, env) {
+  const token = getBearerToken(request);
+  const meUrl = `${getBackendBaseUrl(env)}/auth/me`;
+
+  let response;
   try {
-    const secret = new TextEncoder().encode(getJwtSecret(env));
-    const { payload } = await jwtVerify(token, secret, {
-      algorithms: ["HS256"],
+    response = await fetch(meUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
     });
-
-    const email = payload.sub;
-    if (typeof email !== "string" || !email.trim()) {
-      throw new HttpError(401, "Invalid token subject");
-    }
-
-    return email.toLowerCase().trim();
   } catch (error) {
-    if (error instanceof HttpError) {
-      throw error;
-    }
-    throw new HttpError(401, "Invalid or expired token");
+    throw new HttpError(502, "Auth service is unavailable");
   }
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new HttpError(
+      response.status,
+      payload?.detail || "Invalid or expired token",
+    );
+  }
+
+  const email = String(payload?.email ?? "").trim().toLowerCase();
+  if (!email) {
+    throw new HttpError(502, "Auth service returned no user email");
+  }
+
+  return email;
 }
 
 async function listUserSymbols(env, email) {
-  const result = await env.DB.prepare(`
-    SELECT symbol
-    FROM watchlist_items
-    WHERE user_email = ?
-    ORDER BY created_at ASC, symbol ASC
-  `)
+  const result = await env.DB.prepare(
+    `
+      SELECT symbol
+      FROM watchlist_items
+      WHERE user_email = ?
+      ORDER BY created_at DESC, symbol ASC
+    `,
+  )
     .bind(email)
     .all();
 
@@ -90,15 +96,12 @@ async function listUserSymbols(env, email) {
 
 async function getWatchlist(request, env) {
   const email = await requireUserEmail(request, env);
-  await ensureSchema(env);
-
   const symbols = await listUserSymbols(env, email);
   return json({ symbols });
 }
 
 async function addWatchlist(request, env) {
   const email = await requireUserEmail(request, env);
-  await ensureSchema(env);
 
   const body = await request.json().catch(() => ({}));
   const symbol = normalizeSymbol(body?.symbol);
@@ -107,10 +110,17 @@ async function addWatchlist(request, env) {
     return json({ detail: "Symbol is required" }, 400);
   }
 
-  await env.DB.prepare(`
-    INSERT OR IGNORE INTO watchlist_items (user_email, symbol)
-    VALUES (?, ?)
-  `)
+  if (symbol.length > 50) {
+    return json({ detail: "Symbol is too long" }, 400);
+  }
+
+  await env.DB.prepare(
+    `
+      INSERT INTO watchlist_items (user_email, symbol)
+      VALUES (?, ?)
+      ON CONFLICT(user_email, symbol) DO NOTHING
+    `,
+  )
     .bind(email, symbol)
     .run();
 
@@ -120,18 +130,18 @@ async function addWatchlist(request, env) {
 
 async function deleteWatchlist(request, env, symbolFromPath) {
   const email = await requireUserEmail(request, env);
-  await ensureSchema(env);
-
   const symbol = normalizeSymbol(symbolFromPath);
 
   if (!symbol) {
     return json({ detail: "Symbol is required" }, 400);
   }
 
-  await env.DB.prepare(`
-    DELETE FROM watchlist_items
-    WHERE user_email = ? AND symbol = ?
-  `)
+  await env.DB.prepare(
+    `
+      DELETE FROM watchlist_items
+      WHERE user_email = ? AND symbol = ?
+    `,
+  )
     .bind(email, symbol)
     .run();
 
@@ -156,22 +166,19 @@ export default {
         if (request.method === "GET") {
           return await getWatchlist(request, env);
         }
-
         if (request.method === "POST") {
           return await addWatchlist(request, env);
         }
-
         return json({ detail: "Method not allowed" }, 405);
       }
 
       if (pathname.startsWith("/api/watchlist/")) {
         if (request.method === "DELETE") {
           const symbol = decodeURIComponent(
-            pathname.replace("/api/watchlist/", "")
+            pathname.replace("/api/watchlist/", ""),
           );
           return await deleteWatchlist(request, env, symbol);
         }
-
         return json({ detail: "Method not allowed" }, 405);
       }
 
