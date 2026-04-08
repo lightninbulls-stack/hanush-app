@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
+import logging
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 ANNUALIZATION_FACTOR = 252
 UNIVERSE_FILE_NAME = "yahoo_finance_ticker_universe_with_sector_business_model.xlsx"
@@ -29,30 +32,46 @@ def canonical_symbol(value: str) -> str:
         if s.endswith(suffix):
             s = s[: -len(suffix)]
 
-    cleaned = "".join(ch for ch in s if ch.isalnum())
-    return cleaned
+    return "".join(ch for ch in s if ch.isalnum())
+
+
+def ordered_unique(values: List[str]) -> List[str]:
+    seen: Set[str] = set()
+    out: List[str] = []
+
+    for value in values:
+        normalized = normalize_symbol(value)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            out.append(normalized)
+
+    return out
 
 
 def symbol_aliases(symbol: str) -> List[str]:
     raw = normalize_symbol(symbol)
     canon = canonical_symbol(symbol)
 
-    aliases = set()
+    aliases: List[str] = []
 
     if raw:
-        aliases.add(raw)
+        aliases.append(raw)
 
     if canon:
-        aliases.add(canon)
-        aliases.add(f"{canon}.NS")
-        aliases.add(f"{canon}.BO")
-        aliases.add(f"{canon}-EQ")
-        aliases.add(f"NSE:{canon}")
-        aliases.add(f"BSE:{canon}")
-        aliases.add(f"NSE:{canon}-EQ")
-        aliases.add(f"BSE:{canon}-EQ")
+        aliases.extend(
+            [
+                canon,
+                f"{canon}.NS",
+                f"{canon}.BO",
+                f"{canon}-EQ",
+                f"NSE:{canon}",
+                f"BSE:{canon}",
+                f"NSE:{canon}-EQ",
+                f"BSE:{canon}-EQ",
+            ]
+        )
 
-    return [alias for alias in aliases if alias]
+    return ordered_unique(aliases)
 
 
 def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
@@ -63,116 +82,143 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
     close.columns = [str(c).strip() for c in close.columns]
     close = close.apply(pd.to_numeric, errors="coerce")
 
-    return close.dropna(axis=0, how="all").dropna(axis=1, how="all")
+    close = close.dropna(axis=0, how="all").dropna(axis=1, how="all")
+
+    if close.empty:
+        raise ValueError("close_prices_wide.csv loaded but contains no valid data.")
+
+    return close
 
 
-def build_column_lookup(columns: List[str]) -> Dict[str, str]:
+def build_normalized_column_lookup(columns: List[str]) -> Dict[str, str]:
     lookup: Dict[str, str] = {}
 
     for col in columns:
         raw = str(col).strip()
-        raw_norm = normalize_symbol(raw)
-        canon = canonical_symbol(raw)
+        if not raw:
+            continue
 
-        aliases = set()
-
-        if raw:
-            aliases.add(raw)
-        if raw_norm:
-            aliases.add(raw_norm)
-        if canon:
-            aliases.add(canon)
-            aliases.add(f"{canon}.NS")
-            aliases.add(f"{canon}.BO")
-            aliases.add(f"{canon}-EQ")
-            aliases.add(f"NSE:{canon}")
-            aliases.add(f"BSE:{canon}")
-            aliases.add(f"NSE:{canon}-EQ")
-            aliases.add(f"BSE:{canon}-EQ")
-
-        for alias in aliases:
-            normalized_alias = normalize_symbol(alias)
-            if normalized_alias and normalized_alias not in lookup:
-                lookup[normalized_alias] = raw
+        for alias in symbol_aliases(raw):
+            lookup.setdefault(alias, raw)
 
     return lookup
 
 
-def load_universe_alias_map(close_prices_path: Path) -> Dict[str, List[str]]:
+def build_canonical_column_lookup(columns: List[str]) -> Dict[str, str]:
+    lookup: Dict[str, str] = {}
+
+    for col in columns:
+        raw = str(col).strip()
+        canon = canonical_symbol(raw)
+        if canon and canon not in lookup:
+            lookup[canon] = raw
+
+    return lookup
+
+
+def load_universe_symbol_map(close_prices_path: Path) -> Dict[str, str]:
     universe_path = close_prices_path.parent / UNIVERSE_FILE_NAME
     if not universe_path.exists():
+        logger.warning("Universe workbook not found: %s", universe_path)
         return {}
 
     try:
         universe = pd.read_excel(universe_path, sheet_name=UNIVERSE_SHEET)
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to read universe workbook: %s", exc)
         return {}
 
-    available_columns = {str(col).strip(): col for col in universe.columns}
-    nse_symbol_col = available_columns.get("NSE Symbol")
-    yahoo_ticker_col = available_columns.get("Yahoo Finance Ticker")
-    underlying_col = available_columns.get("Underlying")
+    col_map = {str(c).strip(): c for c in universe.columns}
+    nse_col = col_map.get("NSE Symbol")
+    yahoo_col = col_map.get("Yahoo Finance Ticker")
+    underlying_col = col_map.get("Underlying")
 
-    if nse_symbol_col is None and yahoo_ticker_col is None:
+    if yahoo_col is None:
+        logger.warning("Yahoo Finance Ticker column not found in universe workbook.")
         return {}
 
-    alias_map: Dict[str, Set[str]] = {}
+    symbol_map: Dict[str, str] = {}
 
-    def register(key: str, aliases: List[str]) -> None:
-        normalized_key = normalize_symbol(key)
-        canonical_key = canonical_symbol(key)
+    def register(key: str, ticker: str) -> None:
+        nkey = normalize_symbol(key)
+        ckey = canonical_symbol(key)
+        nticker = normalize_symbol(ticker)
 
-        for candidate_key in (normalized_key, canonical_key):
-            if not candidate_key:
-                continue
+        if not nticker:
+            return
 
-            alias_map.setdefault(candidate_key, set()).update(
-                normalize_symbol(alias)
-                for alias in aliases
-                if normalize_symbol(alias)
-            )
+        if nkey:
+            symbol_map[nkey] = nticker
+        if ckey:
+            symbol_map[ckey] = nticker
 
     for _, row in universe.iterrows():
-        alias_seed: List[str] = []
-
-        nse_symbol = row[nse_symbol_col] if nse_symbol_col is not None else ""
-        yahoo_ticker = row[yahoo_ticker_col] if yahoo_ticker_col is not None else ""
-        underlying = row[underlying_col] if underlying_col is not None else ""
-
-        for value in (nse_symbol, yahoo_ticker, underlying):
-            alias_seed.extend(symbol_aliases(str(value)))
-
-        if not alias_seed:
+        yahoo_ticker = str(row[yahoo_col]).strip() if pd.notna(row[yahoo_col]) else ""
+        if not yahoo_ticker:
             continue
 
-        register(str(nse_symbol), alias_seed)
-        register(str(yahoo_ticker), alias_seed)
-        register(str(underlying), alias_seed)
+        if nse_col is not None and pd.notna(row[nse_col]):
+            register(str(row[nse_col]), yahoo_ticker)
 
-    return {key: sorted(values) for key, values in alias_map.items()}
+        if underlying_col is not None and pd.notna(row[underlying_col]):
+            register(str(row[underlying_col]), yahoo_ticker)
+
+        register(yahoo_ticker, yahoo_ticker)
+
+    return symbol_map
 
 
-def expanded_symbol_aliases(
-    symbol: str,
-    universe_alias_map: Dict[str, List[str]],
-) -> List[str]:
-    ordered: List[str] = []
-    seen: Set[str] = set()
+def resolve_symbol_to_column(
+    requested_symbol: str,
+    normalized_column_lookup: Dict[str, str],
+    canonical_column_lookup: Dict[str, str],
+    universe_symbol_map: Dict[str, str],
+    all_columns: List[str],
+) -> str | None:
+    requested_norm = normalize_symbol(requested_symbol)
+    requested_canon = canonical_symbol(requested_symbol)
 
-    def add(alias: str) -> None:
-        normalized_alias = normalize_symbol(alias)
-        if normalized_alias and normalized_alias not in seen:
-            seen.add(normalized_alias)
-            ordered.append(normalized_alias)
+    candidates: List[str] = []
+    candidates.extend(symbol_aliases(requested_symbol))
 
-    for alias in symbol_aliases(symbol):
-        add(alias)
+    mapped_ticker = universe_symbol_map.get(requested_norm) or universe_symbol_map.get(
+        requested_canon
+    )
+    if mapped_ticker:
+        candidates.extend(symbol_aliases(mapped_ticker))
 
-    for key in (normalize_symbol(symbol), canonical_symbol(symbol)):
-        for alias in universe_alias_map.get(key, []):
-            add(alias)
+    candidates = ordered_unique(candidates)
 
-    return ordered
+    # Pass 1: normalized exact match
+    for candidate in candidates:
+        if candidate in normalized_column_lookup:
+            return normalized_column_lookup[candidate]
+
+    # Pass 2: canonical exact match
+    for candidate in candidates:
+        candidate_canon = canonical_symbol(candidate)
+        if candidate_canon and candidate_canon in canonical_column_lookup:
+            return canonical_column_lookup[candidate_canon]
+
+    # Pass 3: unique fuzzy contains match
+    candidate_canons = ordered_unique([canonical_symbol(c) for c in candidates if canonical_symbol(c)])
+    if candidate_canons:
+        fuzzy_matches: List[str] = []
+
+        for col in all_columns:
+            col_canon = canonical_symbol(col)
+            if any(
+                cand in col_canon or col_canon in cand
+                for cand in candidate_canons
+                if cand
+            ):
+                fuzzy_matches.append(col)
+
+        fuzzy_matches = list(dict.fromkeys(fuzzy_matches))
+        if len(fuzzy_matches) == 1:
+            return fuzzy_matches[0]
+
+    return None
 
 
 def period_return(nav: pd.Series, window: int):
@@ -243,11 +289,15 @@ def run_watchlist_backtest(
         raise ValueError("Watchlist is empty.")
 
     close = load_close_prices(close_prices_path)
-    column_lookup = build_column_lookup(close.columns.tolist())
-    universe_alias_map = load_universe_alias_map(close_prices_path)
+    all_columns = close.columns.tolist()
+
+    normalized_column_lookup = build_normalized_column_lookup(all_columns)
+    canonical_column_lookup = build_canonical_column_lookup(all_columns)
+    universe_symbol_map = load_universe_symbol_map(close_prices_path)
 
     matched_pairs: List[Tuple[str, str]] = []
-    seen_requested = set()
+    unmatched_symbols: List[str] = []
+    seen_requested: Set[str] = set()
 
     for raw_symbol in user_symbols:
         requested_symbol = normalize_symbol(raw_symbol)
@@ -257,14 +307,23 @@ def run_watchlist_backtest(
 
         seen_requested.add(requested_symbol)
 
-        matched_column = None
-        for alias in expanded_symbol_aliases(requested_symbol, universe_alias_map):
-            if alias in column_lookup:
-                matched_column = column_lookup[alias]
-                break
+        matched_column = resolve_symbol_to_column(
+            requested_symbol=requested_symbol,
+            normalized_column_lookup=normalized_column_lookup,
+            canonical_column_lookup=canonical_column_lookup,
+            universe_symbol_map=universe_symbol_map,
+            all_columns=all_columns,
+        )
 
         if matched_column:
             matched_pairs.append((requested_symbol, matched_column))
+        else:
+            unmatched_symbols.append(requested_symbol)
+
+    logger.info("Matched watchlist pairs: %s", matched_pairs)
+    if unmatched_symbols:
+        logger.warning("Unmatched watchlist symbols: %s", unmatched_symbols)
+        logger.warning("Sample close_prices_wide columns: %s", all_columns[:50])
 
     if not matched_pairs:
         raise ValueError("None of the watchlist symbols matched close_prices_wide.csv.")
