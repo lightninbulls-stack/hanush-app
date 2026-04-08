@@ -8,8 +8,8 @@
     "enabled": true
   },
   "vars": {
-    "BACKEND_BASE_URL": "https://hanush-backend-service.onrender.com"
-  },
+  "BACKEND_BASE_URL": "https://hanush-backend-service1.onrender.com"
+},
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
