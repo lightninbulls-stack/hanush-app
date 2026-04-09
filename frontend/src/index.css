@@ -1163,3 +1163,241 @@ body {
     grid-template-columns: 1fr;
   }
 }
+/* Portfolio benchmark comparison additions */
+.portfolio-header-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.portfolio-subtle-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.portfolio-section-copy {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.portfolio-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.portfolio-comparison-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    ),
+    rgba(10, 12, 16, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.portfolio-comparison-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 18px 0 0 18px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    #f4d06f 100%
+  );
+}
+
+.portfolio-comparison-card.tone-positive .portfolio-metric-value {
+  color: #dfffe8;
+}
+
+.portfolio-comparison-card.tone-negative .portfolio-metric-value {
+  color: #ffe5e5;
+}
+
+.portfolio-comparison-card.tone-neutral .portfolio-metric-value {
+  color: #fff8ec;
+}
+
+.portfolio-curve-shell {
+  margin-top: 12px;
+  padding: 18px;
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.015) 100%
+    ),
+    rgba(7, 9, 12, 0.92);
+  border: 1px solid rgba(244, 208, 111, 0.08);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.portfolio-curve-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.portfolio-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.portfolio-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.portfolio-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.portfolio-legend-dot.portfolio-dot {
+  background: #f4d06f;
+  box-shadow: 0 0 12px rgba(244, 208, 111, 0.35);
+}
+
+.portfolio-legend-dot.benchmark-dot {
+  background: #19f59a;
+  box-shadow: 0 0 12px rgba(25, 245, 154, 0.28);
+}
+
+.portfolio-curve-values {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.88rem;
+}
+
+.portfolio-curve-values strong {
+  color: #ffffff;
+}
+
+.portfolio-curve-chart {
+  width: 100%;
+  height: 320px;
+  display: block;
+  overflow: visible;
+}
+
+.portfolio-axis-line {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+
+.portfolio-curve {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.portfolio-curve.portfolio {
+  stroke: #f4d06f;
+  filter: drop-shadow(0 0 10px rgba(244, 208, 111, 0.22));
+}
+
+.portfolio-curve.benchmark {
+  stroke: #19f59a;
+  opacity: 0.95;
+  filter: drop-shadow(0 0 10px rgba(25, 245, 154, 0.18));
+}
+
+.portfolio-curve-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.82rem;
+}
+
+.portfolio-comparison-table {
+  min-width: 760px;
+}
+
+.comparison-spread-cell {
+  font-weight: 800;
+}
+
+.comparison-spread-cell.tone-positive {
+  color: #7dffbb;
+}
+
+.comparison-spread-cell.tone-negative {
+  color: #ff8f8f;
+}
+
+.comparison-spread-cell.tone-neutral {
+  color: #f4d06f;
+}
+
+@media (max-width: 900px) {
+  .portfolio-comparison-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .portfolio-curve-shell {
+    padding: 14px;
+  }
+
+  .portfolio-curve-chart {
+    height: 260px;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-curve-values {
+    gap: 8px;
+    font-size: 0.82rem;
+  }
+}
