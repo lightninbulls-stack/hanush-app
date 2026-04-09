@@ -128,11 +128,15 @@ export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
 }
 
 export async function runWatchlistBacktest(
-  symbols: string[]
+  symbols: string[],
+  strategyType: "equal_weight" | "mvo" = "equal_weight"
 ): Promise<PortfolioBacktestResponse> {
   const response = await axios.post(
     `${RENDER_API_URL}/portfolio/backtest/watchlist`,
-    { symbols }
+    {
+      symbols,
+      strategy_type: strategyType,
+    }
   );
   return response.data;
 }
