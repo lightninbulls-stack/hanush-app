@@ -6,6 +6,7 @@ import {
   type PortfolioPoint,
 } from "../services/watchlistApi";
 
+type StrategyType = "equal_weight" | "mvo";
 type MetricTone = "neutral" | "positive" | "negative";
 
 type MetricCardItem = {
@@ -235,6 +236,8 @@ const PortfolioBacktestPanel: React.FC = () => {
   const [data, setData] = useState<PortfolioBacktestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [strategyType, setStrategyType] =
+    useState<StrategyType>("equal_weight");
 
   useEffect(() => {
     const load = async () => {
@@ -250,7 +253,7 @@ const PortfolioBacktestPanel: React.FC = () => {
           return;
         }
 
-        const backtest = await runWatchlistBacktest(symbols);
+        const backtest = await runWatchlistBacktest(symbols, strategyType);
         setData(backtest);
       } catch (err: any) {
         setError(err?.response?.data?.detail || "Failed to run backtest");
@@ -261,7 +264,7 @@ const PortfolioBacktestPanel: React.FC = () => {
     };
 
     load();
-  }, []);
+  }, [strategyType]);
 
   if (loading) {
     return (
@@ -475,11 +478,35 @@ const PortfolioBacktestPanel: React.FC = () => {
       <div className="portfolio-backtest-header">
         <div>
           <h2 className="glow-text">Portfolio Backtest</h2>
-          <p>Equal-weight watchlist portfolio over the last 1 year.</p>
+          <p>
+            {strategyType === "equal_weight"
+              ? "Equal-weight watchlist portfolio over the last 1 year."
+              : "Mean-variance optimized watchlist portfolio over the last 1 year."}
+          </p>
+
           <div className="portfolio-header-meta">
+            <button
+              className={`tv-time-btn ${
+                strategyType === "equal_weight" ? "active" : ""
+              }`}
+              onClick={() => setStrategyType("equal_weight")}
+            >
+              Equal Weight
+            </button>
+
+            <button
+              className={`tv-time-btn ${
+                strategyType === "mvo" ? "active" : ""
+              }`}
+              onClick={() => setStrategyType("mvo")}
+            >
+              MVO
+            </button>
+
             <span className="portfolio-section-badge">
               Benchmark: {benchmarkLabel}
             </span>
+
             <span className="portfolio-subtle-pill">
               {data.holdings.length} matched stocks
             </span>
@@ -492,7 +519,9 @@ const PortfolioBacktestPanel: React.FC = () => {
           {comparisonCards.map((item) => (
             <div
               key={item.label}
-              className={`portfolio-comparison-card tone-${item.tone || "neutral"}`}
+              className={`portfolio-comparison-card tone-${
+                item.tone || "neutral"
+              }`}
             >
               <span className="portfolio-metric-label">{item.label}</span>
               <div className="portfolio-metric-value">{item.value}</div>
@@ -552,9 +581,15 @@ const PortfolioBacktestPanel: React.FC = () => {
       <div className="portfolio-holdings-section">
         <div className="portfolio-section-heading-row">
           <div>
-            <h3>Portfolio Metrics</h3>
+            <h3>
+              {strategyType === "equal_weight"
+                ? "Portfolio Metrics"
+                : "MVO Portfolio Metrics"}
+            </h3>
             <p className="portfolio-section-copy">
-              Standalone equal-weight watchlist performance statistics.
+              {strategyType === "equal_weight"
+                ? "Standalone equal-weight watchlist performance statistics."
+                : "Standalone mean-variance optimized watchlist performance statistics."}
             </p>
           </div>
         </div>
@@ -574,7 +609,11 @@ const PortfolioBacktestPanel: React.FC = () => {
 
       <div className="portfolio-holdings-section">
         <div className="portfolio-section-heading-row">
-          <h3>Matched Holdings</h3>
+          <h3>
+            {strategyType === "equal_weight"
+              ? "Matched Holdings"
+              : "Optimized Holdings"}
+          </h3>
           <span className="portfolio-section-badge">
             {data.holdings.length} Stocks
           </span>
