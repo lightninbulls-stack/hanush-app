@@ -395,7 +395,9 @@ const PortfolioBacktestPanel: React.FC = () => {
           label: "CAGR",
           portfolioValue: formatPercent(m.cagr_pct),
           benchmarkValue: formatPercent(benchmarkMetrics.cagr_pct),
-          spreadValue: formatSignedPercent(m.cagr_pct - benchmarkMetrics.cagr_pct),
+          spreadValue: formatSignedPercent(
+            m.cagr_pct - benchmarkMetrics.cagr_pct
+          ),
           spreadTone: getTone(m.cagr_pct - benchmarkMetrics.cagr_pct),
         },
         {
@@ -491,7 +493,7 @@ const PortfolioBacktestPanel: React.FC = () => {
               }`}
               onClick={() => setStrategyType("equal_weight")}
             >
-              Equal Weight
+              Equal Weighted Portfolio
             </button>
 
             <button
@@ -500,16 +502,8 @@ const PortfolioBacktestPanel: React.FC = () => {
               }`}
               onClick={() => setStrategyType("mvo")}
             >
-              MVO
+              Mean Variance Optimization Weights Portfolio
             </button>
-
-            <span className="portfolio-section-badge">
-              Benchmark: {benchmarkLabel}
-            </span>
-
-            <span className="portfolio-subtle-pill">
-              {data.holdings.length} matched stocks
-            </span>
           </div>
         </div>
       </div>
