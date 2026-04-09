@@ -5,7 +5,10 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backtest.watchlist_portfolio import run_watchlist_backtest
+from backtest.watchlist_portfolio import (
+    run_watchlist_backtest,
+    run_watchlist_mvo_backtest,
+)
 from shared.backtest_models import (
     BenchmarkMetrics,
     PortfolioBacktestResponse,
@@ -24,6 +27,7 @@ CLOSE_PRICES_PATH = DATA_DIR / "close_prices_wide.csv"
 
 class WatchlistBacktestRequest(BaseModel):
     symbols: List[str]
+    strategy_type: str = "equal_weight"
 
 
 def normalize_symbol(value: str) -> str:
@@ -44,19 +48,34 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
         ]
 
         logger.info("Requested watchlist symbols: %s", requested_symbols)
+        logger.info("Requested strategy type: %s", body.strategy_type)
 
-        (
-            metrics,
-            curve_df,
-            holdings_df,
-            benchmark_name,
-            benchmark_curve_df,
-            benchmark_metrics,
-        ) = run_watchlist_backtest(
-            user_symbols=requested_symbols,
-            close_prices_path=CLOSE_PRICES_PATH,
-            lookback_days=252,
-        )
+        if body.strategy_type == "mvo":
+            (
+                metrics,
+                curve_df,
+                holdings_df,
+                benchmark_name,
+                benchmark_curve_df,
+                benchmark_metrics,
+            ) = run_watchlist_mvo_backtest(
+                user_symbols=requested_symbols,
+                close_prices_path=CLOSE_PRICES_PATH,
+                lookback_days=252,
+            )
+        else:
+            (
+                metrics,
+                curve_df,
+                holdings_df,
+                benchmark_name,
+                benchmark_curve_df,
+                benchmark_metrics,
+            ) = run_watchlist_backtest(
+                user_symbols=requested_symbols,
+                close_prices_path=CLOSE_PRICES_PATH,
+                lookback_days=252,
+            )
 
         matched_symbols = (
             holdings_df["Symbol"].dropna().astype(str).drop_duplicates().tolist()
