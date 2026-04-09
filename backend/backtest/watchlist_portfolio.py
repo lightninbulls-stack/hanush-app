@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 import logging
+import math
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
 
@@ -164,16 +166,25 @@ def build_canonical_column_lookup(columns: List[str]) -> Dict[str, str]:
     return lookup
 
 
-def load_universe_symbol_map(close_prices_path: Path) -> Dict[str, str]:
+def load_universe_sheet(close_prices_path: Path) -> pd.DataFrame:
     universe_path = close_prices_path.parent / UNIVERSE_FILE_NAME
     if not universe_path.exists():
         logger.warning("Universe workbook not found: %s", universe_path)
-        return {}
+        return pd.DataFrame()
 
     try:
         universe = pd.read_excel(universe_path, sheet_name=UNIVERSE_SHEET)
     except Exception as exc:
         logger.warning("Failed to read universe workbook: %s", exc)
+        return pd.DataFrame()
+
+    universe.columns = [str(c).strip() for c in universe.columns]
+    return universe
+
+
+def load_universe_symbol_map(close_prices_path: Path) -> Dict[str, str]:
+    universe = load_universe_sheet(close_prices_path)
+    if universe.empty:
         return {}
 
     col_map = {str(c).strip(): c for c in universe.columns}
@@ -214,6 +225,71 @@ def load_universe_symbol_map(close_prices_path: Path) -> Dict[str, str]:
         register(yahoo_ticker, yahoo_ticker)
 
     return symbol_map
+
+
+def load_universe_sector_map(close_prices_path: Path) -> Dict[str, str]:
+    universe = load_universe_sheet(close_prices_path)
+    if universe.empty:
+        return {}
+
+    col_map = {str(c).strip(): c for c in universe.columns}
+    yahoo_col = col_map.get("Yahoo Finance Ticker")
+    nse_col = col_map.get("NSE Symbol")
+    underlying_col = col_map.get("Underlying")
+
+    sector_col = None
+    for candidate in (
+        "GICSSectorKey",
+        "GICS Sector",
+        "Sector",
+        "Sector Name",
+        "GICS Sector Name",
+        "Business Model",
+    ):
+        if candidate in col_map:
+            sector_col = col_map[candidate]
+            break
+
+    if yahoo_col is None or sector_col is None:
+        logger.warning(
+            "Could not find sector metadata columns in universe workbook. "
+            "MVO sector constraints may be unavailable."
+        )
+        return {}
+
+    sector_map: Dict[str, str] = {}
+
+    def register(key: str, sector_value: str) -> None:
+        nkey = normalize_symbol(key)
+        ckey = canonical_symbol(key)
+        sec = str(sector_value).strip()
+
+        if not sec:
+            return
+
+        if nkey:
+            sector_map[nkey] = sec
+        if ckey:
+            sector_map[ckey] = sec
+
+    for _, row in universe.iterrows():
+        if pd.isna(row[sector_col]):
+            continue
+
+        sector_value = str(row[sector_col]).strip()
+        if not sector_value:
+            continue
+
+        if yahoo_col is not None and pd.notna(row[yahoo_col]):
+            register(str(row[yahoo_col]), sector_value)
+
+        if nse_col is not None and pd.notna(row[nse_col]):
+            register(str(row[nse_col]), sector_value)
+
+        if underlying_col is not None and pd.notna(row[underlying_col]):
+            register(str(row[underlying_col]), sector_value)
+
+    return sector_map
 
 
 def resolve_symbol_to_column(
@@ -380,11 +456,11 @@ def compute_beta_and_correlation(
     return beta, correlation
 
 
-def run_watchlist_backtest(
+def prepare_watchlist_data(
     user_symbols: List[str],
     close_prices_path: Path,
     lookback_days: int = 252,
-) -> Tuple[dict, pd.DataFrame, pd.DataFrame, str | None, pd.DataFrame | None, dict | None]:
+):
     if not user_symbols:
         raise ValueError("Watchlist is empty.")
 
@@ -437,8 +513,7 @@ def run_watchlist_backtest(
         raise ValueError("No matched symbols had sufficient price history for backtest.")
 
     valid_columns = [
-        col for col in close_subset.columns
-        if close_subset[col].dropna().shape[0] >= 2
+        col for col in close_subset.columns if close_subset[col].dropna().shape[0] >= 2
     ]
     close_subset = close_subset[valid_columns]
 
@@ -467,10 +542,33 @@ def run_watchlist_backtest(
     if daily_ret.empty:
         raise ValueError("Could not compute daily returns for the matched symbols.")
 
-    n = daily_ret.shape[1]
-    weights = np.repeat(1.0 / n, n)
+    benchmark_column = resolve_benchmark_column(
+        all_columns=all_columns,
+        normalized_column_lookup=normalized_column_lookup,
+        canonical_column_lookup=canonical_column_lookup,
+    )
 
-    portfolio_returns = daily_ret.dot(weights)
+    return {
+        "close": close,
+        "close_subset": close_subset,
+        "daily_ret": daily_ret,
+        "all_columns": all_columns,
+        "column_to_requested": column_to_requested,
+        "benchmark_column": benchmark_column,
+    }
+
+
+def apply_benchmark_and_finalize(
+    close: pd.DataFrame,
+    close_subset: pd.DataFrame,
+    weights_series: pd.Series,
+    benchmark_column: str | None,
+    column_to_requested: Dict[str, str],
+):
+    selected_cols = weights_series.index.tolist()
+    close_subset = close_subset[selected_cols].copy()
+
+    portfolio_returns = daily_ret = close_subset.pct_change().dropna().dot(weights_series.values)
     portfolio_nav = (1.0 + portfolio_returns).cumprod()
 
     metrics = compute_metrics(portfolio_returns, portfolio_nav)
@@ -479,23 +577,17 @@ def run_watchlist_backtest(
     benchmark_curve_df: pd.DataFrame | None = None
     benchmark_metrics: dict | None = None
 
-    benchmark_column = resolve_benchmark_column(
-        all_columns=all_columns,
-        normalized_column_lookup=normalized_column_lookup,
-        canonical_column_lookup=canonical_column_lookup,
-    )
-
     if benchmark_column:
         benchmark_name = benchmark_column
 
-        benchmark_prices = close[benchmark_column].copy().tail(lookback_days + 1)
+        benchmark_prices = close[benchmark_column].copy()
         benchmark_prices = benchmark_prices.reindex(close_subset.index).ffill().dropna()
 
         common_price_index = close_subset.index.intersection(benchmark_prices.index)
         close_subset = close_subset.loc[common_price_index]
         benchmark_prices = benchmark_prices.loc[common_price_index]
 
-        portfolio_returns = close_subset.pct_change().dropna().dot(weights)
+        portfolio_returns = close_subset.pct_change().dropna().dot(weights_series.values)
         benchmark_returns = benchmark_prices.pct_change().dropna()
 
         common_return_index = portfolio_returns.index.intersection(benchmark_returns.index)
@@ -514,9 +606,7 @@ def run_watchlist_backtest(
             benchmark_returns=benchmark_returns,
         )
         metrics["beta_to_benchmark"] = round(beta, 4) if beta is not None else None
-        metrics["correlation_to_benchmark"] = (
-            round(correlation, 4) if correlation is not None else None
-        )
+        metrics["correlation_to_benchmark"] = round(correlation, 4) if correlation is not None else None
     else:
         logger.warning("No benchmark column found for NIFTY 50 candidates.")
         metrics["beta_to_benchmark"] = None
@@ -530,15 +620,216 @@ def run_watchlist_backtest(
     holdings = pd.DataFrame(
         {
             "Symbol": [column_to_requested[col] for col in close_subset.columns],
-            "weight": np.repeat(1.0 / len(close_subset.columns), len(close_subset.columns)),
+            "weight": [float(weights_series.loc[col]) for col in close_subset.columns],
             "start_price": start_prices.values,
             "end_price": end_prices.values,
-            "total_return_pct": (
-                (end_prices / start_prices - 1.0) * 100.0
-            ).round(2).values,
+            "total_return_pct": ((end_prices / start_prices - 1.0) * 100.0).round(2).values,
         }
     )
 
     holdings = holdings.sort_values("Symbol").reset_index(drop=True)
 
     return metrics, curve_df, holdings, benchmark_name, benchmark_curve_df, benchmark_metrics
+
+
+def solve_mvo_weights(
+    daily_ret: pd.DataFrame,
+    sector_map: pd.Series,
+    min_stocks: int = 2,
+    max_stocks: int = 20,
+    max_sector_weight: float = 0.30,
+    min_weight_threshold: float = 0.0001,
+    risk_aversion: float = 5.0,
+) -> pd.Series:
+    daily_ret = daily_ret.copy()
+
+    if daily_ret.shape[1] < min_stocks:
+        raise ValueError("Not enough watchlist stocks available for MVO.")
+
+    mu = daily_ret.mean() * ANNUALIZATION_FACTOR
+    vol = daily_ret.std().replace(0, np.nan)
+
+    score = (mu / vol).replace([np.inf, -np.inf], np.nan).dropna().sort_values(ascending=False)
+    selected = score.index.tolist()[:max_stocks]
+
+    if len(selected) < min_stocks:
+        raise ValueError("Not enough valid watchlist candidates after MVO ranking.")
+
+    mu = mu.loc[selected]
+    cov = daily_ret[selected].cov() * ANNUALIZATION_FACTOR
+    cov = cov + np.eye(len(selected)) * 1e-8
+
+    sector_map = sector_map.loc[selected]
+    sector_count = sector_map.nunique()
+    required_min_sectors = math.ceil(1.0 / max_sector_weight)
+
+    if sector_count < required_min_sectors:
+        raise ValueError(
+            f"MVO is infeasible for this watchlist under {int(max_sector_weight * 100)}% "
+            f"sector cap. At least {required_min_sectors} distinct sectors are needed."
+        )
+
+    n = len(selected)
+
+    def objective(w: np.ndarray) -> float:
+        return 0.5 * risk_aversion * float(w @ cov.values @ w) - float(mu.values @ w)
+
+    constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
+
+    for sector in sector_map.dropna().unique():
+        idx = np.where(sector_map.values == sector)[0]
+        constraints.append(
+            {
+                "type": "ineq",
+                "fun": lambda w, idx=idx: max_sector_weight - np.sum(w[idx]),
+            }
+        )
+
+    bounds = [(0.0, max_sector_weight) for _ in range(n)]
+
+    sector_names = sector_map.unique()
+    n_sectors = len(sector_names)
+    if n_sectors < required_min_sectors:
+        raise ValueError(
+            f"Need at least {required_min_sectors} sectors for sector cap {int(max_sector_weight * 100)}%."
+        )
+
+    x0 = pd.Series(0.0, index=selected, dtype=float)
+    sector_alloc = 1.0 / n_sectors
+    if sector_alloc > max_sector_weight + 1e-12:
+        raise ValueError(
+            f"Initial feasible allocation impossible with sector cap {int(max_sector_weight * 100)}%."
+        )
+
+    for sec in sector_names:
+        sec_names = sector_map[sector_map == sec].index.tolist()
+        x0.loc[sec_names] = sector_alloc / len(sec_names)
+
+    result = minimize(
+        objective,
+        x0=x0.values,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
+        options={"maxiter": 500, "ftol": 1e-9, "disp": False},
+    )
+
+    if not result.success:
+        raise ValueError(f"MVO optimization failed: {result.message}")
+
+    weights = pd.Series(result.x, index=selected)
+    weights[weights < min_weight_threshold] = 0.0
+    weights = weights[weights > 0.0]
+
+    effective_min_stocks = max(min_stocks, required_min_sectors)
+    if len(weights) < effective_min_stocks:
+        top_names = pd.Series(result.x, index=selected).sort_values(ascending=False).head(effective_min_stocks)
+        top_names[top_names < 0] = 0.0
+        weights = top_names[top_names > 0.0]
+
+    if weights.empty:
+        raise ValueError("MVO optimizer returned empty weights.")
+
+    weights = weights / weights.sum()
+    return weights
+
+
+def run_watchlist_backtest(
+    user_symbols: List[str],
+    close_prices_path: Path,
+    lookback_days: int = 252,
+):
+    prepared = prepare_watchlist_data(
+        user_symbols=user_symbols,
+        close_prices_path=close_prices_path,
+        lookback_days=lookback_days,
+    )
+
+    close = prepared["close"]
+    close_subset = prepared["close_subset"]
+    daily_ret = prepared["daily_ret"]
+    column_to_requested = prepared["column_to_requested"]
+    benchmark_column = prepared["benchmark_column"]
+
+    n = daily_ret.shape[1]
+    weights_series = pd.Series(
+        np.repeat(1.0 / n, n),
+        index=daily_ret.columns,
+        dtype=float,
+    )
+
+    return apply_benchmark_and_finalize(
+        close=close,
+        close_subset=close_subset,
+        weights_series=weights_series,
+        benchmark_column=benchmark_column,
+        column_to_requested=column_to_requested,
+    )
+
+
+def run_watchlist_mvo_backtest(
+    user_symbols: List[str],
+    close_prices_path: Path,
+    lookback_days: int = 252,
+):
+    prepared = prepare_watchlist_data(
+        user_symbols=user_symbols,
+        close_prices_path=close_prices_path,
+        lookback_days=lookback_days,
+    )
+
+    close = prepared["close"]
+    close_subset = prepared["close_subset"]
+    daily_ret = prepared["daily_ret"]
+    column_to_requested = prepared["column_to_requested"]
+    benchmark_column = prepared["benchmark_column"]
+
+    sector_map_raw = load_universe_sector_map(close_prices_path)
+
+    sector_map: Dict[str, str] = {}
+    for col in daily_ret.columns:
+        requested_symbol = column_to_requested.get(col, col)
+        key_candidates = [
+            normalize_symbol(requested_symbol),
+            canonical_symbol(requested_symbol),
+            normalize_symbol(col),
+            canonical_symbol(col),
+        ]
+
+        assigned = None
+        for key in key_candidates:
+            if key and key in sector_map_raw:
+                assigned = sector_map_raw[key]
+                break
+
+        if assigned is None:
+            assigned = f"UNKNOWN_{requested_symbol}"
+
+        sector_map[col] = str(assigned)
+
+    sector_series = pd.Series(sector_map).loc[daily_ret.columns]
+
+    weights_series = solve_mvo_weights(
+        daily_ret=daily_ret,
+        sector_map=sector_series,
+        min_stocks=2,
+        max_stocks=20,
+        max_sector_weight=0.30,
+        min_weight_threshold=0.001,
+        risk_aversion=5.0,
+    )
+
+    close_subset = close_subset[weights_series.index].copy()
+    reduced_column_to_requested = {
+        col: column_to_requested[col]
+        for col in weights_series.index
+        if col in column_to_requested
+    }
+
+    return apply_benchmark_and_finalize(
+        close=close,
+        close_subset=close_subset,
+        weights_series=weights_series,
+        benchmark_column=benchmark_column,
+        column_to_requested=reduced_column_to_requested,
+    )
