@@ -1,12 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-06,1,BSE,Financial Services,100,3.19,12.81,13.3,42.19,41.72,Very High Vol,Quality Factor
-2026-04-06,2,ADANIENT,Metals & Mining,93,0.83,-10.47,-15.07,-24.2,35.67,Very High Vol,Quality Factor
-2026-04-06,3,SUZLON,Capital Goods,86,-1.61,1.56,-21.04,-24.76,30.03,High Vol,Quality Factor
-2026-04-06,5,DIXON,Consumer Durables,71,-3.91,-1.41,-17.3,-39.99,41.16,Very High Vol,Quality Factor
-2026-04-06,6,ETERNAL,Consumer Services,64,-4.12,-4.39,-16.49,-28.52,35.8,Very High Vol,Quality Factor
-2026-04-06,9,MCX,Financial Services,43,3.4,1.91,14.45,60.52,41.17,Very High Vol,Quality Factor
-2026-04-06,10,TRENT,Consumer Services,36,10.2,-0.39,-10.41,-18.96,33.99,High Vol,Quality Factor
-2026-04-06,11,LUPIN,Healthcare,29,-2.88,-1.35,8.08,17.93,18.33,Medium Vol,Quality Factor
-2026-04-06,12,INOXWIND,Capital Goods,21,-1.18,-9.24,-34.47,-41.64,36.79,Very High Vol,Quality Factor
-2026-04-06,13,MAXHEALTH,Healthcare,14,-5.73,-14.03,-10.86,-16.22,25.68,High Vol,Quality Factor
-2026-04-06,14,KFINTECH,Financial Services,7,-1.57,-1.74,-15.0,-13.43,31.92,High Vol,Quality Factor
+2026-12-03,1,BSE,Financial Services,100,-0.35,-1.58,8.47,51.91,267.4,Very High Vol,Quality Factor
+2026-12-03,2,ADANIENT,Metals & Mining,93,0.28,-10.15,-11.42,-12.61,112.55,Very High Vol,Quality Factor
+2026-12-03,3,SUZLON,Capital Goods,86,2.36,-14.75,-19.13,-19.52,159.45,Very High Vol,Quality Factor
+2026-12-03,5,DIXON,Consumer Durables,71,-0.96,-7.49,-10.65,-26.98,141.52,Very High Vol,Quality Factor
+2026-12-03,9,MCX,Financial Services,43,-2.02,-0.68,14.94,118.32,187.05,Very High Vol,Quality Factor
+2026-12-03,10,TRENT,Consumer Services,36,-4.89,-11.94,-17.77,-32.0,120.8,Very High Vol,Quality Factor
+2026-12-03,11,LUPIN,Healthcare,29,0.85,7.38,12.1,8.66,50.99,Very High Vol,Quality Factor
+2026-12-03,12,INOXWIND,Capital Goods,21,0.9,-23.98,-31.88,-50.41,251.99,Very High Vol,Quality Factor
+2026-12-03,13,MAXHEALTH,Healthcare,14,-2.18,-0.49,-2.76,-4.8,82.72,Very High Vol,Quality Factor
+2026-12-03,14,KFINTECH,Financial Services,7,-3.93,-10.66,-15.71,-21.35,128.64,Very High Vol,Quality Factor
