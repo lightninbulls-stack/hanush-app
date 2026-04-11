@@ -635,48 +635,220 @@ def apply_benchmark_and_finalize(
 def solve_mvo_weights(
     daily_ret: pd.DataFrame,
     sector_map: pd.Series,
-    min_stocks: int = 2,
-    max_stocks: int = 20,
-    max_sector_weight: float = 0.30,
-    min_weight_threshold: float = 0.0001,
+    max_stocks: int | None = None,
+    min_weight_threshold: float = 0.001,
     risk_aversion: float = 5.0,
 ) -> pd.Series:
+    """
+    Dynamic MVO solver.
+
+    Dynamic rules:
+    - watchlist <= 10  -> max stock weight 25% -> minimum holdings 4
+    - watchlist <= 20  -> max stock weight 10% -> minimum holdings 10
+    - watchlist <= 30  -> max stock weight  8% -> minimum holdings 13
+    - watchlist >  30  -> max stock weight  5% -> minimum holdings 20
+
+    Dynamic sector cap:
+    - watchlist <= 10  -> 50%
+    - watchlist <= 20  -> 35%
+    - watchlist <= 30  -> 25%
+    - watchlist >  30  -> 20%
+
+    The function auto-relaxes the sector cap if the selected universe
+    does not have enough distinct sectors to make the problem feasible.
+    """
+
+    def _get_dynamic_stock_constraints(watchlist_count: int) -> tuple[int, float]:
+        if watchlist_count <= 10:
+            max_stock_weight = 0.25
+        elif watchlist_count <= 20:
+            max_stock_weight = 0.10
+        elif watchlist_count <= 30:
+            max_stock_weight = 0.08
+        else:
+            max_stock_weight = 0.05
+
+        min_required_holdings = math.ceil(1.0 / max_stock_weight)
+        min_required_holdings = min(watchlist_count, min_required_holdings)
+
+        return min_required_holdings, max_stock_weight
+
+    def _get_dynamic_sector_cap(watchlist_count: int, sector_count: int) -> float:
+        if watchlist_count <= 10:
+            target_sector_cap = 0.50
+        elif watchlist_count <= 20:
+            target_sector_cap = 0.35
+        elif watchlist_count <= 30:
+            target_sector_cap = 0.25
+        else:
+            target_sector_cap = 0.20
+
+        if sector_count <= 0:
+            raise ValueError("No valid sectors available for sector constraints.")
+
+        # Minimum feasible cap so full investment is possible
+        feasible_floor = (1.0 / sector_count) + 1e-6
+
+        return max(target_sector_cap, feasible_floor)
+
+    def _build_initial_guess(
+        selected_names: list[str],
+        selected_sector_map: pd.Series,
+        target_holdings: int,
+        max_stock_weight: float,
+        max_sector_weight: float,
+    ) -> pd.Series:
+        """
+        Build a sector-aware seed portfolio.
+        Tries to spread names across sectors in round-robin fashion.
+        """
+        n = len(selected_names)
+        x0 = pd.Series(0.0, index=selected_names, dtype=float)
+
+        if n == 0:
+            return x0
+
+        target_holdings = min(target_holdings, n)
+        if target_holdings <= 0:
+            x0[:] = 1.0 / n
+            return x0
+
+        equal_weight = 1.0 / target_holdings
+
+        # Max number of equally weighted names we can take from one sector
+        max_names_per_sector = max(1, int(np.floor(max_sector_weight / equal_weight + 1e-12)))
+
+        sector_buckets: dict[str, list[str]] = {}
+        for name in selected_names:
+            sec = str(selected_sector_map.loc[name]).strip()
+            sector_buckets.setdefault(sec, []).append(name)
+
+        sector_keys = list(sector_buckets.keys())
+        sector_ptr = {sec: 0 for sec in sector_keys}
+        sector_used = {sec: 0 for sec in sector_keys}
+
+        chosen: list[str] = []
+        chosen_set: set[str] = set()
+
+        progress = True
+        while len(chosen) < target_holdings and progress:
+            progress = False
+            for sec in sector_keys:
+                if sector_used[sec] >= max_names_per_sector:
+                    continue
+
+                ptr = sector_ptr[sec]
+                bucket = sector_buckets[sec]
+
+                if ptr < len(bucket):
+                    name = bucket[ptr]
+                    sector_ptr[sec] += 1
+
+                    if name not in chosen_set:
+                        chosen.append(name)
+                        chosen_set.add(name)
+                        sector_used[sec] += 1
+                        progress = True
+
+                    if len(chosen) == target_holdings:
+                        break
+
+        # Fallback if strict round-robin could not fill enough names
+        if len(chosen) < target_holdings:
+            for name in selected_names:
+                if name not in chosen_set:
+                    chosen.append(name)
+                    chosen_set.add(name)
+                    if len(chosen) == target_holdings:
+                        break
+
+        if not chosen:
+            x0[:] = 1.0 / n
+            return x0 / x0.sum()
+
+        x0.loc[chosen] = 1.0 / len(chosen)
+
+        # Safety clip
+        x0 = x0.clip(lower=0.0, upper=max_stock_weight)
+
+        if x0.sum() <= 0:
+            x0[:] = 1.0 / n
+
+        return x0 / x0.sum()
+
     daily_ret = daily_ret.copy()
 
-    if daily_ret.shape[1] < min_stocks:
-        raise ValueError("Not enough watchlist stocks available for MVO.")
+    if daily_ret.empty or daily_ret.shape[1] == 0:
+        raise ValueError("No stocks available for MVO.")
+
+    watchlist_count = daily_ret.shape[1]
+
+    # ------------------------------------------------------------
+    # Dynamic stock constraints
+    # ------------------------------------------------------------
+    dynamic_min_holdings, max_stock_weight = _get_dynamic_stock_constraints(watchlist_count)
 
     mu = daily_ret.mean() * ANNUALIZATION_FACTOR
     vol = daily_ret.std().replace(0, np.nan)
 
-    score = (mu / vol).replace([np.inf, -np.inf], np.nan).dropna().sort_values(ascending=False)
-    selected = score.index.tolist()[:max_stocks]
+    score = (
+        (mu / vol)
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+        .sort_values(ascending=False)
+    )
 
-    if len(selected) < min_stocks:
-        raise ValueError("Not enough valid watchlist candidates after MVO ranking.")
+    if score.empty:
+        raise ValueError("No valid watchlist candidates after return/volatility screening.")
+
+    # Use enough names so dynamic minimum holdings can actually be satisfied
+    effective_max_stocks = len(score) if max_stocks is None else max(max_stocks, dynamic_min_holdings)
+    selected = score.index.tolist()[: min(len(score), effective_max_stocks)]
+
+    if len(selected) < dynamic_min_holdings:
+        raise ValueError(
+            f"Not enough valid watchlist candidates after ranking. "
+            f"Got {len(selected)}, required at least {dynamic_min_holdings}."
+        )
 
     mu = mu.loc[selected]
     cov = daily_ret[selected].cov() * ANNUALIZATION_FACTOR
     cov = cov + np.eye(len(selected)) * 1e-8
 
-    sector_map = sector_map.loc[selected]
-    sector_count = sector_map.nunique()
-    required_min_sectors = math.ceil(1.0 / max_sector_weight)
+    # ------------------------------------------------------------
+    # Clean sector map
+    # ------------------------------------------------------------
+    sector_map = sector_map.loc[selected].copy()
 
-    if sector_count < required_min_sectors:
-        raise ValueError(
-            f"MVO is infeasible for this watchlist under {int(max_sector_weight * 100)}% "
-            f"sector cap. At least {required_min_sectors} distinct sectors are needed."
-        )
+    for name in selected:
+        val = sector_map.loc[name]
+        if pd.isna(val) or not str(val).strip():
+            sector_map.loc[name] = f"UNKNOWN_{name}"
+
+    sector_map = sector_map.astype(str).str.strip()
+
+    sector_count = sector_map.nunique()
+    if sector_count == 0:
+        raise ValueError("No valid sectors found for selected stocks.")
+
+    # ------------------------------------------------------------
+    # Dynamic sector constraint
+    # ------------------------------------------------------------
+    max_sector_weight = _get_dynamic_sector_cap(
+        watchlist_count=watchlist_count,
+        sector_count=sector_count,
+    )
 
     n = len(selected)
 
     def objective(w: np.ndarray) -> float:
         return 0.5 * risk_aversion * float(w @ cov.values @ w) - float(mu.values @ w)
 
+    # Full investment
     constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
 
-    for sector in sector_map.dropna().unique():
+    # Sector cap
+    for sector in sector_map.unique():
         idx = np.where(sector_map.values == sector)[0]
         constraints.append(
             {
@@ -685,25 +857,17 @@ def solve_mvo_weights(
             }
         )
 
-    bounds = [(0.0, max_sector_weight) for _ in range(n)]
+    # Dynamic stock cap
+    bounds = [(0.0, max_stock_weight) for _ in range(n)]
 
-    sector_names = sector_map.unique()
-    n_sectors = len(sector_names)
-    if n_sectors < required_min_sectors:
-        raise ValueError(
-            f"Need at least {required_min_sectors} sectors for sector cap {int(max_sector_weight * 100)}%."
-        )
-
-    x0 = pd.Series(0.0, index=selected, dtype=float)
-    sector_alloc = 1.0 / n_sectors
-    if sector_alloc > max_sector_weight + 1e-12:
-        raise ValueError(
-            f"Initial feasible allocation impossible with sector cap {int(max_sector_weight * 100)}%."
-        )
-
-    for sec in sector_names:
-        sec_names = sector_map[sector_map == sec].index.tolist()
-        x0.loc[sec_names] = sector_alloc / len(sec_names)
+    # Sector-aware initial guess
+    x0 = _build_initial_guess(
+        selected_names=selected,
+        selected_sector_map=sector_map,
+        target_holdings=dynamic_min_holdings,
+        max_stock_weight=max_stock_weight,
+        max_sector_weight=max_sector_weight,
+    )
 
     result = minimize(
         objective,
@@ -717,21 +881,34 @@ def solve_mvo_weights(
     if not result.success:
         raise ValueError(f"MVO optimization failed: {result.message}")
 
-    weights = pd.Series(result.x, index=selected)
-    weights[weights < min_weight_threshold] = 0.0
-    weights = weights[weights > 0.0]
+    raw_weights = pd.Series(result.x, index=selected).clip(lower=0.0)
 
-    effective_min_stocks = max(min_stocks, required_min_sectors)
-    if len(weights) < effective_min_stocks:
-        top_names = pd.Series(result.x, index=selected).sort_values(ascending=False).head(effective_min_stocks)
-        top_names[top_names < 0] = 0.0
-        weights = top_names[top_names > 0.0]
+    if raw_weights.sum() <= 0:
+        raise ValueError("MVO optimizer returned non-positive weights.")
 
-    if weights.empty:
-        raise ValueError("MVO optimizer returned empty weights.")
+    raw_weights = raw_weights / raw_weights.sum()
+
+    # Remove tiny numerical dust only if it does not break diversification
+    filtered_weights = raw_weights.copy()
+    filtered_weights[filtered_weights < min_weight_threshold] = 0.0
+    filtered_weights = filtered_weights[filtered_weights > 0.0]
+
+    if not filtered_weights.empty:
+        filtered_weights = filtered_weights / filtered_weights.sum()
+
+    # If cleanup makes the portfolio too concentrated, keep raw optimized weights
+    if (
+        filtered_weights.empty
+        or len(filtered_weights) < dynamic_min_holdings
+        or (filtered_weights > max_stock_weight + 1e-6).any()
+    ):
+        weights = raw_weights[raw_weights > 0.0].copy()
+    else:
+        weights = filtered_weights.copy()
 
     weights = weights / weights.sum()
-    return weights
+
+    return weights.sort_values(ascending=False)
 
 
 def run_watchlist_backtest(
@@ -810,13 +987,11 @@ def run_watchlist_mvo_backtest(
     sector_series = pd.Series(sector_map).loc[daily_ret.columns]
 
     weights_series = solve_mvo_weights(
-        daily_ret=daily_ret,
-        sector_map=sector_series,
-        min_stocks=2,
-        max_stocks=20,
-        max_sector_weight=0.30,
-        min_weight_threshold=0.001,
-        risk_aversion=5.0,
+    daily_ret=daily_ret,
+    sector_map=sector_series,
+    max_stocks=None,   # use all available ranked names
+    min_weight_threshold=0.001,
+    risk_aversion=5.0,
     )
 
     close_subset = close_subset[weights_series.index].copy()
