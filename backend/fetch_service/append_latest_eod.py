@@ -16,8 +16,6 @@ BACKEND_DIR = SCRIPT_DIR.parent
 DATA_DIR = BACKEND_DIR / "data"
 
 CLOSE_WIDE_FILE = DATA_DIR / "close_prices_wide.csv"
-UNIVERSE_FILE = DATA_DIR / "yahoo_finance_ticker_universe_with_sector_business_model.xlsx"
-INPUT_SHEET = "Yahoo_Ticker_Map"
 
 LOG_DIR = DATA_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,7 +31,55 @@ LOOKBACK_DAYS = 10
 # HELPERS
 # ============================================================
 def chunk_list(items: List[str], chunk_size: int) -> List[List[str]]:
-    return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+    return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
+
+
+def parse_existing_date_index(index_like: pd.Index) -> pd.DatetimeIndex:
+    """
+    Parse the existing CSV index safely.
+
+    Handles ambiguous legacy formats like:
+    - 07/04/26
+    - 07-04-26
+    - 07/04/2026
+    - 2026-04-07
+
+    Priority is day-first for ambiguous historical data.
+    """
+    raw_index = pd.Index(index_like).astype(str).str.strip()
+
+    parsed = pd.Series(pd.NaT, index=range(len(raw_index)), dtype="datetime64[ns]")
+
+    known_formats = [
+        "%d/%m/%y",
+        "%d-%m-%y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+    ]
+
+    for fmt in known_formats:
+        remaining_mask = parsed.isna().to_numpy()
+        if not remaining_mask.any():
+            break
+
+        candidate = pd.to_datetime(
+            raw_index[remaining_mask],
+            format=fmt,
+            errors="coerce",
+        )
+        parsed.loc[parsed.isna()] = candidate.to_numpy()
+
+    if parsed.isna().any():
+        remaining_mask = parsed.isna().to_numpy()
+        parsed.loc[remaining_mask] = pd.to_datetime(
+            raw_index[remaining_mask],
+            errors="coerce",
+            dayfirst=True,
+        ).to_numpy()
+
+    return pd.DatetimeIndex(parsed).normalize()
 
 
 def load_existing_close_wide(file_path: Path) -> pd.DataFrame:
@@ -46,11 +92,19 @@ def load_existing_close_wide(file_path: Path) -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"{file_path} exists but is empty.")
 
-    df.index = pd.to_datetime(df.index, errors="coerce").normalize()
+    df.index = parse_existing_date_index(df.index)
     df = df[~df.index.isna()].copy()
 
     df.columns = [str(col).strip() for col in df.columns]
+    df = df.loc[:, [c for c in df.columns if c]]
     df = df.sort_index()
+
+    # Coerce all values to numeric where possible
+    df = df.apply(pd.to_numeric, errors="coerce")
+
+    if df.empty:
+        raise ValueError(f"{file_path} contains no usable data after parsing.")
+
     return df
 
 
@@ -58,39 +112,6 @@ def load_tickers_from_existing_wide(existing_df: pd.DataFrame) -> List[str]:
     tickers = [str(col).strip() for col in existing_df.columns if str(col).strip()]
     if not tickers:
         raise ValueError("No ticker columns found in close_prices_wide.csv")
-    return tickers
-
-
-def load_tickers_from_excel(file_path: Path, sheet_name: str) -> List[str]:
-    df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-    required_col = "Yahoo Finance Ticker"
-    if required_col not in df.columns:
-        raise ValueError(f"Column 'Yahoo Finance Ticker' not found in {file_path}")
-
-    tickers = (
-        df[required_col]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .unique()
-        .tolist()
-    )
-
-    if not tickers:
-        raise ValueError("No tickers found in Excel file.")
-
-    return tickers
-
-
-def resolve_tickers(existing_df: pd.DataFrame) -> List[str]:
-    # Preferred: use current close_prices_wide.csv columns
-    tickers = load_tickers_from_existing_wide(existing_df)
-
-    # Optional sanity fallback: if wide file is weird, try the universe file
-    if not tickers and UNIVERSE_FILE.exists():
-        tickers = load_tickers_from_excel(UNIVERSE_FILE, INPUT_SHEET)
-
     return tickers
 
 
@@ -110,13 +131,12 @@ def download_recent_close_batch(tickers: List[str], start_date: pd.Timestamp) ->
             return pd.DataFrame()
 
         if isinstance(raw.columns, pd.MultiIndex):
-            if "Close" not in raw.columns.get_level_values(0):
+            level_0 = raw.columns.get_level_values(0)
+            if "Close" not in level_0:
                 return pd.DataFrame()
 
             close_df = raw["Close"].copy()
-
         else:
-            # single ticker fallback
             if "Close" not in raw.columns:
                 return pd.DataFrame()
 
@@ -127,6 +147,7 @@ def download_recent_close_batch(tickers: List[str], start_date: pd.Timestamp) ->
         close_df = close_df[~close_df.index.isna()].copy()
 
         close_df.columns = [str(col).strip() for col in close_df.columns]
+        close_df = close_df.apply(pd.to_numeric, errors="coerce")
         close_df = close_df.sort_index()
 
         return close_df
@@ -147,9 +168,19 @@ def main() -> None:
     print("=" * 80, flush=True)
 
     existing_df = load_existing_close_wide(CLOSE_WIDE_FILE)
-    tickers = resolve_tickers(existing_df)
+    tickers = load_tickers_from_existing_wide(existing_df)
 
     last_saved_date = existing_df.index.max()
+    today = pd.Timestamp.utcnow().tz_localize(None).normalize()
+
+    if pd.isna(last_saved_date):
+        raise ValueError("Could not determine the latest saved date from close_prices_wide.csv.")
+
+    if last_saved_date > today:
+        raise ValueError(
+            "close_prices_wide.csv contains a future date after parsing. "
+            f"Last saved date: {last_saved_date.date()} | Today: {today.date()}"
+        )
 
     print(f"Close file path: {CLOSE_WIDE_FILE}", flush=True)
     print(f"Existing shape: {existing_df.shape}", flush=True)
@@ -162,8 +193,8 @@ def main() -> None:
     batches = chunk_list(tickers, BATCH_SIZE)
     total_batches = len(batches)
 
-    batch_frames = []
-    failed_tickers = []
+    batch_frames: List[pd.DataFrame] = []
+    failed_tickers: List[str] = []
 
     for idx, batch in enumerate(batches, start=1):
         batch_start = time.time()
@@ -195,6 +226,8 @@ def main() -> None:
             time.sleep(SLEEP_BETWEEN_BATCHES)
 
     if not batch_frames:
+        failed_df = pd.DataFrame({"Ticker": sorted(set(failed_tickers))})
+        failed_df.to_csv(FAILED_FILE, index=False)
         raise RuntimeError("No batch data received from Yahoo.")
 
     print("\nCombining all batch close data...", flush=True)
@@ -203,10 +236,10 @@ def main() -> None:
     recent_close = recent_close.loc[:, ~recent_close.columns.duplicated()].copy()
     recent_close = recent_close.sort_index()
 
-    # keep only the existing universe/order
+    # Keep only columns that already exist in the master file and preserve order
     recent_close = recent_close.reindex(columns=tickers)
 
-    # keep only new dates
+    # Append only genuinely new dates
     new_rows = recent_close[recent_close.index > last_saved_date].copy()
 
     if new_rows.empty:
@@ -225,7 +258,12 @@ def main() -> None:
     combined = combined.sort_index()
     combined = combined.reindex(columns=tickers)
 
-    combined.to_csv(CLOSE_WIDE_FILE, index_label="Date")
+    # Write dates in unambiguous format so future runs are safe
+    combined.to_csv(
+        CLOSE_WIDE_FILE,
+        index_label="Date",
+        date_format="%Y-%m-%d",
+    )
 
     failed_df = pd.DataFrame({"Ticker": sorted(set(failed_tickers))})
     failed_df.to_csv(FAILED_FILE, index=False)
