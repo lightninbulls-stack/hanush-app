@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-06,1,LODHA,Realty,100,-3.22,-26.49,-33.08,-38.52,32.66,High Vol,EMA Ensemble Downside
-2026-04-06,2,ASHOKLEY,Capital Goods,100,-11.72,-27.8,-15.78,5.96,33.54,High Vol,EMA Ensemble Downside
-2026-04-06,3,PGEL,Consumer Durables,100,-12.67,-26.83,-21.49,-10.51,45.72,Very High Vol,EMA Ensemble Downside
-2026-04-06,4,IOC,Oil Gas & Consumable Fuels,100,-4.6,-25.16,-19.47,-10.22,26.74,High Vol,EMA Ensemble Downside
-2026-04-06,5,BLUESTARCO,Consumer Durables,100,-10.27,-17.72,-9.55,-17.42,31.52,High Vol,EMA Ensemble Downside
-2026-04-06,6,ICICIPRULI,Financial Services,100,-5.09,-21.49,-23.22,-12.91,21.92,Medium Vol,EMA Ensemble Downside
-2026-04-06,7,BPCL,Oil Gas & Consumable Fuels,100,-2.06,-25.64,-27.42,-17.57,28.53,High Vol,EMA Ensemble Downside
-2026-04-06,8,HINDPETRO,Oil Gas & Consumable Fuels,100,-4.64,-22.72,-34.27,-25.74,34.91,High Vol,EMA Ensemble Downside
-2026-04-06,9,HDFCLIFE,Financial Services,100,-5.3,-17.94,-22.6,-23.29,21.74,Medium Vol,EMA Ensemble Downside
-2026-04-06,10,PRESTIGE,Realty,100,-3.66,-14.09,-25.81,-22.2,31.28,High Vol,EMA Ensemble Downside
-2026-04-06,11,CHOLAFIN,Financial Services,100,-5.47,-18.23,-18.15,-12.47,30.93,High Vol,EMA Ensemble Downside
-2026-04-06,12,MFSL,Financial Services,100,-5.49,-17.05,-10.35,-3.91,25.32,High Vol,EMA Ensemble Downside
-2026-04-06,13,VOLTAS,Consumer Durables,100,-8.53,-16.48,-8.02,-8.91,31.72,High Vol,EMA Ensemble Downside
-2026-04-06,14,SBICARD,Financial Services,100,-9.3,-14.92,-26.3,-26.43,25.92,High Vol,EMA Ensemble Downside
-2026-04-06,15,IDEA,Telecommunication,100,-3.1,-14.87,-18.59,6.31,52.28,Very High Vol,EMA Ensemble Downside
-2026-04-06,16,360ONE,Financial Services,100,-7.25,-13.52,-21.89,-9.65,27.93,High Vol,EMA Ensemble Downside
-2026-04-06,17,IDFCFIRSTB,Financial Services,100,-3.42,-14.91,-28.65,-12.12,35.95,Very High Vol,EMA Ensemble Downside
-2026-04-06,18,DABUR,Fast Moving Consumer Goods,100,-4.01,-18.5,-17.85,-16.06,21.68,Medium Vol,EMA Ensemble Downside
-2026-04-06,19,BANKBARODA,Financial Services,100,-4.75,-17.59,-12.21,2.27,29.64,High Vol,EMA Ensemble Downside
-2026-04-06,20,BAJAJHLDNG,Financial Services,100,-4.43,-14.62,-19.39,-26.73,29.93,High Vol,EMA Ensemble Downside
+2026-04-10,1,BIOCON,Healthcare,100,-1.12,-10.55,-9.49,0.24,26.07,High Vol,EMA Ensemble Downside
+2026-04-10,2,JUBLFOOD,Consumer Services,100,-0.35,-8.93,-18.57,-28.61,32.35,High Vol,EMA Ensemble Downside
+2026-04-10,3,MAXHEALTH,Healthcare,100,0.93,-8.46,-9.34,-16.35,23.37,Medium Vol,EMA Ensemble Downside
+2026-04-10,4,PATANJALI,Fast Moving Consumer Goods,100,0.09,-4.83,-18.65,-21.79,22.87,Medium Vol,EMA Ensemble Downside
+2026-04-10,5,DRREDDY,Healthcare,100,1.22,-4.26,-1.91,-1.31,22.15,Medium Vol,EMA Ensemble Downside
+2026-04-10,6,SUNPHARMA,Healthcare,100,-2.29,-8.44,-5.98,0.01,18.61,Medium Vol,EMA Ensemble Downside
+2026-04-10,7,SRF,Chemicals,100,2.37,-3.1,-18.94,-15.88,31.94,High Vol,EMA Ensemble Downside
+2026-04-10,8,RELIANCE,Oil Gas & Consumable Fuels,100,-0.02,-5.18,-10.44,-1.8,21.46,Medium Vol,EMA Ensemble Downside
+2026-04-10,9,BRITANNIA,Fast Moving Consumer Goods,100,2.12,-5.65,-9.33,-7.54,19.54,Medium Vol,EMA Ensemble Downside
+2026-04-10,10,TORNTPHARM,Healthcare,100,4.21,-5.0,5.55,17.84,20.65,Medium Vol,EMA Ensemble Downside
+2026-04-10,11,KFINTECH,Financial Services,100,0.81,0.13,-15.19,-14.22,32.13,High Vol,EMA Ensemble Downside
+2026-04-10,12,OIL,Oil Gas & Consumable Fuels,100,-1.84,-0.58,10.75,12.43,31.39,High Vol,EMA Ensemble Downside
+2026-04-10,13,PGEL,Consumer Durables,80,7.11,-6.82,-22.32,-5.89,47.75,Very High Vol,EMA Ensemble Downside
+2026-04-10,14,HDFCLIFE,Financial Services,80,6.72,-7.59,-22.33,-20.82,22.37,Medium Vol,EMA Ensemble Downside
+2026-04-10,15,IOC,Oil Gas & Consumable Fuels,80,6.58,-11.33,-12.83,-7.67,28.12,High Vol,EMA Ensemble Downside
+2026-04-10,16,BLUESTARCO,Consumer Durables,80,10.58,-9.87,-7.33,-10.71,32.71,High Vol,EMA Ensemble Downside
+2026-04-10,17,VOLTAS,Consumer Durables,80,6.49,-8.42,-11.48,-3.74,32.52,High Vol,EMA Ensemble Downside
+2026-04-10,18,ICICIPRULI,Financial Services,80,8.66,-9.07,-20.55,-8.9,22.99,Medium Vol,EMA Ensemble Downside
+2026-04-10,19,BPCL,Oil Gas & Consumable Fuels,80,7.62,-9.6,-19.27,-12.88,30.46,High Vol,EMA Ensemble Downside
+2026-04-10,20,SWIGGY,Consumer Services,80,-0.13,-8.71,-23.82,-34.76,35.71,Very High Vol,EMA Ensemble Downside
