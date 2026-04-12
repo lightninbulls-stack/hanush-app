@@ -38,7 +38,7 @@ def canonical_symbol(value: str) -> str:
 
     for prefix in ("NSE:", "BSE:"):
         if s.startswith(prefix):
-            s = s[len(prefix):]
+            s = s[len(prefix) :]
 
     for suffix in (".NS", ".BO", "-EQ"):
         if s.endswith(suffix):
@@ -109,17 +109,6 @@ def _promote_first_row_as_header(raw_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def parse_existing_date_index(index_like: pd.Index) -> pd.DatetimeIndex:
-    """
-    Safely parse mixed legacy date strings from close_prices_wide.csv.
-
-    Supports:
-    - DD/MM/YY
-    - DD-MM-YY
-    - DD/MM/YYYY
-    - DD-MM-YYYY
-    - YYYY-MM-DD
-    - YYYY/MM/DD
-    """
     raw_index = pd.Index(index_like).astype(str).str.strip()
 
     parsed = pd.Series(pd.NaT, index=range(len(raw_index)), dtype="datetime64[ns]")
@@ -173,15 +162,12 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
 
         close = raw.copy()
 
-    # FIX: robust parsing instead of generic pd.to_datetime(..., dayfirst=True)
     close.index = parse_existing_date_index(close.index)
     close = close[~close.index.isna()].copy()
 
-    # Remove future rows created by bad legacy parsing
     today = pd.Timestamp.utcnow().tz_localize(None).normalize()
     close = close[close.index <= today].copy()
 
-    # Keep last record if duplicate dates exist
     close = close[~close.index.duplicated(keep="last")].copy()
     close = close.sort_index()
 
@@ -629,6 +615,14 @@ def prepare_watchlist_data(
     }
 
 
+def _holding_total_return_pct(start_price: float, end_price: float, weight: float) -> float:
+    if start_price == 0 or np.isnan(start_price) or np.isnan(end_price):
+        return np.nan
+
+    long_return = ((end_price / start_price) - 1.0) * 100.0
+    return -long_return if weight < 0 else long_return
+
+
 def apply_benchmark_and_finalize(
     close: pd.DataFrame,
     close_subset: pd.DataFrame,
@@ -694,7 +688,17 @@ def apply_benchmark_and_finalize(
             "weight": [float(weights_series.loc[col]) for col in close_subset.columns],
             "start_price": start_prices.values,
             "end_price": end_prices.values,
-            "total_return_pct": ((end_prices / start_prices - 1.0) * 100.0).round(2).values,
+            "total_return_pct": [
+                round(
+                    _holding_total_return_pct(
+                        float(start_prices.loc[col]),
+                        float(end_prices.loc[col]),
+                        float(weights_series.loc[col]),
+                    ),
+                    2,
+                )
+                for col in close_subset.columns
+            ],
         }
     )
 
@@ -709,14 +713,13 @@ def solve_mvo_weights(
     max_stocks: int | None = None,
     min_weight_threshold: float = 0.001,
     risk_aversion: float = 5.0,
+    direction: str = "long",
 ) -> pd.Series:
+    direction = str(direction).strip().lower()
+    if direction not in {"long", "short"}:
+        raise ValueError("direction must be either 'long' or 'short'.")
+
     def _get_dynamic_constraints(watchlist_count: int) -> tuple[int, float, float]:
-        """
-        Returns:
-        - min_holdings
-        - max_stock_weight
-        - target_sector_cap
-        """
         if watchlist_count <= 10:
             return 4, 0.25, 0.50
         elif watchlist_count <= 20:
@@ -792,8 +795,7 @@ def solve_mvo_weights(
             x0[:] = 1.0 / n
             return x0 / x0.sum()
 
-        base_weight = 1.0 / len(chosen)
-        base_weight = min(base_weight, max_stock_weight)
+        base_weight = min(1.0 / len(chosen), max_stock_weight)
         x0.loc[chosen] = base_weight
 
         if x0.sum() <= 0:
@@ -812,12 +814,20 @@ def solve_mvo_weights(
     mu = daily_ret.mean() * ANNUALIZATION_FACTOR
     vol = daily_ret.std().replace(0, np.nan)
 
-    score = (
-        (mu / vol)
-        .replace([np.inf, -np.inf], np.nan)
-        .dropna()
-        .sort_values(ascending=False)
-    )
+    if direction == "long":
+        score = (
+            (mu / vol)
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .sort_values(ascending=False)
+        )
+    else:
+        score = (
+            (-mu / vol)
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .sort_values(ascending=False)
+        )
 
     if score.empty:
         raise ValueError("No valid watchlist candidates after return/volatility screening.")
@@ -851,8 +861,9 @@ def solve_mvo_weights(
     max_sector_weight = _resolved_sector_cap(target_sector_cap, sector_count)
 
     logger.warning(
-        "MVO DEBUG | watchlist_count=%s | selected=%s | min_holdings=%s | "
+        "MVO DEBUG | direction=%s | watchlist_count=%s | selected=%s | min_holdings=%s | "
         "max_stock_weight=%.4f | sector_count=%s | max_sector_weight=%.4f",
+        direction,
         watchlist_count,
         len(selected),
         min_holdings,
@@ -863,8 +874,12 @@ def solve_mvo_weights(
 
     n = len(selected)
 
-    def objective(w: np.ndarray) -> float:
-        return 0.5 * risk_aversion * float(w @ cov.values @ w) - float(mu.values @ w)
+    if direction == "long":
+        def objective(w: np.ndarray) -> float:
+            return 0.5 * risk_aversion * float(w @ cov.values @ w) - float(mu.values @ w)
+    else:
+        def objective(w: np.ndarray) -> float:
+            return 0.5 * risk_aversion * float(w @ cov.values @ w) + float(mu.values @ w)
 
     constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
 
@@ -906,7 +921,6 @@ def solve_mvo_weights(
 
     raw_weights = raw_weights / raw_weights.sum()
 
-    # Drop only tiny dust, not real small allocations
     filtered_weights = raw_weights.copy()
     filtered_weights[filtered_weights < min_weight_threshold] = 0.0
     filtered_weights = filtered_weights[filtered_weights > 0.0]
@@ -917,13 +931,17 @@ def solve_mvo_weights(
     weights = filtered_weights if not filtered_weights.empty else raw_weights
     weights = weights.sort_values(ascending=False)
 
+    signed_weights = weights if direction == "long" else -weights
+
     logger.warning(
-        "MVO DEBUG | optimized_holdings_count=%s | top_weights=%s",
-        len(weights),
-        weights.head(10).to_dict(),
+        "MVO DEBUG | direction=%s | optimized_holdings_count=%s | top_weights=%s",
+        direction,
+        len(signed_weights),
+        signed_weights.head(10).to_dict(),
     )
 
-    return weights
+    return signed_weights
+
 
 def run_watchlist_backtest(
     user_symbols: List[str],
@@ -958,23 +976,11 @@ def run_watchlist_backtest(
     )
 
 
-def run_watchlist_mvo_backtest(
-    user_symbols: List[str],
+def _prepare_sector_series(
+    daily_ret: pd.DataFrame,
+    column_to_requested: Dict[str, str],
     close_prices_path: Path,
-    lookback_days: int = 252,
-):
-    prepared = prepare_watchlist_data(
-        user_symbols=user_symbols,
-        close_prices_path=close_prices_path,
-        lookback_days=lookback_days,
-    )
-
-    close = prepared["close"]
-    close_subset = prepared["close_subset"]
-    daily_ret = prepared["daily_ret"]
-    column_to_requested = prepared["column_to_requested"]
-    benchmark_column = prepared["benchmark_column"]
-
+) -> pd.Series:
     sector_map_raw = load_universe_sector_map(close_prices_path)
 
     sector_map: Dict[str, str] = {}
@@ -998,7 +1004,31 @@ def run_watchlist_mvo_backtest(
 
         sector_map[col] = str(assigned)
 
-    sector_series = pd.Series(sector_map).loc[daily_ret.columns]
+    return pd.Series(sector_map).loc[daily_ret.columns]
+
+
+def run_watchlist_mvo_backtest(
+    user_symbols: List[str],
+    close_prices_path: Path,
+    lookback_days: int = 252,
+):
+    prepared = prepare_watchlist_data(
+        user_symbols=user_symbols,
+        close_prices_path=close_prices_path,
+        lookback_days=lookback_days,
+    )
+
+    close = prepared["close"]
+    close_subset = prepared["close_subset"]
+    daily_ret = prepared["daily_ret"]
+    column_to_requested = prepared["column_to_requested"]
+    benchmark_column = prepared["benchmark_column"]
+
+    sector_series = _prepare_sector_series(
+        daily_ret=daily_ret,
+        column_to_requested=column_to_requested,
+        close_prices_path=close_prices_path,
+    )
 
     weights_series = solve_mvo_weights(
         daily_ret=daily_ret,
@@ -1006,6 +1036,55 @@ def run_watchlist_mvo_backtest(
         max_stocks=None,
         min_weight_threshold=0.001,
         risk_aversion=5.0,
+        direction="long",
+    )
+
+    close_subset = close_subset[weights_series.index].copy()
+    reduced_column_to_requested = {
+        col: column_to_requested[col]
+        for col in weights_series.index
+        if col in column_to_requested
+    }
+
+    return apply_benchmark_and_finalize(
+        close=close,
+        close_subset=close_subset,
+        weights_series=weights_series,
+        benchmark_column=benchmark_column,
+        column_to_requested=reduced_column_to_requested,
+    )
+
+
+def run_watchlist_mvo_short_backtest(
+    user_symbols: List[str],
+    close_prices_path: Path,
+    lookback_days: int = 252,
+):
+    prepared = prepare_watchlist_data(
+        user_symbols=user_symbols,
+        close_prices_path=close_prices_path,
+        lookback_days=lookback_days,
+    )
+
+    close = prepared["close"]
+    close_subset = prepared["close_subset"]
+    daily_ret = prepared["daily_ret"]
+    column_to_requested = prepared["column_to_requested"]
+    benchmark_column = prepared["benchmark_column"]
+
+    sector_series = _prepare_sector_series(
+        daily_ret=daily_ret,
+        column_to_requested=column_to_requested,
+        close_prices_path=close_prices_path,
+    )
+
+    weights_series = solve_mvo_weights(
+        daily_ret=daily_ret,
+        sector_map=sector_series,
+        max_stocks=None,
+        min_weight_threshold=0.001,
+        risk_aversion=5.0,
+        direction="short",
     )
 
     close_subset = close_subset[weights_series.index].copy()
