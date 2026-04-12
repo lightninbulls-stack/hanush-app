@@ -6,7 +6,7 @@ import {
   type PortfolioPoint,
 } from "../services/watchlistApi";
 
-type StrategyType = "equal_weight" | "mvo";
+type StrategyType = "equal_weight" | "mvo" | "mvo_short";
 type MetricTone = "neutral" | "positive" | "negative";
 
 type MetricCardItem = {
@@ -483,7 +483,9 @@ const PortfolioBacktestPanel: React.FC = () => {
           <p>
             {strategyType === "equal_weight"
               ? "Equal-weight watchlist portfolio over the last 1 year."
-              : "Mean-variance optimized watchlist portfolio over the last 1 year."}
+              : strategyType === "mvo"
+              ? "Mean-variance optimized watchlist portfolio over the last 1 year."
+              : "Mean-variance optimized short-only watchlist portfolio over the last 1 year."}
           </p>
 
           <div className="portfolio-header-meta">
@@ -503,6 +505,15 @@ const PortfolioBacktestPanel: React.FC = () => {
               onClick={() => setStrategyType("mvo")}
             >
               Mean Variance Optimization Weights Portfolio
+            </button>
+
+            <button
+              className={`tv-time-btn ${
+                strategyType === "mvo_short" ? "active" : ""
+              }`}
+              onClick={() => setStrategyType("mvo_short")}
+            >
+              Mean Variance Optimization Short
             </button>
           </div>
         </div>
@@ -578,12 +589,16 @@ const PortfolioBacktestPanel: React.FC = () => {
             <h3>
               {strategyType === "equal_weight"
                 ? "Portfolio Metrics"
-                : "MVO Portfolio Metrics"}
+                : strategyType === "mvo"
+                ? "MVO Portfolio Metrics"
+                : "MVO Short Portfolio Metrics"}
             </h3>
             <p className="portfolio-section-copy">
               {strategyType === "equal_weight"
                 ? "Standalone equal-weight watchlist performance statistics."
-                : "Standalone mean-variance optimized watchlist performance statistics."}
+                : strategyType === "mvo"
+                ? "Standalone mean-variance optimized watchlist performance statistics."
+                : "Standalone mean-variance optimized short-only watchlist performance statistics."}
             </p>
           </div>
         </div>
@@ -606,7 +621,9 @@ const PortfolioBacktestPanel: React.FC = () => {
           <h3>
             {strategyType === "equal_weight"
               ? "Matched Holdings"
-              : "Optimized Holdings"}
+              : strategyType === "mvo"
+              ? "Optimized Holdings"
+              : "Optimized Short Holdings"}
           </h3>
           <span className="portfolio-section-badge">
             {data.holdings.length} Stocks
