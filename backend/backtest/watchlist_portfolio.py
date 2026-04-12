@@ -108,6 +108,54 @@ def _promote_first_row_as_header(raw_df: pd.DataFrame) -> pd.DataFrame:
     return fixed
 
 
+def parse_existing_date_index(index_like: pd.Index) -> pd.DatetimeIndex:
+    """
+    Safely parse mixed legacy date strings from close_prices_wide.csv.
+
+    Supports:
+    - DD/MM/YY
+    - DD-MM-YY
+    - DD/MM/YYYY
+    - DD-MM-YYYY
+    - YYYY-MM-DD
+    - YYYY/MM/DD
+    """
+    raw_index = pd.Index(index_like).astype(str).str.strip()
+
+    parsed = pd.Series(pd.NaT, index=range(len(raw_index)), dtype="datetime64[ns]")
+
+    known_formats = [
+        "%d/%m/%y",
+        "%d-%m-%y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+    ]
+
+    for fmt in known_formats:
+        remaining_mask = parsed.isna().to_numpy()
+        if not remaining_mask.any():
+            break
+
+        candidate = pd.to_datetime(
+            raw_index[remaining_mask],
+            format=fmt,
+            errors="coerce",
+        )
+        parsed.loc[parsed.isna()] = candidate.to_numpy()
+
+    if parsed.isna().any():
+        remaining_mask = parsed.isna().to_numpy()
+        parsed.loc[remaining_mask] = pd.to_datetime(
+            raw_index[remaining_mask],
+            errors="coerce",
+            dayfirst=True,
+        ).to_numpy()
+
+    return pd.DatetimeIndex(parsed).normalize()
+
+
 def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
     close = pd.read_csv(close_prices_path, index_col=0)
 
@@ -125,8 +173,17 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
 
         close = raw.copy()
 
-    close.index = pd.to_datetime(close.index, errors="coerce", dayfirst=True)
-    close = close[~close.index.isna()].sort_index()
+    # FIX: robust parsing instead of generic pd.to_datetime(..., dayfirst=True)
+    close.index = parse_existing_date_index(close.index)
+    close = close[~close.index.isna()].copy()
+
+    # Remove future rows created by bad legacy parsing
+    today = pd.Timestamp.utcnow().tz_localize(None).normalize()
+    close = close[close.index <= today].copy()
+
+    # Keep last record if duplicate dates exist
+    close = close[~close.index.duplicated(keep="last")].copy()
+    close = close.sort_index()
 
     close.columns = [str(c).strip() for c in close.columns]
     close = close.apply(pd.to_numeric, errors="coerce")
@@ -136,6 +193,12 @@ def load_close_prices(close_prices_path: Path) -> pd.DataFrame:
     if close.empty:
         raise ValueError("close_prices_wide.csv loaded but contains no valid data.")
 
+    logger.warning(
+        "BACKTEST DATE RANGE | rows=%s | start=%s | end=%s",
+        len(close),
+        close.index.min().date(),
+        close.index.max().date(),
+    )
     logger.info("Final close_prices_wide columns sample: %s", close.columns[:20].tolist())
     return close
 
@@ -542,6 +605,14 @@ def prepare_watchlist_data(
     if daily_ret.empty:
         raise ValueError("Could not compute daily returns for the matched symbols.")
 
+    logger.warning(
+        "BACKTEST WINDOW | lookback_days=%s | subset_start=%s | subset_end=%s | symbols=%s",
+        lookback_days,
+        close_subset.index.min().date(),
+        close_subset.index.max().date(),
+        close_subset.shape[1],
+    )
+
     benchmark_column = resolve_benchmark_column(
         all_columns=all_columns,
         normalized_column_lookup=normalized_column_lookup,
@@ -568,7 +639,7 @@ def apply_benchmark_and_finalize(
     selected_cols = weights_series.index.tolist()
     close_subset = close_subset[selected_cols].copy()
 
-    portfolio_returns = daily_ret = close_subset.pct_change().dropna().dot(weights_series.values)
+    portfolio_returns = close_subset.pct_change().dropna().dot(weights_series.values)
     portfolio_nav = (1.0 + portfolio_returns).cumprod()
 
     metrics = compute_metrics(portfolio_returns, portfolio_nav)
@@ -639,25 +710,6 @@ def solve_mvo_weights(
     min_weight_threshold: float = 0.001,
     risk_aversion: float = 5.0,
 ) -> pd.Series:
-    """
-    Dynamic MVO solver.
-
-    Dynamic rules:
-    - watchlist <= 10  -> max stock weight 25% -> minimum holdings 4
-    - watchlist <= 20  -> max stock weight 10% -> minimum holdings 10
-    - watchlist <= 30  -> max stock weight  8% -> minimum holdings 13
-    - watchlist >  30  -> max stock weight  5% -> minimum holdings 20
-
-    Dynamic sector cap:
-    - watchlist <= 10  -> 50%
-    - watchlist <= 20  -> 35%
-    - watchlist <= 30  -> 25%
-    - watchlist >  30  -> 20%
-
-    The function auto-relaxes the sector cap if the selected universe
-    does not have enough distinct sectors to make the problem feasible.
-    """
-
     def _get_dynamic_stock_constraints(watchlist_count: int) -> tuple[int, float]:
         if watchlist_count <= 10:
             max_stock_weight = 0.25
@@ -686,9 +738,7 @@ def solve_mvo_weights(
         if sector_count <= 0:
             raise ValueError("No valid sectors available for sector constraints.")
 
-        # Minimum feasible cap so full investment is possible
         feasible_floor = (1.0 / sector_count) + 1e-6
-
         return max(target_sector_cap, feasible_floor)
 
     def _build_initial_guess(
@@ -698,10 +748,6 @@ def solve_mvo_weights(
         max_stock_weight: float,
         max_sector_weight: float,
     ) -> pd.Series:
-        """
-        Build a sector-aware seed portfolio.
-        Tries to spread names across sectors in round-robin fashion.
-        """
         n = len(selected_names)
         x0 = pd.Series(0.0, index=selected_names, dtype=float)
 
@@ -714,8 +760,6 @@ def solve_mvo_weights(
             return x0
 
         equal_weight = 1.0 / target_holdings
-
-        # Max number of equally weighted names we can take from one sector
         max_names_per_sector = max(1, int(np.floor(max_sector_weight / equal_weight + 1e-12)))
 
         sector_buckets: dict[str, list[str]] = {}
@@ -753,7 +797,6 @@ def solve_mvo_weights(
                     if len(chosen) == target_holdings:
                         break
 
-        # Fallback if strict round-robin could not fill enough names
         if len(chosen) < target_holdings:
             for name in selected_names:
                 if name not in chosen_set:
@@ -767,8 +810,6 @@ def solve_mvo_weights(
             return x0 / x0.sum()
 
         x0.loc[chosen] = 1.0 / len(chosen)
-
-        # Safety clip
         x0 = x0.clip(lower=0.0, upper=max_stock_weight)
 
         if x0.sum() <= 0:
@@ -782,10 +823,6 @@ def solve_mvo_weights(
         raise ValueError("No stocks available for MVO.")
 
     watchlist_count = daily_ret.shape[1]
-
-    # ------------------------------------------------------------
-    # Dynamic stock constraints
-    # ------------------------------------------------------------
     dynamic_min_holdings, max_stock_weight = _get_dynamic_stock_constraints(watchlist_count)
 
     mu = daily_ret.mean() * ANNUALIZATION_FACTOR
@@ -801,7 +838,6 @@ def solve_mvo_weights(
     if score.empty:
         raise ValueError("No valid watchlist candidates after return/volatility screening.")
 
-    # Use enough names so dynamic minimum holdings can actually be satisfied
     effective_max_stocks = len(score) if max_stocks is None else max(max_stocks, dynamic_min_holdings)
     selected = score.index.tolist()[: min(len(score), effective_max_stocks)]
 
@@ -815,9 +851,6 @@ def solve_mvo_weights(
     cov = daily_ret[selected].cov() * ANNUALIZATION_FACTOR
     cov = cov + np.eye(len(selected)) * 1e-8
 
-    # ------------------------------------------------------------
-    # Clean sector map
-    # ------------------------------------------------------------
     sector_map = sector_map.loc[selected].copy()
 
     for name in selected:
@@ -826,17 +859,25 @@ def solve_mvo_weights(
             sector_map.loc[name] = f"UNKNOWN_{name}"
 
     sector_map = sector_map.astype(str).str.strip()
-
     sector_count = sector_map.nunique()
+
     if sector_count == 0:
         raise ValueError("No valid sectors found for selected stocks.")
 
-    # ------------------------------------------------------------
-    # Dynamic sector constraint
-    # ------------------------------------------------------------
     max_sector_weight = _get_dynamic_sector_cap(
         watchlist_count=watchlist_count,
         sector_count=sector_count,
+    )
+
+    logger.warning(
+        "MVO DEBUG | watchlist_count=%s | selected=%s | dynamic_min_holdings=%s | "
+        "max_stock_weight=%.4f | sector_count=%s | max_sector_weight=%.4f",
+        watchlist_count,
+        len(selected),
+        dynamic_min_holdings,
+        max_stock_weight,
+        sector_count,
+        max_sector_weight,
     )
 
     n = len(selected)
@@ -844,10 +885,8 @@ def solve_mvo_weights(
     def objective(w: np.ndarray) -> float:
         return 0.5 * risk_aversion * float(w @ cov.values @ w) - float(mu.values @ w)
 
-    # Full investment
     constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
 
-    # Sector cap
     for sector in sector_map.unique():
         idx = np.where(sector_map.values == sector)[0]
         constraints.append(
@@ -857,10 +896,8 @@ def solve_mvo_weights(
             }
         )
 
-    # Dynamic stock cap
     bounds = [(0.0, max_stock_weight) for _ in range(n)]
 
-    # Sector-aware initial guess
     x0 = _build_initial_guess(
         selected_names=selected,
         selected_sector_map=sector_map,
@@ -888,7 +925,6 @@ def solve_mvo_weights(
 
     raw_weights = raw_weights / raw_weights.sum()
 
-    # Remove tiny numerical dust only if it does not break diversification
     filtered_weights = raw_weights.copy()
     filtered_weights[filtered_weights < min_weight_threshold] = 0.0
     filtered_weights = filtered_weights[filtered_weights > 0.0]
@@ -896,7 +932,6 @@ def solve_mvo_weights(
     if not filtered_weights.empty:
         filtered_weights = filtered_weights / filtered_weights.sum()
 
-    # If cleanup makes the portfolio too concentrated, keep raw optimized weights
     if (
         filtered_weights.empty
         or len(filtered_weights) < dynamic_min_holdings
@@ -907,6 +942,12 @@ def solve_mvo_weights(
         weights = filtered_weights.copy()
 
     weights = weights / weights.sum()
+
+    logger.warning(
+        "MVO DEBUG | optimized_holdings_count=%s | top_weights=%s",
+        len(weights),
+        weights.sort_values(ascending=False).head(10).to_dict(),
+    )
 
     return weights.sort_values(ascending=False)
 
@@ -987,11 +1028,11 @@ def run_watchlist_mvo_backtest(
     sector_series = pd.Series(sector_map).loc[daily_ret.columns]
 
     weights_series = solve_mvo_weights(
-    daily_ret=daily_ret,
-    sector_map=sector_series,
-    max_stocks=None,   # use all available ranked names
-    min_weight_threshold=0.001,
-    risk_aversion=5.0,
+        daily_ret=daily_ret,
+        sector_map=sector_series,
+        max_stocks=None,
+        min_weight_threshold=0.001,
+        risk_aversion=5.0,
     )
 
     close_subset = close_subset[weights_series.index].copy()
