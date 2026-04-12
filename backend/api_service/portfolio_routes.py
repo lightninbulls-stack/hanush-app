@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from backtest.watchlist_portfolio import (
     run_watchlist_backtest,
     run_watchlist_mvo_backtest,
+    run_watchlist_mvo_short_backtest,
 )
 from shared.backtest_models import (
     BenchmarkMetrics,
@@ -59,6 +60,19 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
                 benchmark_curve_df,
                 benchmark_metrics,
             ) = run_watchlist_mvo_backtest(
+                user_symbols=requested_symbols,
+                close_prices_path=CLOSE_PRICES_PATH,
+                lookback_days=252,
+            )
+        elif body.strategy_type == "mvo_short":
+            (
+                metrics,
+                curve_df,
+                holdings_df,
+                benchmark_name,
+                benchmark_curve_df,
+                benchmark_metrics,
+            ) = run_watchlist_mvo_short_backtest(
                 user_symbols=requested_symbols,
                 close_prices_path=CLOSE_PRICES_PATH,
                 lookback_days=252,
