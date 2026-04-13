@@ -281,18 +281,31 @@ class DataService:
         if self.redis_client:
             self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
 
-    def get_cached_stock_list(self, category: str):
-        if category in {"Momentum", "Low Vol", "Value", "Quality", "Regime Upside", "Regime Downside"}:
-            return None
+    
 
+    def get_cached_stock_list(self, category: str):
+        if category in {
+            "Momentum",
+            "Low Vol",
+            "Value",
+            "Quality",
+            "Regime Upside",
+            "Regime Downside",
+            "Range Bound Upside",
+            "Range Bound Downside",
+        }:
+            return None
+    
         if self.redis_client:
             try:
                 data = self.redis_client.get(f"stocks:{category}")
                 return json.loads(data) if data else None
             except Exception:
                 return None
-
+    
         return None
+
+    
 
     def cache_historical_data(self, symbol: str, interval: str, data: List[Dict]):
         if self.redis_client:
