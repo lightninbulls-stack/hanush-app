@@ -73,6 +73,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
+      title: "Range Bound",
+      items: [
+        { name: "Range Bound Upside", icon: "🟦" },
+        { name: "Range Bound Downside", icon: "🟧" },
+      ],
+    },
+    {
       title: "Derivative Demand",
       items: [
         { name: "Aggressive Call Option Stocks", icon: "🟢" },
