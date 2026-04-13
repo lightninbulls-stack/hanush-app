@@ -72,7 +72,7 @@ def main() -> None:
     )
 
     top_n = int(os.getenv("RANGE_BOUND_TOP_N", "20"))
-    z_threshold = float(os.getenv("RANGE_BOUND_Z_THRESHOLD", "1.5"))
+    z_threshold = float(os.getenv("RANGE_BOUND_Z_THRESHOLD","3.0"))
     start_date = os.getenv("RANGE_BOUND_START_DATE", "2000-01-01")
     end_date = os.getenv("RANGE_BOUND_END_DATE")
 
