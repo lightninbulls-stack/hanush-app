@@ -11,11 +11,20 @@ export default function Auth() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const isRegister = mode === "register";
+
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setPassword("");
+    setError("");
+  };
 
   const handleSubmit = async () => {
     setError("");
@@ -26,17 +35,16 @@ export default function Auth() {
         await axios.post(`${API}/auth/register`, {
           name,
           email,
+          phone,
           password,
         });
 
         alert("Registration successful. Please login.");
         setMode("login");
-        setName("");
-        setEmail("");
-        setPassword("");
+        resetForm();
       } else {
         const res = await axios.post(`${API}/auth/login`, {
-          email,
+          phone,
           password,
         });
 
@@ -70,7 +78,9 @@ export default function Auth() {
 
       <main className="lb-auth-main">
         <section className="lb-auth-left">
-          <p className="lb-auth-eyebrow">BACKTESTING • FACTORS • MARKET INTELLIGENCE</p>
+          <p className="lb-auth-eyebrow">
+            BACKTESTING • FACTORS • MARKET INTELLIGENCE
+          </p>
 
           <h1 className="lb-auth-hero-title">
             Start your
@@ -80,7 +90,8 @@ export default function Auth() {
 
           <p className="lb-auth-hero-text">
             Access premium dashboards for Momentum, Low Volatility, Value,
-            Quality, and derivative-driven opportunity screening for Indian markets.
+            Quality, and derivative-driven opportunity screening for Indian
+            markets.
           </p>
 
           <div className="lb-auth-points">
@@ -93,7 +104,9 @@ export default function Auth() {
 
         <section className="lb-auth-right">
           <div className="lb-auth-card">
-            <h2 className="lb-auth-card-title">{isRegister ? "Sign Up" : "Login"}</h2>
+            <h2 className="lb-auth-card-title">
+              {isRegister ? "Sign Up" : "Login"}
+            </h2>
 
             <div className="lb-auth-switch">
               <button
@@ -101,7 +114,7 @@ export default function Auth() {
                 className={!isRegister ? "active" : ""}
                 onClick={() => {
                   setMode("login");
-                  setError("");
+                  resetForm();
                 }}
               >
                 Login
@@ -111,7 +124,7 @@ export default function Auth() {
                 className={isRegister ? "active" : ""}
                 onClick={() => {
                   setMode("register");
-                  setError("");
+                  resetForm();
                 }}
               >
                 Sign Up
@@ -131,13 +144,25 @@ export default function Auth() {
                 </div>
               )}
 
+              {isRegister && (
+                <div className="lb-auth-field">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div className="lb-auth-field">
-                <label>Email</label>
+                <label>Phone Number</label>
                 <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="tel"
+                  placeholder="Enter your phone number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
 
@@ -167,7 +192,7 @@ export default function Auth() {
                 <span
                   onClick={() => {
                     setMode(isRegister ? "login" : "register");
-                    setError("");
+                    resetForm();
                   }}
                 >
                   {isRegister ? "Login" : "Sign Up"}
