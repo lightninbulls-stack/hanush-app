@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -18,10 +21,13 @@ from models.user import User
 router = APIRouter(tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
+EXPORT_FILE = Path(__file__).resolve().parents[1] / "data" / "registered_users.csv"
+
 
 class RegisterRequest(BaseModel):
     name: str
     email: str
+    phone: str
     password: str
 
 
@@ -57,6 +63,39 @@ def normalize_email(email: str) -> str:
     return value
 
 
+def normalize_phone(phone: str) -> str:
+    value = "".join(ch for ch in phone if ch.isdigit())
+    if len(value) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Valid phone number is required",
+        )
+    return value
+
+
+def export_user_row(user: User) -> None:
+    EXPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = EXPORT_FILE.exists()
+
+    with EXPORT_FILE.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=["id", "name", "email", "phone", "created_at"],
+        )
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerow(
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "phone": user.phone,
+                "created_at": user.created_at.isoformat() if user.created_at else "",
+            }
+        )
+
+
 def get_current_email(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str:
@@ -79,6 +118,7 @@ def get_current_email(
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     email = normalize_email(body.email)
+    phone = normalize_phone(body.phone)
     name = body.name.strip()
 
     if not name:
@@ -100,16 +140,34 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
             detail="Email already registered",
         )
 
+    existing_phone = db.query(User).filter(User.phone == phone).first()
+    if existing_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number already registered",
+        )
+
     new_user = User(
         name=name,
         email=email,
+        phone=phone,
         hashed_password=hash_password(body.password),
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User registered successfully"}
+    export_user_row(new_user)
+
+    return {
+        "message": "User registered successfully",
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "email": new_user.email,
+            "phone": new_user.phone,
+        },
+    }
 
 
 @router.post("/login", response_model=TokenResponse)
