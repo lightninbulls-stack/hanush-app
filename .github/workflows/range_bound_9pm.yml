@@ -1,0 +1,38 @@
+name: Update Range Bound Daily
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 15 * * *"   # 9:00 PM IST
+
+permissions:
+  contents: write
+
+jobs:
+  update-range-bound:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: user_profile
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run range bound update
+        run: python backend/range_bound/update_range_bound_sheets.py
+
+      - name: Commit range bound outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/
+          git diff --cached --quiet || git commit -m "Daily range bound update"
+          git push origin user_profile
