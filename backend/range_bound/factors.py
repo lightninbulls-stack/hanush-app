@@ -20,12 +20,13 @@ EMA_FAST = 3
 EMA_SLOW = 8
 
 SETUP_LOOKBACK = 10
-CROSS_LOOKBACK = 10
+CROSS_LOOKBACK_UPSIDE = 10
+CROSS_LOOKBACK_DOWNSIDE = 20
 ZSCORE_WINDOW = 252
 
-# Separate thresholds so downside can be looser than upside
+# Separate thresholds
 DEFAULT_Z_THRESHOLD_UPSIDE = 1.5
-DEFAULT_Z_THRESHOLD_DOWNSIDE = 0.75
+DEFAULT_Z_THRESHOLD_DOWNSIDE = 0.25
 
 
 def load_universe_metadata(
@@ -171,7 +172,8 @@ def latest_ema_confirmation(
     close: pd.DataFrame,
     ema_fast: int = EMA_FAST,
     ema_slow: int = EMA_SLOW,
-    cross_lookback: int = CROSS_LOOKBACK,
+    cross_lookback_upside: int = CROSS_LOOKBACK_UPSIDE,
+    cross_lookback_downside: int = CROSS_LOOKBACK_DOWNSIDE,
 ) -> pd.DataFrame:
     ema_fast_df = close.ewm(span=ema_fast, adjust=False).mean()
     ema_slow_df = close.ewm(span=ema_slow, adjust=False).mean()
@@ -187,7 +189,7 @@ def latest_ema_confirmation(
     )
 
     recent_bull_cross = (
-        bull_cross.rolling(window=cross_lookback, min_periods=1)
+        bull_cross.rolling(window=cross_lookback_upside, min_periods=1)
         .max()
         .iloc[-1]
         .fillna(0)
@@ -195,7 +197,7 @@ def latest_ema_confirmation(
     )
 
     recent_bear_cross = (
-        bear_cross.rolling(window=cross_lookback, min_periods=1)
+        bear_cross.rolling(window=cross_lookback_downside, min_periods=1)
         .max()
         .iloc[-1]
         .fillna(0)
@@ -299,8 +301,10 @@ def build_topn_ui_table(
 
         filtered = snapshot[
             (snapshot["recent_max_z_2m"] >= resolved_z_threshold)
-            & snapshot["recent_bear_cross"]
-            & snapshot["ema_bearish"]
+            & (
+                snapshot["recent_bear_cross"]
+                | snapshot["ema_bearish"]
+            )
         ].copy()
 
         filtered = filtered.sort_values(
@@ -311,7 +315,7 @@ def build_topn_ui_table(
         score_base = filtered["recent_max_z_2m"].abs()
         notes = (
             f"Recent 2M z-score >= +{resolved_z_threshold:.2f} "
-            f"+ EMA(3/8) bearish"
+            f"+ (recent bear cross OR EMA(3/8) bearish)"
         )
 
     else:
