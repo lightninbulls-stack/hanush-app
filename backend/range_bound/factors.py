@@ -18,9 +18,13 @@ ANNUALIZATION_FACTOR = 252
 
 EMA_FAST = 3
 EMA_SLOW = 8
-CROSS_LOOKBACK = 5
+
+# This is the important fix:
+# use a recent setup window instead of requiring current z-score only
+SETUP_LOOKBACK = 10
+CROSS_LOOKBACK = 10
 ZSCORE_WINDOW = 252
-DEFAULT_Z_THRESHOLD = 2.5
+DEFAULT_Z_THRESHOLD = 1.0
 
 
 def load_universe_metadata(
@@ -124,6 +128,7 @@ def latest_2m_return_zscore(
     close: pd.DataFrame,
     return_lookback: int = TRADING_DAYS_2M,
     zscore_window: int = ZSCORE_WINDOW,
+    setup_lookback: int = SETUP_LOOKBACK,
 ) -> pd.DataFrame:
     ret_2m = close.pct_change(periods=return_lookback)
 
@@ -139,10 +144,22 @@ def latest_2m_return_zscore(
 
     zscore_2m = (ret_2m - rolling_mean) / rolling_std.replace(0, np.nan)
 
+    recent_min_z_2m = zscore_2m.rolling(
+        window=setup_lookback,
+        min_periods=1,
+    ).min()
+
+    recent_max_z_2m = zscore_2m.rolling(
+        window=setup_lookback,
+        min_periods=1,
+    ).max()
+
     out = pd.DataFrame(
         {
             "ret_2m": ret_2m.iloc[-1],
             "z_2m": zscore_2m.iloc[-1],
+            "recent_min_z_2m": recent_min_z_2m.iloc[-1],
+            "recent_max_z_2m": recent_max_z_2m.iloc[-1],
         }
     )
     out.index.name = "Ticker"
@@ -169,10 +186,19 @@ def latest_ema_confirmation(
     )
 
     recent_bull_cross = (
-        bull_cross.rolling(window=cross_lookback, min_periods=1).max().iloc[-1].fillna(0).astype(bool)
+        bull_cross.rolling(window=cross_lookback, min_periods=1)
+        .max()
+        .iloc[-1]
+        .fillna(0)
+        .astype(bool)
     )
+
     recent_bear_cross = (
-        bear_cross.rolling(window=cross_lookback, min_periods=1).max().iloc[-1].fillna(0).astype(bool)
+        bear_cross.rolling(window=cross_lookback, min_periods=1)
+        .max()
+        .iloc[-1]
+        .fillna(0)
+        .astype(bool)
     )
 
     ema_bullish = (ema_fast_df.iloc[-1] > ema_slow_df.iloc[-1]).fillna(False)
@@ -205,7 +231,9 @@ def build_range_bound_snapshot(close: pd.DataFrame) -> pd.DataFrame:
         axis=1,
     )
 
-    snapshot = snapshot.dropna(subset=["ret_2m", "z_2m"])
+    snapshot = snapshot.dropna(
+        subset=["ret_2m", "z_2m", "recent_min_z_2m", "recent_max_z_2m"]
+    )
     snapshot.index.name = "Ticker"
     return snapshot
 
@@ -243,19 +271,33 @@ def build_topn_ui_table(
 ) -> pd.DataFrame:
     if signal_type == "Upside":
         filtered = snapshot[
-            (snapshot["z_2m"] <= -z_threshold)
+            (snapshot["recent_min_z_2m"] <= -z_threshold)
             & snapshot["recent_bull_cross"]
             & snapshot["ema_bullish"]
         ].copy()
-        filtered = filtered.sort_values(["z_2m", "ret_2m"], ascending=[True, True])
+
+        filtered = filtered.sort_values(
+            ["recent_min_z_2m", "z_2m"],
+            ascending=[True, True],
+        )
+
+        score_base = filtered["recent_min_z_2m"].abs()
+        notes = "Recent 2M oversold z-score + EMA(3/8) bullish"
 
     elif signal_type == "Downside":
         filtered = snapshot[
-            (snapshot["z_2m"] >= z_threshold)
+            (snapshot["recent_max_z_2m"] >= z_threshold)
             & snapshot["recent_bear_cross"]
             & snapshot["ema_bearish"]
         ].copy()
-        filtered = filtered.sort_values(["z_2m", "ret_2m"], ascending=[False, False])
+
+        filtered = filtered.sort_values(
+            ["recent_max_z_2m", "z_2m"],
+            ascending=[False, False],
+        )
+
+        score_base = filtered["recent_max_z_2m"].abs()
+        notes = "Recent 2M overbought z-score + EMA(3/8) bearish"
 
     else:
         raise ValueError("signal_type must be 'Upside' or 'Downside'")
@@ -280,19 +322,13 @@ def build_topn_ui_table(
 
     filtered = filtered.head(top_n).copy()
     filtered["rank"] = np.arange(1, len(filtered) + 1)
-    filtered["Score"] = minmax_score(filtered["z_2m"].abs())
+    filtered["Score"] = minmax_score(score_base.loc[filtered.index])
 
     merged = filtered.reset_index().merge(universe_meta, on="Ticker", how="left")
 
     merged["Sector"] = merged["Sector"].fillna("Unknown")
     merged["NSE Symbol"] = merged["NSE Symbol"].fillna(
         merged["Ticker"].astype(str).str.replace(".NS", "", regex=False)
-    )
-
-    notes = (
-        "2M z-score oversold + EMA(3/8) bullish"
-        if signal_type == "Upside"
-        else "2M z-score overbought + EMA(3/8) bearish"
     )
 
     out = pd.DataFrame(
