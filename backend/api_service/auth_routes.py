@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,7 +22,16 @@ from models.user import User
 router = APIRouter(tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
-EXPORT_FILE = Path(__file__).resolve().parents[1] / "data" / "registered_users.csv"
+EXPORT_FILE = Path(__file__).resolve().parents[1] / "data" / "user_activity.csv"
+CSV_FIELDS = [
+    "id",
+    "name",
+    "email",
+    "phone",
+    "created_at",
+    "last_login_at",
+    "login_count",
+]
 
 
 class RegisterRequest(BaseModel):
@@ -73,27 +83,69 @@ def normalize_phone(phone: str) -> str:
     return value
 
 
-def export_user_row(user: User) -> None:
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def load_user_activity_rows() -> list[dict[str, str]]:
+    if not EXPORT_FILE.exists():
+        return []
+
+    with EXPORT_FILE.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        return list(reader)
+
+
+def save_user_activity_rows(rows: list[dict[str, str]]) -> None:
     EXPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    file_exists = EXPORT_FILE.exists()
 
-    with EXPORT_FILE.open("a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=["id", "name", "email", "phone", "created_at"],
-        )
-        if not file_exists:
-            writer.writeheader()
+    with EXPORT_FILE.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=CSV_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
 
-        writer.writerow(
-            {
-                "id": user.id,
-                "name": user.name,
-                "email": user.email,
-                "phone": user.phone,
-                "created_at": user.created_at.isoformat() if user.created_at else "",
-            }
-        )
+
+def upsert_user_activity(user: User, *, is_login: bool) -> None:
+    rows = load_user_activity_rows()
+    now_iso = utc_now_iso()
+
+    target_index = None
+    for idx, row in enumerate(rows):
+        if str(row.get("id", "")).strip() == str(user.id):
+            target_index = idx
+            break
+
+    created_at = user.created_at.isoformat() if user.created_at else ""
+    existing_login_count = 0
+    existing_last_login_at = ""
+
+    if target_index is not None:
+        existing_row = rows[target_index]
+        try:
+            existing_login_count = int(existing_row.get("login_count", "0") or 0)
+        except ValueError:
+            existing_login_count = 0
+        existing_last_login_at = existing_row.get("last_login_at", "") or ""
+
+    updated_row = {
+        "id": str(user.id),
+        "name": user.name,
+        "email": user.email,
+        "phone": user.phone,
+        "created_at": created_at,
+        "last_login_at": now_iso if is_login else existing_last_login_at,
+        "login_count": str(existing_login_count + 1 if is_login else existing_login_count),
+    }
+
+    if target_index is not None:
+        rows[target_index] = updated_row
+    else:
+        if is_login:
+            updated_row["last_login_at"] = now_iso
+            updated_row["login_count"] = "1"
+        rows.append(updated_row)
+
+    save_user_activity_rows(rows)
 
 
 def get_current_email(
@@ -157,7 +209,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    export_user_row(new_user)
+    upsert_user_activity(new_user, is_login=False)
 
     return {
         "message": "User registered successfully",
@@ -180,6 +232,8 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    upsert_user_activity(user, is_login=True)
 
     token = create_access_token(subject=user.email)
     return TokenResponse(access_token=token)
