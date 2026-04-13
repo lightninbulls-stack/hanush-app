@@ -1,0 +1,16 @@
+Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
+2026-04-10,1,IOC,Oil Gas & Consumable Fuels,100,6.58,-11.33,-12.83,-7.67,28.12,High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,2,BPCL,Oil Gas & Consumable Fuels,83,7.62,-9.6,-19.27,-12.88,30.46,High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,3,IDFCFIRSTB,Financial Services,52,9.95,-0.82,-21.86,-6.86,37.38,Very High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,4,ICICIPRULI,Financial Services,49,8.66,-9.07,-20.55,-8.9,22.99,Medium Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,5,ASHOKLEY,Capital Goods,39,19.93,-4.77,-4.37,29.21,38.47,Very High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,6,HDFCBANK,Financial Services,36,7.91,-3.62,-15.79,-16.76,21.85,Medium Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,7,HINDPETRO,Oil Gas & Consumable Fuels,33,10.61,-6.23,-25.24,-20.97,37.38,Very High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,8,HDFCLIFE,Financial Services,33,6.72,-7.59,-22.33,-20.82,22.37,Medium Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,9,DABUR,Fast Moving Consumer Goods,24,4.42,-6.64,-16.27,-11.69,22.25,Medium Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,10,AMBUJACEM,Construction Materials,19,6.39,-1.49,-21.0,-22.41,29.66,High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,11,PNB,Financial Services,15,7.01,-2.84,-10.9,-2.39,30.7,High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,12,BANKINDIA,Financial Services,11,6.3,-2.22,-1.81,17.37,37.08,Very High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,13,UPL,Chemicals,2,8.74,3.18,-19.32,-5.36,36.13,Very High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,14,ULTRACEMCO,Construction Materials,1,9.12,1.85,-5.04,-3.87,26.38,High Vol,2M z-score oversold + EMA(3/8) bullish
+2026-04-10,15,BAJAJFINSV,Financial Services,0,10.27,-1.75,-11.51,-11.02,25.56,High Vol,2M z-score oversold + EMA(3/8) bullish
