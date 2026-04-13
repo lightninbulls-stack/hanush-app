@@ -19,11 +19,13 @@ ANNUALIZATION_FACTOR = 252
 EMA_FAST = 3
 EMA_SLOW = 8
 
-# Keep recent setup logic, but strict z-threshold = 3
 SETUP_LOOKBACK = 10
 CROSS_LOOKBACK = 10
 ZSCORE_WINDOW = 252
-DEFAULT_Z_THRESHOLD = 1.5
+
+# Separate thresholds so downside can be looser than upside
+DEFAULT_Z_THRESHOLD_UPSIDE = 1.5
+DEFAULT_Z_THRESHOLD_DOWNSIDE = 0.75
 
 
 def load_universe_metadata(
@@ -266,11 +268,15 @@ def build_topn_ui_table(
     signal_type: str,
     asof_date: str,
     top_n: int,
-    z_threshold: float = DEFAULT_Z_THRESHOLD,
+    z_threshold: Optional[float] = None,
 ) -> pd.DataFrame:
     if signal_type == "Upside":
+        resolved_z_threshold = (
+            DEFAULT_Z_THRESHOLD_UPSIDE if z_threshold is None else z_threshold
+        )
+
         filtered = snapshot[
-            (snapshot["recent_min_z_2m"] <= -z_threshold)
+            (snapshot["recent_min_z_2m"] <= -resolved_z_threshold)
             & snapshot["recent_bull_cross"]
             & snapshot["ema_bullish"]
         ].copy()
@@ -281,11 +287,18 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_min_z_2m"].abs()
-        notes = "Recent 2M z-score <= -DEFAULT_Z_THRESHOLD - 1.0 + EMA(3/8) bullish"
+        notes = (
+            f"Recent 2M z-score <= -{resolved_z_threshold:.2f} "
+            f"+ EMA(3/8) bullish"
+        )
 
     elif signal_type == "Downside":
+        resolved_z_threshold = (
+            DEFAULT_Z_THRESHOLD_DOWNSIDE if z_threshold is None else z_threshold
+        )
+
         filtered = snapshot[
-            (snapshot["recent_max_z_2m"] >= z_threshold)
+            (snapshot["recent_max_z_2m"] >= resolved_z_threshold)
             & snapshot["recent_bear_cross"]
             & snapshot["ema_bearish"]
         ].copy()
@@ -296,7 +309,10 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_max_z_2m"].abs()
-        notes = "Recent 2M z-score >= +DEFAULT_Z_THRESHOLD + EMA(3/8) bearish"
+        notes = (
+            f"Recent 2M z-score >= +{resolved_z_threshold:.2f} "
+            f"+ EMA(3/8) bearish"
+        )
 
     else:
         raise ValueError("signal_type must be 'Upside' or 'Downside'")
