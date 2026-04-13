@@ -23,6 +23,7 @@ const NON_FEATURE_TABS = [
   "Portfolio Backtest",
 ];
 
+
 const WATCHLIST_SOURCE_CATEGORIES = [
   "Momentum",
   "Low Vol",
@@ -30,6 +31,8 @@ const WATCHLIST_SOURCE_CATEGORIES = [
   "Quality",
   "Regime Upside",
   "Regime Downside",
+  "Range Bound Upside",
+  "Range Bound Downside",
   "Aggressive Call Option Stocks",
   "Aggressive Put Option Stocks",
 ];
