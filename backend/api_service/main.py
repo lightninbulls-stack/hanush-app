@@ -63,12 +63,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 data_service = DataService()
 
 
+
 @app.get("/debug/users")
 def list_users(db: Session = Depends(get_db)):
     from models.user import User
 
     users = db.query(User).all()
-    return [{"id": u.id, "name": u.name, "email": u.email} for u in users]
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "phone": u.phone,
+            "created_at": u.created_at,
+        }
+        for u in users
+    ]
 
 
 @app.get("/debug/migrations")
