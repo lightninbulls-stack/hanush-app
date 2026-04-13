@@ -10,6 +10,7 @@ from fetch_service.main_momentum import fetch_from_momentum_csv
 from fetch_service.main_regime import fetch_from_regime_csv
 from fetch_service.main_value import fetch_from_value_csv
 from fetch_service.main_quality import fetch_from_quality_csv
+from fetch_service.main_range_bound import fetch_from_range_bound_csv
 
 
 def fetch_from_excel(category: str) -> List[Dict]:
