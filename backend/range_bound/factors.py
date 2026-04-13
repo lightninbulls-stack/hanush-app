@@ -19,12 +19,11 @@ ANNUALIZATION_FACTOR = 252
 EMA_FAST = 3
 EMA_SLOW = 8
 
-# This is the important fix:
-# use a recent setup window instead of requiring current z-score only
+# Keep recent setup logic, but strict z-threshold = 3
 SETUP_LOOKBACK = 10
 CROSS_LOOKBACK = 10
 ZSCORE_WINDOW = 252
-DEFAULT_Z_THRESHOLD = 1.0
+DEFAULT_Z_THRESHOLD = 3.0
 
 
 def load_universe_metadata(
@@ -282,7 +281,7 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_min_z_2m"].abs()
-        notes = "Recent 2M oversold z-score + EMA(3/8) bullish"
+        notes = "Recent 2M z-score <= -3 + EMA(3/8) bullish"
 
     elif signal_type == "Downside":
         filtered = snapshot[
@@ -297,7 +296,7 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_max_z_2m"].abs()
-        notes = "Recent 2M overbought z-score + EMA(3/8) bearish"
+        notes = "Recent 2M z-score >= +3 + EMA(3/8) bearish"
 
     else:
         raise ValueError("signal_type must be 'Upside' or 'Downside'")
