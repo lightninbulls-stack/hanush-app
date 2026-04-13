@@ -281,7 +281,7 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_min_z_2m"].abs()
-        notes = "Recent 2M z-score <= -3 + EMA(3/8) bullish"
+        notes = "Recent 2M z-score <= -DEFAULT_Z_THRESHOLD - 1.0 + EMA(3/8) bullish"
 
     elif signal_type == "Downside":
         filtered = snapshot[
@@ -296,7 +296,7 @@ def build_topn_ui_table(
         )
 
         score_base = filtered["recent_max_z_2m"].abs()
-        notes = "Recent 2M z-score >= +3 + EMA(3/8) bearish"
+        notes = "Recent 2M z-score >= +DEFAULT_Z_THRESHOLD + EMA(3/8) bearish"
 
     else:
         raise ValueError("signal_type must be 'Upside' or 'Downside'")
