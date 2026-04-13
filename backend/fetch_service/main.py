@@ -133,6 +133,7 @@ def fetch_from_low_vol_csv() -> List[Dict]:
         return []
 
 
+
 def fetch_from_google_sheets(category: str) -> List[Dict]:
     if category == "Momentum":
         return fetch_from_momentum_csv()
@@ -148,6 +149,9 @@ def fetch_from_google_sheets(category: str) -> List[Dict]:
 
     if category in {"Regime Upside", "Regime Downside"}:
         return fetch_from_regime_csv(category)
+
+    if category in {"Range Bound Upside", "Range Bound Downside"}:
+        return fetch_from_range_bound_csv(category)
 
     return fetch_from_excel(category)
 
