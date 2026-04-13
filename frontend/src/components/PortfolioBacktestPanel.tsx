@@ -88,6 +88,30 @@ const formatXAxisDate = (value: string | undefined): string => {
   });
 };
 
+const getBenchmarkDisplayName = (value?: string | null): string => {
+  if (!value) {
+    return "NIFTY 50";
+  }
+
+  const normalized = String(value).trim().toUpperCase();
+
+  if (
+    [
+      "^NSEI",
+      "NSEI",
+      "NIFTY 50",
+      "NIFTY50",
+      "NIFTY_50",
+      "NIFTY-50",
+      "NIFTY50.NS",
+    ].includes(normalized)
+  ) {
+    return "NIFTY 50";
+  }
+
+  return value;
+};
+
 const buildLinePath = (
   points: PortfolioPoint[],
   minValue: number,
@@ -120,6 +144,8 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   benchmarkCurve,
   benchmarkName,
 }) => {
+  const benchmarkDisplayName = getBenchmarkDisplayName(benchmarkName);
+
   const chartData = useMemo(() => {
     if (!portfolioCurve.length || !benchmarkCurve?.length) {
       return null;
@@ -162,9 +188,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
             data.
           </p>
         </div>
-        <span className="portfolio-section-badge">
-          vs {benchmarkName || "NIFTY 50"}
-        </span>
+        <span className="portfolio-section-badge">vs {benchmarkDisplayName}</span>
       </div>
 
       <div className="portfolio-curve-shell">
@@ -176,7 +200,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
             </div>
             <div className="portfolio-legend-item">
               <span className="portfolio-legend-dot benchmark-dot" />
-              <span>{benchmarkName || "NIFTY 50"}</span>
+              <span>{benchmarkDisplayName}</span>
             </div>
           </div>
 
@@ -294,7 +318,7 @@ const PortfolioBacktestPanel: React.FC = () => {
 
   const m = data.metrics;
   const benchmarkMetrics = data.benchmark_metrics;
-  const benchmarkLabel = data.benchmark_name || "NIFTY 50";
+  const benchmarkLabel = getBenchmarkDisplayName(data.benchmark_name);
 
   const metricCards: MetricCardItem[] = [
     {
