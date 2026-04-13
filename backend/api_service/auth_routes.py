@@ -32,7 +32,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
+    phone: str
     password: str
 
 
@@ -172,9 +172,9 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    email = normalize_email(body.email)
+    phone = normalize_phone(body.phone)
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.phone == phone).first()
     if user is None or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
