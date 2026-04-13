@@ -8,7 +8,12 @@ export default function Register() {
   const [password, setPassword] = useState("");
 
   const handleRegister = async () => {
-    await axios.post("/auth/register", { name, email, phone, password });
+    await axios.post("/auth/register", {
+      name,
+      email,
+      phone,
+      password,
+    });
     alert("Registration successful!");
   };
 
