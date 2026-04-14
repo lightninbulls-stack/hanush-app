@@ -7,6 +7,11 @@ const API_BASE_URL = (
 const CATEGORY_CACHE_PREFIX = "lightninbull:category:";
 const CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000;
 
+const FRONTEND_CSV_CATEGORY_MAP: Record<string, string> = {
+  "Aggressive Call Option Stocks": "/data/frontend_aggressive_calls.csv",
+  "Aggressive Put Option Stocks": "/data/frontend_aggressive_puts.csv",
+};
+
 export interface Stock {
   rank: number;
   symbol: string;
@@ -18,6 +23,10 @@ export interface Stock {
   return_6m?: number | null;
   volatility_6m?: number | null;
   volatility_bucket?: string | null;
+  option_type?: string | null;
+  expiry?: string | null;
+  strike?: number | null;
+  strength?: number | null;
 }
 
 export interface StockCategoryResponse {
@@ -44,7 +53,7 @@ function normalizeStock(stock: Partial<Stock>): Stock {
     rank: Number(stock.rank ?? 0),
     symbol: String(stock.symbol ?? "").trim().toUpperCase(),
     sector: String(stock.sector ?? "N/A"),
-    score: Number(stock.score ?? 0),
+    score: Number(stock.score ?? stock.strength ?? 0),
     return_1w: toNullableNumber(stock.return_1w),
     return_1m: toNullableNumber(stock.return_1m),
     return_3m: toNullableNumber(stock.return_3m),
@@ -54,6 +63,16 @@ function normalizeStock(stock: Partial<Stock>): Stock {
       stock.volatility_bucket === undefined || stock.volatility_bucket === null
         ? null
         : String(stock.volatility_bucket),
+    option_type:
+      stock.option_type === undefined || stock.option_type === null
+        ? null
+        : String(stock.option_type).trim().toUpperCase(),
+    expiry:
+      stock.expiry === undefined || stock.expiry === null
+        ? null
+        : String(stock.expiry).trim(),
+    strike: toNullableNumber(stock.strike),
+    strength: toNullableNumber(stock.strength ?? stock.score),
   };
 }
 
@@ -76,10 +95,112 @@ function getCacheKey(category: string): string {
   return `${CATEGORY_CACHE_PREFIX}${category.trim().toUpperCase()}`;
 }
 
+function getFrontendCsvUrl(category: string): string | null {
+  return FRONTEND_CSV_CATEGORY_MAP[category] ?? null;
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values;
+}
+
+function parseCsvText(text: string): Array<Record<string, string>> {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const headers = parseCsvLine(lines[0]).map((header) =>
+    header.trim().toLowerCase()
+  );
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      const values = parseCsvLine(line);
+      const row: Record<string, string> = {};
+
+      headers.forEach((header, index) => {
+        row[header] = (values[index] ?? "").trim();
+      });
+
+      return row;
+    })
+    .filter((row) => Object.values(row).some(Boolean));
+}
+
+function normalizeCsvResponse(
+  category: string,
+  csvText: string
+): StockCategoryResponse {
+  const rows = parseCsvText(csvText);
+
+  const stocks = rows
+    .map((row) =>
+      normalizeStock({
+        rank: Number(row.rank ?? 0),
+        symbol: row.ticker ?? row.symbol ?? "",
+        sector: "Derivative Demand",
+        score: toNullableNumber(row.strength) ?? 0,
+        option_type: row.type ?? null,
+        expiry: row.expiry ?? null,
+        strike: toNullableNumber(row.strike),
+        strength: toNullableNumber(row.strength),
+        return_1w: null,
+        return_1m: null,
+        return_3m: null,
+        return_6m: null,
+        volatility_6m: null,
+        volatility_bucket: null,
+      })
+    )
+    .sort((a, b) => a.rank - b.rank);
+
+  return {
+    category,
+    stocks,
+  };
+}
+
 export function getCachedStocksByCategory(
   category: string
 ): StockCategoryResponse | null {
   if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (getFrontendCsvUrl(category)) {
     return null;
   }
 
@@ -107,6 +228,10 @@ function setCachedStocksByCategory(
   data: StockCategoryResponse
 ): void {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (getFrontendCsvUrl(category)) {
     return;
   }
 
@@ -146,6 +271,22 @@ export async function fetchStocksByCategory(
   category: string,
   forceRefresh = false
 ): Promise<StockCategoryResponse> {
+  const csvUrl = getFrontendCsvUrl(category);
+
+  if (csvUrl) {
+    const response = await fetch(`${csvUrl}?t=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to load ${category} CSV: ${response.status}`);
+    }
+
+    const csvText = await response.text();
+    return normalizeCsvResponse(category, csvText);
+  }
+
   if (!forceRefresh) {
     const cached = getCachedStocksByCategory(category);
     if (cached) {
