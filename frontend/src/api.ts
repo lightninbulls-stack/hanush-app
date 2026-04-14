@@ -23,7 +23,6 @@ export interface Stock {
   return_6m?: number | null;
   volatility_6m?: number | null;
   volatility_bucket?: string | null;
-
   option_type?: string | null;
   expiry?: string | null;
   strike?: number | null;
