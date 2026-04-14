@@ -227,7 +227,13 @@ const StockTable: React.FC<StockTableProps> = ({
                   key={`${stock.symbol}-${column.key}`}
                   className={`align-${column.align || "center"}`}
                 >
-                  {renderCell(stock, column, starredSymbols, onStarClick, category)}
+                  {renderCell(
+                    stock,
+                    column,
+                    starredSymbols,
+                    onStarClick,
+                    category
+                  )}
                 </td>
               ))}
             </tr>
