@@ -1,5 +1,5 @@
 import React from "react";
-import { type Stock } from "../services/api";
+import { type Stock } from "../api";
 
 interface StockTableProps {
   category: string;
@@ -167,7 +167,9 @@ const renderCell = (
       );
 
     case "option_type":
-      return <span className="metric-pill neutral">{stock.option_type || "—"}</span>;
+      return (
+        <span className="metric-pill neutral">{stock.option_type || "—"}</span>
+      );
 
     case "expiry":
       return <span>{stock.expiry || "—"}</span>;
