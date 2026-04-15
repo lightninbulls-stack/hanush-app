@@ -1,10 +1,9 @@
 from __future__ import annotations
-from shared.intraday_spreads_state import spread_state
-from option_spreads import nfo_util
 
 import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
+from pathlib import Path
 import logging
 import sys
 import threading
@@ -17,6 +16,9 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 from kiteconnect import KiteConnect, KiteTicker
+
+from shared.intraday_spreads_state import spread_state
+from option_spreads import nfo_util
 
 # =========================================================
 # ========== CONFIGURATION: CHANGE FROM HERE ==============
@@ -37,8 +39,9 @@ TARGET_MINUTE = 15
 
 LOG_FILE_NAME = "vix_bn_strategy.log"
 
-# In-memory frontend state holder
-GLOBAL_SPREAD_STATE: dict[str, dict] = {}
+BASE_DIR = Path(__file__).resolve().parents[1]
+CONFIG_DIR = BASE_DIR / "config"
+CRED_FILE = CONFIG_DIR / "cred.yml"
 
 # =========================================================
 # ===================== Logging ===========================
@@ -66,7 +69,6 @@ def log_and_print(msg: str, level: str = "info") -> None:
 # =========================================================
 # ===================== Frontend Payload ==================
 # =========================================================
-
 def build_spread_payload(
     *,
     paper_book: "PaperOrderBook",
@@ -125,8 +127,6 @@ def build_spread_payload(
     }
 
 
-
-
 def publish_spread_update(payload: dict) -> None:
     spread_state.update(payload["strategy_name"], payload)
 
@@ -135,7 +135,7 @@ def publish_spread_update(payload: dict) -> None:
 # ===================== Utilities =========================
 # =========================================================
 def load_creds() -> dict:
-    with open("cred.yml", "r", encoding="utf-8") as f:
+    with open(CRED_FILE, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -447,8 +447,6 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-        import nfo_util
-
         _ = self.kite.ltp(nfo_util.get_instrument_tokens_ce_nifty())
 
         df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
@@ -663,7 +661,6 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        # Fixed to actual EMA 5 / 55
         self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
         self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
@@ -750,40 +747,45 @@ class EMACrossover1Min:
 
 
 # =========================================================
+# ========================= Runner ========================
+# =========================================================
+def run_strategy() -> None:
+    wait_until(TARGET_HOUR, TARGET_MINUTE)
+
+    cred = load_creds()
+
+    kite = KiteConnect(api_key=cred["z_api_key"])
+    kite.set_access_token(cred["z_access_token"])
+    log_and_print("Kite API authenticated.")
+
+    paper_book = PaperOrderBook()
+
+    nifty_ema = EMACrossover1Min(
+        kite=kite,
+        cred=cred,
+        instrument_token=NIFTY_SPOT_TOKEN,
+        preload_days=PRELOAD_DAYS,
+    )
+
+    alpha_bull = AlphaBullCall(
+        kite=kite,
+        cred=cred,
+        paper_book=paper_book,
+        stop_loss_amount=STOP_LOSS_AMOUNT,
+        target_amount=TARGET_AMOUNT,
+    )
+
+    log_and_print("Starting NIFTY EMA bullish-entry logic...")
+    nifty_ema.start(alpha_bull)
+
+
+# =========================================================
 # ========================= Main ==========================
 # =========================================================
 if __name__ == "__main__":
-    wait_until(TARGET_HOUR, TARGET_MINUTE)
-
     try:
-        cred = load_creds()
-
-        kite = KiteConnect(api_key=cred["z_api_key"])
-        kite.set_access_token(cred["z_access_token"])
-        log_and_print("Kite API authenticated.")
-
-        paper_book = PaperOrderBook()
-
-        nifty_ema = EMACrossover1Min(
-            kite=kite,
-            cred=cred,
-            instrument_token=NIFTY_SPOT_TOKEN,
-            preload_days=PRELOAD_DAYS,
-        )
-
-        alpha_bull = AlphaBullCall(
-            kite=kite,
-            cred=cred,
-            paper_book=paper_book,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
-
-        log_and_print("Starting NIFTY EMA bullish-entry logic...")
-        nifty_ema.start(alpha_bull)
-
+        run_strategy()
         log_and_print("Main finished.")
-
     except SystemExit:
         log_and_print("Exited after execution.")
     except Exception as e:
