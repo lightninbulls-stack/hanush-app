@@ -4,7 +4,8 @@ import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
-import { fetchStocksByCategory, type Stock } from "../services/api";
+import { fetchStocksByCategory } from "../api";
+import type { Stock } from "../api";
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
