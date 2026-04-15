@@ -133,6 +133,7 @@ const Dashboard: React.FC = () => {
           <div style={{ color: "#cbd5e1" }}>Loading {activeTab} data...</div>
         ) : (
           <StockTable
+            category={activeTab}
             stocks={stocks}
             starredSymbols={starredSymbols}
             onStarClick={handleStarClick}
