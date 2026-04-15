@@ -218,3 +218,46 @@ const Sidebar: React.FC<SidebarProps> = ({
 };
 
 export default Sidebar;
+import React, { useEffect, useState } from "react";
+
+interface SidebarProps {
+  activeCategory: string;
+  setActiveCategory: (cat: string) => void;
+  starredCount: number;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+interface NavItem {
+  name: string;
+  icon: string;
+  badge?: number | null;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const Sidebar: React.FC<SidebarProps> = ({
+  activeCategory,
+  setActiveCategory,
+  starredCount,
+  isMobileOpen = false,
+  onCloseMobile,
+}) => {
+  const [logoBurst, setLogoBurst] = useState(0);
+  const [shockItem, setShockItem] = useState<string | null>(null);
+
+  const triggerCategory = (category: string) => {
+    setActiveCategory(category);
+    setLogoBurst((prev) => prev + 1);
+    setShockItem(category);
+
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  useEffect(() => {
+    if (!
