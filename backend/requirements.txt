@@ -19,4 +19,7 @@ python-jose[cryptography]
 python-multipart
 alembic
 scipy
+pyyaml
+pytz
+kiteconnect
 
