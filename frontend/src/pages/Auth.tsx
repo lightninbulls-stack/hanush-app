@@ -25,14 +25,6 @@ const Auth: React.FC = () => {
     setSuccess("");
   };
 
-  const resetForm = () => {
-    setName("");
-    setEmail("");
-    setPhone("");
-    setPassword("");
-    setConfirmPassword("");
-  };
-
   const handleTabChange = (nextMode: AuthMode) => {
     setMode(nextMode);
     resetMessages();
@@ -409,39 +401,6 @@ const Auth: React.FC = () => {
               : "Create Account"}
           </button>
         </form>
-
-        <div
-          style={{
-            marginTop: "18px",
-            textAlign: "center",
-            color: "#94a3b8",
-            fontSize: "13px",
-          }}
-        >
-          {mode === "login" ? (
-            <>
-              New user?{" "}
-              <button
-                type="button"
-                onClick={() => handleTabChange("signup")}
-                style={linkButtonStyle}
-              >
-                Create an account
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => handleTabChange("login")}
-                style={linkButtonStyle}
-              >
-                Login
-              </button>
-            </>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -457,15 +416,6 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   fontSize: "14px",
   boxSizing: "border-box",
-};
-
-const linkButtonStyle: React.CSSProperties = {
-  background: "transparent",
-  border: "none",
-  color: "#fde68a",
-  cursor: "pointer",
-  fontWeight: 700,
-  padding: 0,
 };
 
 export default Auth;
