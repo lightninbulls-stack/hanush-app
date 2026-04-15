@@ -24,3 +24,6 @@ z_public_token: null
 z_request_token: null
 z_tsecret: wu7d22otf07l91wxru3x5mzd3la52kd1
 z_user_id: IX6094
+nifty_spot_token: 256265
+banknifty_spot_token: 260105
+sensex_spot_token: 265
