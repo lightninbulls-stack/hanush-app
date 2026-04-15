@@ -1,4 +1,6 @@
 from __future__ import annotations
+from shared.intraday_spreads_state import spread_state
+from option_spreads import nfo_util
 
 import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -64,6 +66,7 @@ def log_and_print(msg: str, level: str = "info") -> None:
 # =========================================================
 # ===================== Frontend Payload ==================
 # =========================================================
+
 def build_spread_payload(
     *,
     paper_book: "PaperOrderBook",
@@ -122,12 +125,10 @@ def build_spread_payload(
     }
 
 
+
+
 def publish_spread_update(payload: dict) -> None:
-    """
-    Right now this stores the latest state in memory.
-    Later your FastAPI/Flask/WebSocket layer can read from this.
-    """
-    GLOBAL_SPREAD_STATE[payload["strategy_name"]] = payload
+    spread_state.update(payload["strategy_name"], payload)
 
 
 # =========================================================
