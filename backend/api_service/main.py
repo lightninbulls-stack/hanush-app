@@ -1,6 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from typing import List
+import os
+import logging
+
+from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
 from shared.models import StockListResponse, HistoricalData, StockInfo
 from fetch_service.main import (
     DataService,
@@ -8,14 +14,7 @@ from fetch_service.main import (
     fetch_historical_data,
     fetch_stock_info,
 )
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-import os
-import logging
-
-from api_service import auth_routes, portfolio_routes
 from db import Base, engine, SessionLocal
-from models import user
 
 
 logging.basicConfig(level=logging.INFO)
@@ -25,9 +24,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trading Bible API")
 
-app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
-app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
-
+# =========================
+# Middleware
+# =========================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,7 +36,17 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# =========================
+# Routers
+# =========================
+app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
+app.include_router(intraday_spreads_routes.router, prefix="/api", tags=["intraday_spreads"])
 
+
+# =========================
+# Database dependency
+# =========================
 def get_db():
     db = SessionLocal()
     try:
@@ -46,6 +55,9 @@ def get_db():
         db.close()
 
 
+# =========================
+# Global exception handler
+# =========================
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error: {exc}", exc_info=True)
@@ -63,7 +75,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 data_service = DataService()
 
 
+# =========================
+# Utility / Health routes
+# =========================
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Trading Bible API is running"}
 
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+
+# =========================
+# Debug routes
+# =========================
 @app.get("/debug/users")
 def list_users(db: Session = Depends(get_db)):
     from models.user import User
@@ -103,6 +130,9 @@ def check_migrations():
     }
 
 
+# =========================
+# Stock routes
+# =========================
 @app.get("/stocks/{category}", response_model=StockListResponse)
 async def get_stocks(category: str):
     logger.info(f"Fetching stocks for category: {category}")
