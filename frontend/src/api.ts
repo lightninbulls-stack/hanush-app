@@ -1,7 +1,9 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || "https://hanush-backend-service1.onrender.com"
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "https://hanush-backend-service1.onrender.com"
 ).replace(/\/+$/, "");
 
 const CATEGORY_CACHE_PREFIX = "lightninbull:category:";
@@ -34,10 +36,45 @@ export interface StockCategoryResponse {
   stocks: Stock[];
 }
 
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  message?: string;
+  detail?: string;
+  [key: string]: unknown;
+}
+
 type CachedCategoryPayload = {
   expiresAt: number;
   data: StockCategoryResponse;
 };
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+api.interceptors.request.use((config: AxiosRequestConfig) => {
+  const token = localStorage.getItem("token");
+
+  if (token) {
+    config.headers = {
+      ...(config.headers || {}),
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  return config;
+});
 
 function toNullableNumber(value: unknown): number | null {
   if (value === undefined || value === null || value === "") {
@@ -280,7 +317,7 @@ export async function fetchStocksByCategory(
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to load ${category} CSV`);
+      throw new Error(`Failed to load ${category} CSV: ${response.status}`);
     }
 
     const csvText = await response.text();
@@ -302,3 +339,65 @@ export async function fetchStocksByCategory(
   setCachedStocksByCategory(category, normalized);
   return normalized;
 }
+
+export async function loginUser(
+  phone: string,
+  password: string
+): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      username: phone,
+      password,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Login failed");
+  }
+
+  return response.json();
+}
+
+export async function registerUser(
+  payload: RegisterPayload
+): Promise<RegisterResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      username: payload.phone,
+      password: payload.password,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Registration failed");
+  }
+
+  return response.json();
+}
+
+export function saveAuthToken(token: string): void {
+  localStorage.setItem("token", token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem("token");
+}
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem("token");
+}
+
+export default api;
