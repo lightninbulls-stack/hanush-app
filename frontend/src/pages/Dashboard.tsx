@@ -3,195 +3,395 @@ import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
+import PortfolioBacktestPanel from "../components/PortfolioBacktestPanel";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
-import { fetchStocksByCategory } from "../api";
-import type { Stock } from "../api";
+import {
+  fetchStocksByCategory,
+  getCachedStocksByCategory,
+  type Stock,
+  type StockCategoryResponse,
+} from "../services/api";
+import {
+  fetchWatchlistSymbols,
+  addWatchlistSymbol,
+  removeWatchlistSymbol,
+} from "../services/watchlistApi";
+
+const NON_FEATURE_TABS = [
+  "Watchlist",
+  "Guide",
+  "Profile / Settings",
+  "Portfolio Backtest",
+  "Bull Call Spreads",
+  "Bear Put Spreads",
+];
+
+const WATCHLIST_SOURCE_CATEGORIES = [
+  "Momentum",
+  "Low Vol",
+  "Value",
+  "Quality",
+  "Regime Upside",
+  "Regime Downside",
+  "Range Bound Upside",
+  "Range Bound Downside",
+  "Aggressive Call Option Stocks",
+  "Aggressive Put Option Stocks",
+];
+
+const MOBILE_BREAKPOINT = 900;
+
+const normalizeSymbol = (symbol: string) => symbol.trim().toUpperCase();
+
+const buildWatchlistStocks = (
+  starredSymbols: string[],
+  results: StockCategoryResponse[]
+): Stock[] => {
+  const stockMap = new Map<string, Stock>();
+
+  for (const result of results) {
+    const categoryStocks: Stock[] = result?.stocks || [];
+    for (const stock of categoryStocks) {
+      const normalized = normalizeSymbol(stock.symbol);
+      if (!stockMap.has(normalized)) {
+        stockMap.set(normalized, {
+          ...stock,
+          symbol: normalized,
+        });
+      }
+    }
+  }
+
+  const matchedStocks = starredSymbols
+    .map((symbol) => stockMap.get(normalizeSymbol(symbol)))
+    .filter((stock): stock is Stock => Boolean(stock));
+
+  const missingSymbols = starredSymbols.filter(
+    (symbol) => !stockMap.has(normalizeSymbol(symbol))
+  );
+
+  const placeholderStocks: Stock[] = missingSymbols.map((symbol, index) => ({
+    rank: matchedStocks.length + index + 1,
+    symbol: normalizeSymbol(symbol),
+    sector: "Saved Watchlist",
+    score: 0,
+    return_1w: null,
+    return_1m: null,
+    return_3m: null,
+    return_6m: null,
+    volatility_6m: null,
+    volatility_bucket: null,
+  }));
+
+  return [...matchedStocks, ...placeholderStocks];
+};
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("Momentum");
+  const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
-  const [starredSymbols, setStarredSymbols] = useState<string[]>(() => {
-    const saved = localStorage.getItem("starredStocks");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
+  const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const isSpreadPage =
-    activeTab === "Bull Call Spreads" || activeTab === "Bear Put Spreads";
-
-  useEffect(() => {
-    localStorage.setItem("starredStocks", JSON.stringify(starredSymbols));
-  }, [starredSymbols]);
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    if (isSpreadPage || activeTab === "Guide" || activeTab === "Profile / Settings") {
-      setStocks([]);
-      setLoading(false);
-      return;
-    }
+    const handleResize = () => {
+      const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      setIsMobile(mobile);
+
+      if (!mobile) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const bootstrapWatchlist = async () => {
+      try {
+        const symbols = await fetchWatchlistSymbols();
+        setStarredSymbols(symbols.map((s) => normalizeSymbol(s)));
+      } catch (error) {
+        console.error("Failed to load watchlist from localStorage:", error);
+        setStarredSymbols([]);
+      } finally {
+        setWatchlistBootstrapped(true);
+      }
+    };
+
+    bootstrapWatchlist();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
 
     const getStocks = async () => {
-      setLoading(true);
+      if (!watchlistBootstrapped) {
+        return;
+      }
+
       try {
         if (activeTab === "Watchlist") {
-          const data = await fetchStocksByCategory("Momentum");
-          setStocks((data.stocks || []).filter((s: Stock) => starredSymbols.includes(s.symbol)));
-        } else {
-          const data = await fetchStocksByCategory(activeTab);
-          setStocks(data.stocks || []);
+          if (starredSymbols.length === 0) {
+            setStocks([]);
+            setLoading(false);
+            return;
+          }
+
+          const cachedResults = WATCHLIST_SOURCE_CATEGORIES.map((category) =>
+            getCachedStocksByCategory(category)
+          ).filter(
+            (result): result is StockCategoryResponse => Boolean(result)
+          );
+
+          if (cachedResults.length > 0) {
+            setStocks(buildWatchlistStocks(starredSymbols, cachedResults));
+          }
+
+          const missingCategories = WATCHLIST_SOURCE_CATEGORIES.filter(
+            (category) => !getCachedStocksByCategory(category)
+          );
+
+          if (missingCategories.length === 0) {
+            setLoading(false);
+            return;
+          }
+
+          setLoading(cachedResults.length === 0);
+
+          const fetchedResults = await Promise.all(
+            missingCategories.map((category) => fetchStocksByCategory(category))
+          );
+
+          if (cancelled) {
+            return;
+          }
+
+          const combinedResults = [...cachedResults, ...fetchedResults];
+          setStocks(buildWatchlistStocks(starredSymbols, combinedResults));
+          return;
         }
+
+        if (
+          activeTab === "Portfolio Backtest" ||
+          activeTab === "Bull Call Spreads" ||
+          activeTab === "Bear Put Spreads" ||
+          activeTab === "Guide" ||
+          activeTab === "Profile / Settings"
+        ) {
+          setStocks([]);
+          setLoading(false);
+          return;
+        }
+
+        const cached = getCachedStocksByCategory(activeTab);
+        if (cached) {
+          setStocks(cached.stocks || []);
+          setLoading(false);
+          return;
+        }
+
+        setLoading(true);
+        const data = await fetchStocksByCategory(activeTab);
+
+        if (cancelled) {
+          return;
+        }
+
+        setStocks(data.stocks || []);
       } catch (error) {
-        console.error("Error fetching stocks:", error);
-        setStocks([]);
+        console.error(`Failed to load ${activeTab} stocks:`, error);
+        if (!cancelled) {
+          setStocks([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     getStocks();
-  }, [activeTab, starredSymbols, isSpreadPage]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, starredSymbols, watchlistBootstrapped]);
 
   useEffect(() => {
     setSelectedStock(null);
   }, [activeTab]);
 
-  const handleStarClick = (symbol: string) => {
-    setStarredSymbols((prev) =>
-      prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol]
-    );
+  const handleCategoryChange = (nextTab: string) => {
+    if (nextTab !== activeTab) {
+      setPreviousTab(activeTab);
+      setActiveTab(nextTab);
+    }
+
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
+  };
+
+  const handleStarClick = async (symbol: string) => {
+    const normalized = normalizeSymbol(symbol);
+    const wasStarred = starredSymbols.includes(normalized);
+    const previous = [...starredSymbols];
+
+    const optimistic = wasStarred
+      ? starredSymbols.filter((s) => s !== normalized)
+      : [...starredSymbols, normalized];
+
+    setStarredSymbols(optimistic);
+
+    try {
+      const updated = wasStarred
+        ? await removeWatchlistSymbol(normalized)
+        : await addWatchlistSymbol(normalized);
+
+      setStarredSymbols(updated.map((s) => normalizeSymbol(s)));
+    } catch (error) {
+      console.error("Failed to update localStorage watchlist:", error);
+      setStarredSymbols(previous);
+    }
   };
 
   const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
+
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
   };
 
-  const renderMainContent = () => {
+  const handleBackToDashboard = () => {
     if (selectedStock) {
-      return (
-        <div style={{ display: "grid", gap: "16px" }}>
-          <button
-            onClick={() => setSelectedStock(null)}
-            style={{
-              width: "fit-content",
-              border: "none",
-              borderRadius: "10px",
-              padding: "10px 14px",
-              cursor: "pointer",
-              background: "rgba(255,255,255,0.08)",
-              color: "#f8fafc",
-            }}
-          >
-            ← Back to Dashboard
-          </button>
-          <TradingViewChart symbol={selectedStock} />
-          <StockStats symbol={selectedStock} />
-        </div>
-      );
+      setSelectedStock(null);
+
+      if (isMobile) {
+        setMobileSidebarOpen(true);
+      }
+      return;
     }
 
-    if (activeTab === "Guide") {
-      return (
-        <div style={panelStyle}>
-          <h2 style={titleStyle}>User Guide</h2>
-          <p style={subtitleStyle}>
-            Welcome to Lightninbull Financial Analytics. This section helps you
-            understand the metrics and strategies used in the platform.
-          </p>
-        </div>
-      );
+    if (isMobile) {
+      setMobileSidebarOpen(true);
+      return;
     }
 
-    if (activeTab === "Profile / Settings") {
-      return (
-        <div style={panelStyle}>
-          <h2 style={titleStyle}>Profile & Settings</h2>
-          <p style={subtitleStyle}>
-            Manage your account preferences and application settings here.
-          </p>
-        </div>
-      );
+    if (previousTab && previousTab !== activeTab) {
+      setActiveTab(previousTab);
+      return;
     }
 
-    if (activeTab === "Bull Call Spreads") {
-      return <IntradaySpreadsPanel spreadType="bull_call" />;
-    }
-
-    if (activeTab === "Bear Put Spreads") {
-      return <IntradaySpreadsPanel spreadType="bear_put" />;
-    }
-
-    return (
-      <>
-        <div style={panelStyle}>
-          <h2 style={titleStyle}>{activeTab} Screener</h2>
-          <p style={subtitleStyle}>
-            Live insights and professional quantitative metrics for {activeTab}
-          </p>
-        </div>
-
-        {loading ? (
-          <div style={{ color: "#cbd5e1" }}>Loading {activeTab} data...</div>
-        ) : (
-          <StockTable
-            category={activeTab}
-            stocks={stocks}
-            starredSymbols={starredSymbols}
-            onStarClick={handleStarClick}
-            onStockClick={handleStockClick}
-          />
-        )}
-      </>
-    );
+    setActiveTab("Watchlist");
   };
+
+  const showFeatureBackButton =
+    !selectedStock && !NON_FEATURE_TABS.includes(activeTab);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "280px 1fr",
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, rgba(30,41,59,0.9), rgba(2,6,23,1))",
-      }}
-    >
+    <div className="main-layout">
       <Sidebar
         activeCategory={activeTab}
-        setActiveCategory={setActiveTab}
+        setActiveCategory={handleCategoryChange}
         starredCount={starredSymbols.length}
+        isMobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
-      <main
-        style={{
-          padding: "24px",
-          display: "grid",
-          gap: "18px",
-        }}
-      >
-        {renderMainContent()}
-      </main>
+      <div className="content-area">
+        {isMobile && (
+          <div className="mobile-topbar">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              ☰ Menu
+            </button>
+          </div>
+        )}
+
+        {selectedStock ? (
+          <div className="detail-container">
+            <button className="back-btn" onClick={handleBackToDashboard}>
+              <span>←</span> Back to Dashboard
+            </button>
+
+            <TradingViewChart symbol={selectedStock} />
+            <StockStats symbol={selectedStock} />
+          </div>
+        ) : activeTab === "Guide" ? (
+          <div className="glass-card helper-card">
+            <h2 className="glow-text">User Guide</h2>
+            <p>
+              Welcome to Lightninbull Financial Analytics. This section helps you
+              understand the metrics and strategies used in the platform.
+            </p>
+          </div>
+        ) : activeTab === "Profile / Settings" ? (
+          <div className="glass-card helper-card">
+            <h2 className="glow-text">Profile & Settings</h2>
+            <p>Manage your account preferences and application settings here.</p>
+          </div>
+        ) : activeTab === "Portfolio Backtest" ? (
+          <PortfolioBacktestPanel />
+        ) : activeTab === "Bull Call Spreads" ? (
+          <IntradaySpreadsPanel spreadType="bull_call" />
+        ) : activeTab === "Bear Put Spreads" ? (
+          <IntradaySpreadsPanel spreadType="bear_put" />
+        ) : (
+          <>
+            {showFeatureBackButton && (
+              <div className="screener-toolbar">
+                <button
+                  className="back-btn screen-back-btn"
+                  onClick={handleBackToDashboard}
+                >
+                  <span>←</span> Back to Dashboard
+                </button>
+              </div>
+            )}
+
+            <div className="screener-header compact-screener-header">
+              <h2 className="glow-text">
+                {activeTab}{" "}
+                <span style={{ color: "var(--primary-gold)" }}>Screener</span>
+              </h2>
+              <p className="screener-subtitle">
+                Live insights and professional quantitative metrics for {activeTab}
+              </p>
+            </div>
+
+            <div className="table-view-container">
+              {loading ? (
+                <div className="loader-container">
+                  <div className="loader"></div>
+                  <p className="loader-text">Loading {activeTab} data...</p>
+                </div>
+              ) : (
+                <StockTable
+                  category={activeTab}
+                  stocks={stocks}
+                  starredSymbols={starredSymbols}
+                  onStockClick={handleStockClick}
+                  onStarClick={handleStarClick}
+                />
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
-};
-
-const panelStyle: React.CSSProperties = {
-  borderRadius: "18px",
-  padding: "18px",
-  background: "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(30,41,59,0.9))",
-  border: "1px solid rgba(255,255,255,0.08)",
-};
-
-const titleStyle: React.CSSProperties = {
-  color: "#f8fafc",
-  fontSize: "28px",
-  fontWeight: 800,
-  margin: 0,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  color: "#94a3b8",
-  marginTop: "8px",
-  marginBottom: 0,
 };
 
 export default Dashboard;
