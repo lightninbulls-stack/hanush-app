@@ -1,207 +1,471 @@
-import { useState } from "react";
-import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
-import "./Auth.css";
+import React, { useState } from "react";
+import {
+  loginUser,
+  registerUser,
+  saveAuthToken,
+} from "../api";
 
-const API = import.meta.env.VITE_API_URL;
+type AuthMode = "login" | "signup";
 
-export default function Auth() {
-  const navigate = useNavigate();
+const Auth: React.FC = () => {
+  const [mode, setMode] = useState<AuthMode>("login");
 
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const isRegister = mode === "register";
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const resetMessages = () => {
+    setError("");
+    setSuccess("");
+  };
 
   const resetForm = () => {
     setName("");
     setEmail("");
     setPhone("");
     setPassword("");
-    setError("");
+    setConfirmPassword("");
   };
 
-  const handleSubmit = async () => {
-    setError("");
-    setLoading(true);
+  const handleTabChange = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    resetMessages();
+  };
+
+  const validateLogin = (): boolean => {
+    if (!phone.trim()) {
+      setError("Phone number is required");
+      return false;
+    }
+
+    if (!password.trim()) {
+      setError("Password is required");
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateSignup = (): boolean => {
+    if (!name.trim()) {
+      setError("Name is required");
+      return false;
+    }
+
+    if (!email.trim()) {
+      setError("Email is required");
+      return false;
+    }
+
+    if (!phone.trim()) {
+      setError("Phone number is required");
+      return false;
+    }
+
+    if (!password.trim()) {
+      setError("Password is required");
+      return false;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleLogin = async () => {
+    resetMessages();
+
+    if (!validateLogin()) {
+      return;
+    }
 
     try {
-      if (isRegister) {
-        await axios.post(`${API}/auth/register`, {
-          name,
-          email,
-          phone,
-          password,
-        });
+      setLoading(true);
 
-        alert("Registration successful. Please login.");
-        setMode("login");
-        resetForm();
-      } else {
-        const res = await axios.post(`${API}/auth/login`, {
-          phone,
-          password,
-        });
+      const result = await loginUser(phone.trim(), password);
+      saveAuthToken(result.access_token);
 
-        localStorage.setItem("token", res.data.access_token);
-        navigate("/dashboard");
-      }
+      localStorage.setItem("userPhone", phone.trim());
+
+      window.location.href = "/dashboard";
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Something went wrong");
+      console.error("Login failed:", err);
+      setError(err?.message || "Invalid phone number or password");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSignup = async () => {
+    resetMessages();
+
+    if (!validateSignup()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await registerUser({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+      });
+
+      setSuccess("Account created successfully. Please log in.");
+      setMode("login");
+      setPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error("Registration failed:", err);
+      setError(err?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (mode === "login") {
+      await handleLogin();
+    } else {
+      await handleSignup();
+    }
+  };
+
   return (
-    <div className="lb-auth-page">
-      <header className="lb-auth-header">
-        <div className="lb-auth-header-inner">
-          <Link to="/" className="lb-auth-brand">
-            <img
-              src="/lightninbull-bull.png"
-              alt="Lightnin Bull"
-              className="lb-auth-brand-logo"
-            />
-            <div className="lb-auth-brand-copy">
-              <span className="lb-auth-brand-title">Lightnin Bull</span>
-              <span className="lb-auth-brand-subtitle">Financial Analytics</span>
-            </div>
-          </Link>
-        </div>
-      </header>
-
-      <main className="lb-auth-main">
-        <section className="lb-auth-left">
-          <p className="lb-auth-eyebrow">
-            BACKTESTING • FACTORS • MARKET INTELLIGENCE
-          </p>
-
-          <h1 className="lb-auth-hero-title">
-            Start your
-            <br />
-            <span>market research</span> here
-          </h1>
-
-          <p className="lb-auth-hero-text">
-            Access premium dashboards for Momentum, Low Volatility, Value,
-            Quality, and derivative-driven opportunity screening for Indian
-            markets.
-          </p>
-
-          <div className="lb-auth-points">
-            <span>Factor Dashboards</span>
-            <span>Ranked Stock Views</span>
-            <span>Derivative Analytics</span>
-            <span>Clean Research Workflow</span>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background:
+          "radial-gradient(circle at top, rgba(30,41,59,0.95), rgba(2,6,23,1))",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "460px",
+          borderRadius: "24px",
+          padding: "28px",
+          background:
+            "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(30,41,59,0.96))",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 16px 40px rgba(0,0,0,0.35)",
+        }}
+      >
+        <div style={{ marginBottom: "24px", textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: "28px",
+              fontWeight: 800,
+              color: "#f8fafc",
+              marginBottom: "8px",
+            }}
+          >
+            Lightninbull
           </div>
-        </section>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: "14px",
+            }}
+          >
+            Sign in to access your dashboard
+          </div>
+        </div>
 
-        <section className="lb-auth-right">
-          <div className="lb-auth-card">
-            <h2 className="lb-auth-card-title">
-              {isRegister ? "Sign Up" : "Login"}
-            </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "10px",
+            marginBottom: "22px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleTabChange("login")}
+            style={{
+              padding: "12px 14px",
+              borderRadius: "12px",
+              border:
+                mode === "login"
+                  ? "1px solid rgba(250,204,21,0.35)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              background:
+                mode === "login"
+                  ? "linear-gradient(90deg, rgba(250,204,21,0.16), rgba(255,255,255,0.04))"
+                  : "rgba(255,255,255,0.03)",
+              color: "#f8fafc",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Login
+          </button>
 
-            <div className="lb-auth-switch">
+          <button
+            type="button"
+            onClick={() => handleTabChange("signup")}
+            style={{
+              padding: "12px 14px",
+              borderRadius: "12px",
+              border:
+                mode === "signup"
+                  ? "1px solid rgba(250,204,21,0.35)"
+                  : "1px solid rgba(255,255,255,0.08)",
+              background:
+                mode === "signup"
+                  ? "linear-gradient(90deg, rgba(250,204,21,0.16), rgba(255,255,255,0.04))"
+                  : "rgba(255,255,255,0.03)",
+              color: "#f8fafc",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Sign Up
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: "14px" }}>
+          {mode === "signup" && (
+            <>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    color: "#cbd5e1",
+                    fontSize: "13px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your name"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    color: "#cbd5e1",
+                    fontSize: "13px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  style={inputStyle}
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                color: "#cbd5e1",
+                fontSize: "13px",
+                marginBottom: "6px",
+              }}
+            >
+              Phone Number
+            </label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Enter phone number"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                color: "#cbd5e1",
+                fontSize: "13px",
+                marginBottom: "6px",
+              }}
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              style={inputStyle}
+            />
+          </div>
+
+          {mode === "signup" && (
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  marginBottom: "6px",
+                }}
+              >
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                style={inputStyle}
+              />
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                color: "#f87171",
+                fontSize: "14px",
+                background: "rgba(248,113,113,0.08)",
+                border: "1px solid rgba(248,113,113,0.2)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div
+              style={{
+                color: "#4ade80",
+                fontSize: "14px",
+                background: "rgba(74,222,128,0.08)",
+                border: "1px solid rgba(74,222,128,0.2)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+              }}
+            >
+              {success}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: "8px",
+              padding: "14px 16px",
+              borderRadius: "14px",
+              border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
+              background:
+                "linear-gradient(90deg, rgba(250,204,21,0.95), rgba(234,179,8,0.95))",
+              color: "#111827",
+              fontWeight: 800,
+              fontSize: "15px",
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading
+              ? mode === "login"
+                ? "Logging in..."
+                : "Creating account..."
+              : mode === "login"
+              ? "Login"
+              : "Create Account"}
+          </button>
+        </form>
+
+        <div
+          style={{
+            marginTop: "18px",
+            textAlign: "center",
+            color: "#94a3b8",
+            fontSize: "13px",
+          }}
+        >
+          {mode === "login" ? (
+            <>
+              New user?{" "}
               <button
                 type="button"
-                className={!isRegister ? "active" : ""}
-                onClick={() => {
-                  setMode("login");
-                  resetForm();
-                }}
+                onClick={() => handleTabChange("signup")}
+                style={linkButtonStyle}
+              >
+                Create an account
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => handleTabChange("login")}
+                style={linkButtonStyle}
               >
                 Login
               </button>
-              <button
-                type="button"
-                className={isRegister ? "active" : ""}
-                onClick={() => {
-                  setMode("register");
-                  resetForm();
-                }}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            <div className="lb-auth-form">
-              {isRegister && (
-                <div className="lb-auth-field">
-                  <label>Full Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {isRegister && (
-                <div className="lb-auth-field">
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              )}
-
-              <div className="lb-auth-field">
-                <label>Phone Number</label>
-                <input
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-
-              <div className="lb-auth-field">
-                <label>Password</label>
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-
-              {error ? <div className="lb-auth-error">{error}</div> : null}
-
-              <button
-                type="button"
-                className="lb-auth-submit"
-                disabled={loading}
-                onClick={handleSubmit}
-              >
-                {loading ? "Please wait..." : isRegister ? "Create Account" : "Login"}
-              </button>
-
-              <p className="lb-auth-footer-text">
-                {isRegister ? "Already have an account?" : "Don’t have an account?"}{" "}
-                <span
-                  onClick={() => {
-                    setMode(isRegister ? "login" : "register");
-                    resetForm();
-                  }}
-                >
-                  {isRegister ? "Login" : "Sign Up"}
-                </span>
-              </p>
-            </div>
-          </div>
-        </section>
-      </main>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#f8fafc",
+  outline: "none",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+
+const linkButtonStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  color: "#fde68a",
+  cursor: "pointer",
+  fontWeight: 700,
+  padding: 0,
+};
+
+export default Auth;
