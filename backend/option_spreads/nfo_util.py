@@ -6,7 +6,13 @@ from datetime import datetime, timedelta
 from kiteconnect import KiteConnect
 from datetime import datetime
 from typing import Iterable, Optional
+from pathlib import Path
+import pandas as pd
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = BASE_DIR / "data"
+CSV_PATH = DATA_DIR / "inst_zerodha_nfo.csv"
+df = pd.read_csv(CSV_PATH)
 # ----------------------------------------------------------
 # 1. Load credentials and initialize Kite API
 # ----------------------------------------------------------
