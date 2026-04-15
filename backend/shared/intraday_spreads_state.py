@@ -1,28 +1,25 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
-from shared.intraday_spreads_state import spread_state
-
-router = APIRouter()
+from threading import Lock
+from typing import Dict, Any
 
 
-@router.get("/intraday-spreads/all")
-def get_all_intraday_spreads():
-    return {
-        "status": "ok",
-        "data": spread_state.get_all(),
-    }
+class IntradaySpreadState:
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._state: Dict[str, Dict[str, Any]] = {}
+
+    def update(self, strategy_name: str, payload: dict) -> None:
+        with self._lock:
+            self._state[strategy_name] = payload
+
+    def get_all(self) -> dict:
+        with self._lock:
+            return dict(self._state)
+
+    def get_one(self, strategy_name: str) -> dict | None:
+        with self._lock:
+            return self._state.get(strategy_name)
 
 
-@router.get("/intraday-spreads/{strategy_name}")
-def get_intraday_spread(strategy_name: str):
-    payload = spread_state.get_one(strategy_name)
-    if payload is None:
-        return {
-            "status": "not_found",
-            "data": None,
-        }
-    return {
-        "status": "ok",
-        "data": payload,
-    }
+spread_state = IntradaySpreadState()
