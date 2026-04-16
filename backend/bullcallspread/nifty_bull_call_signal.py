@@ -4,6 +4,7 @@ import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -13,7 +14,6 @@ from typing import Optional
 
 import pandas as pd
 import pytz
-import yaml
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
@@ -30,7 +30,7 @@ PRELOAD_DAYS = 2
 QUANTITY = 65
 
 STOP_LOSS_AMOUNT = -1500.0
-TARGET_AMOUNT = 2500.0
+TARGET_AMOUNT = 3000.0
 
 TARGET_HOUR = 9
 TARGET_MINUTE = 15
@@ -178,8 +178,18 @@ def publish_spread_update(payload: dict) -> None:
 # ===================== Utilities =========================
 # =========================================================
 def load_creds() -> dict:
-    with open("cred.yml", "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    """
+    Read credentials from Render environment variables.
+    Required env vars:
+      - Z_API_KEY
+      - Z_ACCESS_TOKEN
+      - I_EXPIRY_DATE_NIFTY
+    """
+    return {
+        "z_api_key": os.environ["Z_API_KEY"],
+        "z_access_token": os.environ["Z_ACCESS_TOKEN"],
+        "i_expiry_date_nifty": os.environ["I_EXPIRY_DATE_NIFTY"],
+    }
 
 
 def wait_until(target_hour: int, target_minute: int) -> None:
@@ -522,7 +532,7 @@ class AlphaBullCall:
         option_chain_ce = nfo_util.bull_call_spreads_nifty(
             df_ce,
             gaps=(150, 200),
-            rr_target=1.7,
+            rr_target=1.5,
             atm_only=False,
         )
 
@@ -751,7 +761,6 @@ class EMACrossover1Min:
             if not ohlc.empty:
                 ohlc["signal"] = 0
                 self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
-
                 self._update_ema_crossover(rider)
 
             self.tick_buffer = row
@@ -767,8 +776,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
         if len(self.onemin_bars) < 55:
             publish_strategy_state(
@@ -938,9 +947,6 @@ class EMACrossover1Min:
         kws.connect(threaded=False)
 
 
-# =========================================================
-# ========================= Main ==========================
-# =========================================================
 def main():
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
