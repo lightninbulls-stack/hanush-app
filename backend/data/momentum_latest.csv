@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-30,1,NATIONALUM,Metals & Mining,100,2.5,7.54,18.56,92.59,43.61,Very High Vol,—
-2026-04-30,2,MCX,Financial Services,79,8.5,7.27,19.98,68.45,41.31,Very High Vol,—
-2026-04-30,3,SHRIRAMFIN,Financial Services,70,8.2,-5.53,0.83,50.58,38.92,Very High Vol,—
-2026-04-30,4,VEDL,Metals & Mining,70,9.07,4.23,20.95,59.49,34.52,High Vol,—
-2026-04-30,5,POWERINDIA,Capital Goods,65,13.23,12.29,44.65,61.42,46.85,Very High Vol,—
-2026-04-30,6,FEDERALBNK,Financial Services,65,6.15,4.42,11.47,44.7,29.35,High Vol,—
-2026-04-30,7,BSE,Financial Services,63,10.77,15.49,20.35,48.06,42.03,Very High Vol,—
-2026-04-30,8,INDUSTOWER,Telecommunication,56,3.04,-1.57,2.2,22.51,27.74,High Vol,—
-2026-04-30,9,LUPIN,Healthcare,55,1.54,-0.95,4.55,20.28,17.48,Medium Vol,—
-2026-04-30,10,ONGC,Oil Gas & Consumable Fuels,53,2.02,6.82,20.28,17.21,25.59,High Vol,—
-2026-04-30,11,UNIONBANK,Financial Services,53,6.06,-0.87,11.03,33.3,35.82,Very High Vol,—
-2026-04-30,12,LAURUSLABS,Healthcare,53,2.8,4.8,-3.61,25.99,29.2,High Vol,—
-2026-04-30,13,TITAN,Consumer Durables,52,4.55,5.19,3.89,29.87,23.79,Medium Vol,—
-2026-04-30,14,TORNTPHARM,Healthcare,52,4.22,-5.57,2.17,18.21,20.66,Medium Vol,—
-2026-04-30,15,ASTRAL,Capital Goods,52,6.72,-2.14,8.15,14.49,31.09,High Vol,—
-2026-04-30,16,SONACOMS,Automobile and Auto Components,52,11.76,11.25,20.16,37.5,33.48,High Vol,—
-2026-04-30,17,HINDALCO,Metals & Mining,51,5.48,2.26,4.24,27.41,30.63,High Vol,—
-2026-04-30,18,COALINDIA,Oil Gas & Consumable Fuels,51,-5.32,-1.91,0.8,13.1,26.68,High Vol,—
-2026-04-30,19,AUBANK,Financial Services,50,10.81,4.32,-2.54,28.15,33.11,High Vol,—
-2026-04-30,20,OIL,Oil Gas & Consumable Fuels,50,1.05,1.4,14.04,12.95,31.41,High Vol,—
+2026-04-30,1,NATIONALUM,Metals & Mining,100,8.13,5.76,24.32,88.5,43.44,Very High Vol,—
+2026-04-30,2,MCX,Financial Services,79,10.24,13.31,30.63,64.38,40.62,Very High Vol,—
+2026-04-30,3,SHRIRAMFIN,Financial Services,70,-0.04,-0.87,4.85,52.87,38.96,Very High Vol,—
+2026-04-30,4,VEDL,Metals & Mining,70,8.52,8.79,28.37,61.68,34.54,High Vol,—
+2026-04-30,5,POWERINDIA,Capital Goods,65,9.03,13.57,58.02,59.35,46.84,Very High Vol,—
+2026-04-30,6,FEDERALBNK,Financial Services,65,-0.02,5.24,11.4,37.17,29.2,High Vol,—
+2026-04-30,7,BSE,Financial Services,63,8.95,20.91,29.11,47.91,41.9,Very High Vol,—
+2026-04-30,8,INDUSTOWER,Telecommunication,56,-6.3,-6.54,-4.67,16.43,28.49,High Vol,—
+2026-04-30,9,LUPIN,Healthcare,55,1.43,-1.29,6.64,18.87,17.09,Medium Vol,—
+2026-04-30,10,ONGC,Oil Gas & Consumable Fuels,53,-0.96,4.51,20.79,16.17,25.62,High Vol,—
+2026-04-30,11,UNIONBANK,Financial Services,53,1.52,3.51,16.17,36.76,35.77,Very High Vol,—
+2026-04-30,12,LAURUSLABS,Healthcare,53,4.24,7.79,4.19,30.43,29.34,High Vol,—
+2026-04-30,13,TITAN,Consumer Durables,52,-0.69,8.03,6.18,25.65,23.27,Medium Vol,—
+2026-04-30,14,TORNTPHARM,Healthcare,52,3.14,-6.52,4.86,17.05,20.64,Medium Vol,—
+2026-04-30,15,ASTRAL,Capital Goods,52,3.49,-6.92,8.95,12.28,31.41,High Vol,—
+2026-04-30,16,SONACOMS,Automobile and Auto Components,52,8.83,13.83,26.37,35.25,32.56,High Vol,—
+2026-04-30,17,HINDALCO,Metals & Mining,51,9.26,7.23,15.42,34.34,31.17,High Vol,—
+2026-04-30,18,COALINDIA,Oil Gas & Consumable Fuels,51,-3.67,-7.95,3.44,12.89,26.68,High Vol,—
+2026-04-30,19,AUBANK,Financial Services,50,1.67,9.06,-1.53,29.47,33.07,High Vol,—
+2026-04-30,20,OIL,Oil Gas & Consumable Fuels,50,0.75,-3.53,10.08,10.65,31.64,High Vol,—
