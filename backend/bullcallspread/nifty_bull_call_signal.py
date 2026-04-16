@@ -6,15 +6,17 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 import logging
 import sys
 import threading
-import pandas as pd
-import yaml
 import time
-import pytz
 import uuid
-from typing import Optional
 from datetime import datetime, timedelta
+from typing import Optional
 
+import pandas as pd
+import pytz
+import yaml
 from kiteconnect import KiteConnect, KiteTicker
+
+from shared.intraday_spreads_state import spread_state
 
 # =========================================================
 # ========== CONFIGURATION: CHANGE FROM HERE ==============
@@ -33,10 +35,9 @@ TARGET_AMOUNT = 3000.0
 TARGET_HOUR = 9
 TARGET_MINUTE = 15
 
-LOG_FILE_NAME = "vix_bn_strategy.log"
+LOG_FILE_NAME = "bull_call_spread.log"
 
-# In-memory frontend state holder
-GLOBAL_SPREAD_STATE: dict[str, dict] = {}
+IST = pytz.timezone("Asia/Kolkata")
 
 # =========================================================
 # ===================== Logging ===========================
@@ -50,8 +51,6 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("alpha_bull_strategy")
-
-IST = pytz.timezone("Asia/Kolkata")
 
 
 def log_and_print(msg: str, level: str = "info") -> None:
@@ -94,7 +93,7 @@ def publish_strategy_state(
     if extra:
         payload.update(extra)
 
-    GLOBAL_SPREAD_STATE[strategy_name] = payload
+    spread_state.update(strategy_name, payload)
 
 
 def build_spread_payload(
@@ -172,35 +171,7 @@ def build_spread_payload(
 
 
 def publish_spread_update(payload: dict) -> None:
-    """
-    Right now this stores the latest state in memory.
-    Later your FastAPI/Flask/WebSocket layer can read from this.
-    """
-    GLOBAL_SPREAD_STATE[payload["strategy_name"]] = payload
-
-
-def get_strategy_state(strategy_name: str = STRATEGY_NAME) -> dict:
-    """
-    Helper function for API layer.
-    """
-    return GLOBAL_SPREAD_STATE.get(
-        strategy_name,
-        {
-            "index": INDEX_NAME,
-            "spread_type": SPREAD_TYPE,
-            "strategy_name": strategy_name,
-            "status": "BOOTING",
-            "ui_state": "BOOTING",
-            "message": "Strategy is starting...",
-            "progress_text": "Please wait",
-            "is_loading": True,
-            "updated_at": datetime.now(IST).isoformat(),
-            "net_pnl": 0.0,
-            "stop_loss": STOP_LOSS_AMOUNT,
-            "target": TARGET_AMOUNT,
-            "legs": [],
-        },
-    )
+    spread_state.update(payload["strategy_name"], payload)
 
 
 # =========================================================
@@ -264,10 +235,6 @@ def wait_until(target_hour: int, target_minute: int) -> None:
 # ===================== Paper Order Book ==================
 # =========================================================
 class PaperOrderBook:
-    """
-    In-memory paper order / paper position tracker.
-    """
-
     def __init__(self) -> None:
         self.orders: list[dict] = []
         self.lock = threading.Lock()
@@ -353,14 +320,6 @@ class PaperOrderBook:
 # ===================== Live MTM Tracker ==================
 # =========================================================
 class PaperSpreadMTMTracker:
-    """
-    After bull call spread entry:
-      - subscribe only to option leg tokens
-      - update tick-by-tick MTM
-      - exit all paper positions on SL / target
-      - publish structured spread state for frontend
-    """
-
     def __init__(
         self,
         cred: dict,
@@ -512,10 +471,6 @@ class PaperSpreadMTMTracker:
 # ================= Alpha Bull Strategy ===================
 # =========================================================
 class AlphaBullCall:
-    """
-    Creates bull call spread paper entry, then hands off to MTM tracker.
-    """
-
     def __init__(
         self,
         kite: KiteConnect,
@@ -695,14 +650,6 @@ class AlphaBullCall:
 # ============= Nifty EMA Confirmation Handler ============
 # =========================================================
 class EMACrossover1Min:
-    """
-    Stream NIFTY 1-min logic.
-    On bullish EMA(5,55) crossover:
-      - stop NIFTY websocket
-      - launch bull call paper entry
-      - hand off to option-leg live MTM tracker
-    """
-
     def __init__(
         self,
         kite: KiteConnect,
@@ -807,14 +754,6 @@ class EMACrossover1Min:
 
                 self._update_ema_crossover(rider)
 
-                cols = ["close", "EMA5", "EMA55", "signal"]
-                for col in cols:
-                    if col not in self.onemin_bars.columns:
-                        self.onemin_bars[col] = pd.NA
-
-                log_and_print("=== Latest 30 Bars (close, EMA5, EMA55, signal) ===")
-                print(self.onemin_bars[cols].tail(30).to_string(float_format="%.2f"))
-
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
@@ -897,10 +836,6 @@ class EMACrossover1Min:
         elif prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]:
             self.last_signal = -1
             self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = -1
-
-            log_and_print(
-                f"🔻 Bearish crossover @ {self.onemin_bars.index[-1].strftime('%H:%M:%S')} | Price: {latest['close']:.2f}"
-            )
 
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
