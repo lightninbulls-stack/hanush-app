@@ -1,12 +1,12 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-15,1,PFC,Financial Services,100,9.17,9.3,21.7,11.19,30.4,High Vol,Value Factor
-2026-04-15,2,RECLTD,Financial Services,93,7.07,5.89,-5.05,-5.33,30.15,High Vol,Value Factor
-2026-04-15,3,HINDZINC,Metals & Mining,86,7.75,-1.21,-1.74,18.35,43.05,Very High Vol,Value Factor
-2026-04-15,4,INDIGO,Services,79,8.65,6.6,-5.47,-17.69,37.28,Very High Vol,Value Factor
-2026-04-15,5,NATIONALUM,Metals & Mining,71,2.95,6.57,27.11,89.56,43.49,Very High Vol,Value Factor
-2026-04-15,6,IEX,Financial Services,64,4.6,8.11,-11.51,-4.6,36.14,Very High Vol,Value Factor
-2026-04-15,7,TCS,Information Technology,57,0.59,3.65,-20.26,-15.6,23.66,Medium Vol,Value Factor
-2026-04-15,8,INDUSTOWER,Telecommunication,50,-0.69,-4.22,-2.46,18.46,28.37,High Vol,Value Factor
-2026-04-15,9,INFY,Information Technology,43,-2.55,2.27,-19.09,-12.69,26.34,High Vol,Value Factor
-2026-04-15,11,OFSS,Information Technology,29,4.87,11.05,-0.68,-17.92,29.69,High Vol,Value Factor
-2026-04-15,13,SUZLON,Capital Goods,14,18.24,18.04,-3.53,-6.9,33.14,High Vol,Value Factor
+2026-04-16,1,PFC,Financial Services,100,9.88,10.34,27.86,14.05,30.7,High Vol,Value Factor
+2026-04-16,2,RECLTD,Financial Services,93,6.29,6.03,0.17,-1.99,30.51,High Vol,Value Factor
+2026-04-16,3,HINDZINC,Metals & Mining,86,5.93,1.63,-2.3,15.67,42.7,Very High Vol,Value Factor
+2026-04-16,4,INDIGO,Services,79,-0.15,8.4,-4.86,-19.49,37.2,Very High Vol,Value Factor
+2026-04-16,5,NATIONALUM,Metals & Mining,71,8.13,5.76,24.32,88.5,43.44,Very High Vol,Value Factor
+2026-04-16,6,IEX,Financial Services,64,3.84,9.49,-2.85,-4.28,36.16,Very High Vol,Value Factor
+2026-04-16,7,TCS,Information Technology,57,0.69,5.51,-19.67,-15.83,23.63,Medium Vol,Value Factor
+2026-04-16,8,INDUSTOWER,Telecommunication,50,-6.3,-6.54,-4.67,16.43,28.49,High Vol,Value Factor
+2026-04-16,9,INFY,Information Technology,43,-2.01,4.22,-18.27,-12.6,26.35,High Vol,Value Factor
+2026-04-16,11,OFSS,Information Technology,29,8.3,16.16,2.35,-16.49,29.97,High Vol,Value Factor
+2026-04-16,13,SUZLON,Capital Goods,14,13.61,18.43,2.13,-5.49,33.29,High Vol,Value Factor
