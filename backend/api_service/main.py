@@ -1,5 +1,3 @@
-import threading
-from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,8 +5,10 @@ from sqlalchemy.orm import Session
 from typing import List
 import os
 import logging
+import threading
 
 from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
+from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 from shared.models import StockListResponse, HistoricalData, StockInfo
 from fetch_service.main import (
     DataService,
@@ -25,6 +25,24 @@ logger = logging.getLogger(__name__)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trading Bible API")
+
+
+def start_bull_call_strategy() -> None:
+    def run() -> None:
+        try:
+            bull_call_main()
+        except Exception as e:
+            logger.error(f"Bull call strategy crashed: {e}", exc_info=True)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    logger.info("🚀 Starting Bull Call Strategy thread...")
+    start_bull_call_strategy()
+
 
 # =========================
 # Middleware
@@ -206,81 +224,8 @@ async def get_info(symbol: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def main():
-    publish_strategy_state(
-        strategy_name=STRATEGY_NAME,
-        index_name=INDEX_NAME,
-        spread_type=SPREAD_TYPE,
-        ui_state="BOOTING",
-        message="Strategy process started.",
-        progress_text="Initializing",
-        is_loading=True,
-    )
-
-    wait_until(TARGET_HOUR, TARGET_MINUTE)
-
-    try:
-        cred = load_creds()
-
-        kite = KiteConnect(api_key=cred["z_api_key"])
-        kite.set_access_token(cred["z_access_token"])
-        log_and_print("Kite API authenticated.")
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="BOOTING",
-            message="Kite API authenticated successfully.",
-            progress_text="Preparing strategy objects",
-            is_loading=True,
-        )
-
-        paper_book = PaperOrderBook()
-
-        nifty_ema = EMACrossover1Min(
-            kite=kite,
-            cred=cred,
-            instrument_token=NIFTY_SPOT_TOKEN,
-            preload_days=PRELOAD_DAYS,
-        )
-
-        alpha_bull = AlphaBullCall(
-            kite=kite,
-            cred=cred,
-            paper_book=paper_book,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
-
-        log_and_print("Starting NIFTY EMA bullish-entry logic...")
-        nifty_ema.start(alpha_bull)
-
-        log_and_print("Main finished.")
-
-    except SystemExit:
-        log_and_print("Exited after execution.")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy stopped manually.",
-            progress_text=None,
-            is_loading=False,
-        )
-    except Exception as e:
-        log_and_print(f"An error occurred in main execution: {e}", "error")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ERROR",
-            message=f"Strategy failed: {str(e)}",
-            progress_text="Check logs",
-            is_loading=False,
-        )
-
-
 if __name__ == "__main__":
-    main()
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
