@@ -944,7 +944,7 @@ class EMACrossover1Min:
         kws.on_error = on_error
 
         log_and_print("Starting NIFTY EMA WebSocket…")
-        kws.connect(threaded=False)
+        kws.connect(threaded=True)
 
 
 def main():
