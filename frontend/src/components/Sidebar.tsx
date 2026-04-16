@@ -80,8 +80,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       title: "Range Bound",
       items: [
-        { name: "Range Bound Upside", icon: "🟦" },
-        { name: "Range Bound Downside", icon: "🟧" },
+        { name: "Range Bound Upside", icon: "🟢" },
+        { name: "Range Bound Downside", icon: "🔴" },
       ],
     },
     {
