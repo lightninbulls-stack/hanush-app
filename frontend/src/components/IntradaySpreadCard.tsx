@@ -31,6 +31,18 @@ function getStatusColor(status: string): string {
   return "#94a3b8";
 }
 
+function getSpreadTitle(spread: IntradaySpread): string {
+  if (spread.spread_type === "bull_call") {
+    return `${spread.index} Call Debit Spread`;
+  }
+
+  if (spread.spread_type === "bear_put") {
+    return `${spread.index} Put Debit Spread`;
+  }
+
+  return `${spread.index} Intraday Spread`;
+}
+
 function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
   return (
     <div
@@ -80,10 +92,7 @@ function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
 }
 
 const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
-  const title =
-    spread.spread_type === "bull_call"
-      ? `${spread.index} Bull Call Spread`
-      : `${spread.index} Bear Put Spread`;
+  const title = getSpreadTitle(spread);
 
   return (
     <div
