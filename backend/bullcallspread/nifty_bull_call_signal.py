@@ -30,7 +30,7 @@ PRELOAD_DAYS = 2
 QUANTITY = 65
 
 STOP_LOSS_AMOUNT = -1500.0
-TARGET_AMOUNT = 3000.0
+TARGET_AMOUNT = 2500.0
 
 TARGET_HOUR = 9
 TARGET_MINUTE = 15
@@ -522,7 +522,7 @@ class AlphaBullCall:
         option_chain_ce = nfo_util.bull_call_spreads_nifty(
             df_ce,
             gaps=(150, 200),
-            rr_target=1.5,
+            rr_target=1.7,
             atm_only=False,
         )
 
@@ -767,8 +767,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
 
         if len(self.onemin_bars) < 55:
             publish_strategy_state(
