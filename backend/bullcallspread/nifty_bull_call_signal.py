@@ -941,7 +941,7 @@ class EMACrossover1Min:
 # =========================================================
 # ========================= Main ==========================
 # =========================================================
-if __name__ == "__main__":
+def main():
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
         index_name=INDEX_NAME,
@@ -1015,3 +1015,7 @@ if __name__ == "__main__":
             progress_text="Check logs",
             is_loading=False,
         )
+
+
+if __name__ == "__main__":
+    main()
