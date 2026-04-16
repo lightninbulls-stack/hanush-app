@@ -8,6 +8,7 @@ export type SpreadLeg = {
   strike?: number | null;
   expiry?: string | null;
   right?: string | null;
+  status?: string | null;
 };
 
 export type IntradaySpread = {
@@ -15,6 +16,10 @@ export type IntradaySpread = {
   spread_type: "bull_call" | "bear_put" | string;
   strategy_name: string;
   status: "OPEN" | "CLOSED" | "NO_POSITION" | string;
+  ui_state?: string;
+  message?: string;
+  progress_text?: string | null;
+  is_loading?: boolean;
   net_pnl: number;
   stop_loss: number;
   target: number;
