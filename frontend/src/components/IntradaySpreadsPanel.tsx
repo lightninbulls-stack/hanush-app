@@ -10,18 +10,18 @@ type Props = {
 };
 
 const emptyMessageMap = {
-  bull_call: "No live bull call spreads available.",
-  bear_put: "No live bear put spreads available.",
+  bull_call: "No live  call debit  spreads available.",
+  bear_put: "No live  put  debit spreads available.",
 };
 
 const titleMap = {
-  bull_call: "Bull Call Spreads",
-  bear_put: "Bear Put Spreads",
+  bull_call: " Call debit Spreads",
+  bear_put: " Put debit Spreads",
 };
 
 const subtitleMap = {
-  bull_call: "Live intraday index bull call spread trades with leg-level MTM.",
-  bear_put: "Live intraday index bear put spread trades with leg-level MTM.",
+  bull_call: "Live intraday index  call debit spread trades with  MTM.",
+  bear_put: "Live intraday index  put debit spread trades with  MTM.",
 };
 
 const waitingStates = new Set([
