@@ -9,25 +9,216 @@ type Props = {
   spreadType: "bull_call" | "bear_put";
 };
 
-const emptyMessageMap = {
-  bull_call: "No live bull call spreads available.",
-  bear_put: "No live bear put spreads available.",
+const emptyMessageMap: Record<Props["spreadType"], string> = {
+  bull_call: "No live call debit spreads available.",
+  bear_put: "No live put debit spreads available.",
 };
 
-const titleMap = {
+const titleMap: Record<Props["spreadType"], string> = {
+  bull_call: "Call debit Spreads",
+  bear_put: "Put debit Spreads",
+};
+
+const subtitleMap: Record<Props["spreadType"], string> = {
+  bull_call: "Live intraday index call debit spread trades with MTM.",
+  bear_put: "Live intraday index put debit spread trades with MTM.",
+};
+
+const waitingTitleMap: Record<Props["spreadType"], string> = {
   bull_call: "Bull Call Spreads",
   bear_put: "Bear Put Spreads",
 };
 
-const subtitleMap = {
-  bull_call: "Live intraday index bull call spread trades with leg-level MTM.",
-  bear_put: "Live intraday index bear put spread trades with leg-level MTM.",
+const waitingStates = new Set([
+  "BOOTING",
+  "WAITING_START_TIME",
+  "LOADING_HISTORY",
+  "WAITING_SIGNAL",
+  "SIGNAL_TRIGGERED",
+  "ENTERING_SPREAD",
+]);
+
+const formatCurrency = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "--";
+  }
+  return `₹${value.toFixed(2)}`;
+};
+
+const getProgressWidth = (state?: string) => {
+  switch (state) {
+    case "BOOTING":
+      return "12%";
+    case "WAITING_START_TIME":
+      return "18%";
+    case "LOADING_HISTORY":
+      return "35%";
+    case "WAITING_SIGNAL":
+      return "52%";
+    case "SIGNAL_TRIGGERED":
+      return "72%";
+    case "ENTERING_SPREAD":
+      return "88%";
+    default:
+      return "25%";
+  }
+};
+
+const WaitingSpreadCard: React.FC<{
+  spread: IntradaySpread;
+  spreadType: Props["spreadType"];
+}> = ({ spread, spreadType }) => {
+  const progressWidth = getProgressWidth(spread.ui_state || spread.status);
+  const cardTitle = waitingTitleMap[spreadType];
+
+  return (
+    <div
+      style={{
+        marginTop: "18px",
+        borderRadius: "24px",
+        padding: "24px",
+        background:
+          "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(12,18,30,0.94))",
+        border: "1px solid rgba(255,215,0,0.12)",
+        boxShadow: "0 10px 35px rgba(0,0,0,0.45)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "18px",
+        }}
+      >
+        <div
+          style={{
+            width: "74px",
+            height: "74px",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at center, rgba(30,30,30,0.95) 35%, rgba(10,10,10,1) 70%)",
+            border: "5px solid rgba(250,204,21,0.18)",
+            borderLeftColor: "#facc15",
+            boxSizing: "border-box",
+            flexShrink: 0,
+          }}
+        />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "26px",
+              fontWeight: 800,
+              color: "#f8fafc",
+              lineHeight: 1.1,
+            }}
+          >
+            {cardTitle}
+          </h2>
+
+          <p
+            style={{
+              margin: "10px 0 0 0",
+              color: "#d1d5db",
+              fontSize: "15px",
+              fontWeight: 500,
+            }}
+          >
+            {spread.message || "Waiting for strategy state update."}
+          </p>
+
+          {spread.progress_text ? (
+            <p
+              style={{
+                margin: "8px 0 0 0",
+                color: "#facc15",
+                fontSize: "14px",
+                fontWeight: 600,
+              }}
+            >
+              {spread.progress_text}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "20px",
+          width: "100%",
+          height: "8px",
+          borderRadius: "999px",
+          background: "rgba(255,255,255,0.10)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: progressWidth,
+            height: "100%",
+            borderRadius: "999px",
+            background: "linear-gradient(90deg, #facc15, #eab308)",
+            boxShadow: "0 0 14px rgba(250,204,21,0.35)",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          marginTop: "20px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "14px",
+            background: "rgba(255,255,255,0.06)",
+            color: "#e5e7eb",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          State: <span style={{ fontWeight: 800 }}>{spread.ui_state || spread.status}</span>
+        </div>
+
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "14px",
+            background: "rgba(255,255,255,0.06)",
+            color: "#e5e7eb",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          Stop Loss: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.stop_loss)}</span>
+        </div>
+
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "14px",
+            background: "rgba(255,255,255,0.06)",
+            color: "#e5e7eb",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          Target: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.target)}</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
   const [spreads, setSpreads] = useState<IntradaySpread[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let intervalId: number | undefined;
@@ -36,6 +227,7 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
     const load = async () => {
       try {
         const data = await fetchAllIntradaySpreads();
+
         if (!isMounted) return;
 
         const allSpreads = Object.values(data || {});
@@ -70,73 +262,155 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
   const summary = useMemo(() => {
     const openCount = spreads.filter((s) => s.status === "OPEN").length;
     const totalPnl = spreads.reduce((acc, item) => acc + (item.net_pnl || 0), 0);
+
     return { openCount, totalPnl };
   }, [spreads]);
 
+  const waitingSpreads = spreads.filter((spread) =>
+    waitingStates.has(spread.ui_state || spread.status)
+  );
+
+  const liveSpreads = spreads.filter(
+    (spread) => !waitingStates.has(spread.ui_state || spread.status)
+  );
+
+  const pnlColor =
+    summary.totalPnl > 0
+      ? "#22c55e"
+      : summary.totalPnl < 0
+      ? "#ef4444"
+      : "#22c55e";
+
   return (
-    <div style={{ display: "grid", gap: "18px" }}>
+    <div>
       <div
         style={{
-          borderRadius: "18px",
-          padding: "18px",
+          borderRadius: "24px",
+          padding: "24px 20px",
           background:
-            "linear-gradient(180deg, rgba(12,18,32,0.95), rgba(17,24,39,0.95))",
-          border: "1px solid rgba(255,255,255,0.08)",
+            "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(10,20,40,0.92))",
+          border: "1px solid rgba(255,215,0,0.10)",
+          boxShadow: "0 10px 35px rgba(0,0,0,0.35)",
+          marginBottom: "18px",
         }}
       >
-        <div style={{ fontSize: "28px", fontWeight: 800, color: "#f8fafc" }}>
+        <h2
+          style={{
+            margin: 0,
+            color: "#f8fafc",
+            fontSize: "28px",
+            fontWeight: 800,
+          }}
+        >
           {titleMap[spreadType]}
-        </div>
-        <div style={{ color: "#94a3b8", marginTop: "6px", fontSize: "14px" }}>
+        </h2>
+
+        <p
+          style={{
+            margin: "8px 0 18px 0",
+            color: "#cbd5e1",
+            fontSize: "15px",
+          }}
+        >
           {subtitleMap[spreadType]}
-        </div>
+        </p>
 
         <div
           style={{
             display: "flex",
             gap: "12px",
             flexWrap: "wrap",
-            marginTop: "16px",
           }}
         >
           <div
             style={{
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.05)",
-              color: "#e2e8f0",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              background: "rgba(255,255,255,0.06)",
+              color: "#f8fafc",
               fontSize: "14px",
+              fontWeight: 600,
             }}
           >
-            Open Trades: <strong>{summary.openCount}</strong>
+            Open Trades: <span style={{ fontWeight: 800 }}>{summary.openCount}</span>
           </div>
+
           <div
             style={{
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.05)",
-              color: summary.totalPnl >= 0 ? "#22c55e" : "#ef4444",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              background: "rgba(255,255,255,0.06)",
+              color: pnlColor,
               fontSize: "14px",
+              fontWeight: 700,
             }}
           >
-            Total Net PnL: <strong>₹ {summary.totalPnl.toFixed(2)}</strong>
+            Total Net PnL: ₹ {summary.totalPnl.toFixed(2)}
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ color: "#cbd5e1", fontSize: "15px" }}>Loading live spreads...</div>
+        <div
+          style={{
+            borderRadius: "24px",
+            padding: "24px",
+            background:
+              "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(10,20,40,0.92))",
+            border: "1px solid rgba(255,215,0,0.10)",
+            color: "#e5e7eb",
+          }}
+        >
+          Loading live spreads...
+        </div>
       ) : error ? (
-        <div style={{ color: "#f87171", fontSize: "15px" }}>{error}</div>
-      ) : spreads.length === 0 ? (
-        <div style={{ color: "#94a3b8", fontSize: "15px" }}>
+        <div
+          style={{
+            borderRadius: "24px",
+            padding: "24px",
+            background:
+              "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(10,20,40,0.92))",
+            border: "1px solid rgba(239,68,68,0.18)",
+            color: "#fca5a5",
+          }}
+        >
+          {error}
+        </div>
+      ) : waitingSpreads.length > 0 ? (
+        <div>
+          {waitingSpreads.map((spread) => (
+            <WaitingSpreadCard
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
+              spread={spread}
+              spreadType={spreadType}
+            />
+          ))}
+
+          {liveSpreads.map((spread) => (
+            <IntradaySpreadCard
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
+              spread={spread}
+            />
+          ))}
+        </div>
+      ) : liveSpreads.length === 0 ? (
+        <div
+          style={{
+            borderRadius: "24px",
+            padding: "24px",
+            background:
+              "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(10,20,40,0.92))",
+            border: "1px solid rgba(255,215,0,0.10)",
+            color: "#e5e7eb",
+          }}
+        >
           {emptyMessageMap[spreadType]}
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "16px" }}>
-          {spreads.map((spread) => (
+        <div>
+          {liveSpreads.map((spread) => (
             <IntradaySpreadCard
-              key={spread.strategy_name}
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
               spread={spread}
             />
           ))}
