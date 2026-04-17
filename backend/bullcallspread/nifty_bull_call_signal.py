@@ -32,8 +32,10 @@ QUANTITY = 65
 STOP_LOSS_AMOUNT = -1500.0
 TARGET_AMOUNT = 3000.0
 
-TARGET_HOUR = 9
-TARGET_MINUTE = 15
+MARKET_OPEN_HOUR = 9
+MARKET_OPEN_MINUTE = 15
+MARKET_CLOSE_HOUR = 15
+MARKET_CLOSE_MINUTE = 30
 
 LOG_FILE_NAME = "bull_call_spread.log"
 
@@ -177,6 +179,101 @@ def publish_spread_update(payload: dict) -> None:
 # =========================================================
 # ===================== Utilities =========================
 # =========================================================
+def current_ist() -> datetime:
+    return datetime.now(IST)
+
+
+def get_market_open_close_ist(ref: Optional[datetime] = None) -> tuple[datetime, datetime]:
+    now_ist = ref or current_ist()
+    market_open = now_ist.replace(
+        hour=MARKET_OPEN_HOUR,
+        minute=MARKET_OPEN_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    market_close = now_ist.replace(
+        hour=MARKET_CLOSE_HOUR,
+        minute=MARKET_CLOSE_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    return market_open, market_close
+
+
+def is_weekday_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    return now_ist.weekday() < 5
+
+
+def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    _, market_close = get_market_open_close_ist(now_ist)
+    return now_ist > market_close
+
+
+def wait_until_market_open() -> None:
+    now_ist = current_ist()
+    market_open, market_close = get_market_open_close_ist(now_ist)
+
+    if now_ist > market_close:
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Trading window closed for the day.",
+            progress_text=None,
+            is_loading=False,
+        )
+        log_and_print("It is after 3:30 PM IST. Strategy will not run today.")
+        raise SystemExit
+
+    if now_ist >= market_open:
+        log_and_print("Market is already open in IST -- running strategy now.")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="BOOTING",
+            message="Market is open. Initializing strategy...",
+            progress_text="Preparing market context...",
+            is_loading=True,
+        )
+        return
+
+    sleep_seconds = int((market_open - now_ist).total_seconds())
+
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        index_name=INDEX_NAME,
+        spread_type=SPREAD_TYPE,
+        ui_state="WAITING_START_TIME",
+        message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
+        progress_text=f"Start in {sleep_seconds} seconds",
+        is_loading=True,
+    )
+
+    log_and_print(f"Waiting until {market_open.strftime('%H:%M:%S')} IST ({sleep_seconds} seconds)")
+    try:
+        for remaining in range(sleep_seconds, 0, -1):
+            print(f"\rTime left: {timedelta(seconds=remaining)}", end="")
+            if remaining % 5 == 0 or remaining <= 10:
+                publish_strategy_state(
+                    strategy_name=STRATEGY_NAME,
+                    index_name=INDEX_NAME,
+                    spread_type=SPREAD_TYPE,
+                    ui_state="WAITING_START_TIME",
+                    message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
+                    progress_text=f"Start in {remaining} seconds",
+                    is_loading=True,
+                )
+            time.sleep(1)
+        print()
+    except KeyboardInterrupt:
+        print("\nCountdown interrupted by user.")
+        raise SystemExit
+
+
 def load_creds() -> dict:
     """
     Read credentials from Render environment variables.
@@ -190,55 +287,6 @@ def load_creds() -> dict:
         "z_access_token": os.environ["Z_ACCESS_TOKEN"],
         "i_expiry_date_nifty": os.environ["I_EXPIRY_DATE_NIFTY"],
     }
-
-
-def wait_until(target_hour: int, target_minute: int) -> None:
-    now = datetime.now()
-    run_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-
-    if now < run_time:
-        sleep_seconds = int((run_time - now).total_seconds())
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="WAITING_START_TIME",
-            message=f"Waiting until {run_time.strftime('%H:%M:%S')} to start strategy.",
-            progress_text=f"Start in {sleep_seconds} seconds",
-            is_loading=True,
-        )
-
-        log_and_print(f"Waiting until {run_time.strftime('%H:%M:%S')} ({sleep_seconds} seconds)")
-        try:
-            for remaining in range(sleep_seconds, 0, -1):
-                print(f"\rTime left: {timedelta(seconds=remaining)}", end="")
-                if remaining % 5 == 0 or remaining <= 10:
-                    publish_strategy_state(
-                        strategy_name=STRATEGY_NAME,
-                        index_name=INDEX_NAME,
-                        spread_type=SPREAD_TYPE,
-                        ui_state="WAITING_START_TIME",
-                        message=f"Waiting until {run_time.strftime('%H:%M:%S')} to start strategy.",
-                        progress_text=f"Start in {remaining} seconds",
-                        is_loading=True,
-                    )
-                time.sleep(1)
-            print()
-        except KeyboardInterrupt:
-            print("\nCountdown interrupted by user.")
-            raise SystemExit
-    else:
-        log_and_print(f"It's after {run_time.strftime('%H:%M:%S')} -- running strategy now.")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="BOOTING",
-            message="Start time reached. Booting strategy...",
-            progress_text="Initializing components",
-            is_loading=True,
-        )
 
 
 # =========================================================
@@ -437,6 +485,13 @@ class PaperSpreadMTMTracker:
 
         def on_ticks(ws, ticks):
             if not self.is_running:
+                return
+
+            if is_after_market_close_ist():
+                log_and_print("Market is closed in IST. Closing paper positions.", "info")
+                self.paper_book.close_all_positions()
+                self._publish_current_state()
+                self.stop()
                 return
 
             for tick in ticks:
@@ -776,8 +831,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
         if len(self.onemin_bars) < 55:
             publish_strategy_state(
@@ -894,6 +949,19 @@ class EMACrossover1Min:
             if self._stop_flag:
                 return
 
+            if is_after_market_close_ist():
+                self._stop_nifty_stream()
+                publish_strategy_state(
+                    strategy_name=STRATEGY_NAME,
+                    index_name=INDEX_NAME,
+                    spread_type=SPREAD_TYPE,
+                    ui_state="STOPPED",
+                    message="Trading window closed for the day.",
+                    progress_text=None,
+                    is_loading=False,
+                )
+                return
+
             ltt_utc = datetime.utcnow()
 
             for tick in ticks:
@@ -958,7 +1026,22 @@ def main():
         is_loading=True,
     )
 
-    wait_until(TARGET_HOUR, TARGET_MINUTE)
+    now_ist = current_ist()
+
+    if not is_weekday_ist(now_ist):
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy is inactive outside working days.",
+            progress_text=None,
+            is_loading=False,
+        )
+        log_and_print("Today is not a working day. Strategy will not run.")
+        return
+
+    wait_until_market_open()
 
     try:
         cred = load_creds()
