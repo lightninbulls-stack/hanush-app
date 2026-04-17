@@ -32,7 +32,7 @@ const Auth: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-start",
-        paddingLeft: "30%",
+        paddingLeft: "max(40px, 6%)", // ✅ PERFECT LEFT SPACING
         background: "#020617",
         overflow: "hidden",
       }}
@@ -78,12 +78,13 @@ const Auth: React.FC = () => {
           backdropFilter: "blur(10px)",
           border: "1px solid rgba(255,215,0,0.2)",
           boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+          transform: "translateY(-10px)", // ✅ balanced vertical alignment
         }}
       >
         {/* 🔥 Title */}
         <h1
           style={{
-            fontSize: "28px", // ~3xl
+            fontSize: "28px",
             fontWeight: 800,
             color: "#fff",
             marginBottom: "6px",
