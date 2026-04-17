@@ -168,11 +168,9 @@ const Auth: React.FC = () => {
         alignItems: "center",
         justifyContent: "center",
         padding: "24px",
-        background:
-          "radial-gradient(circle at top, rgba(30,41,59,0.7), rgba(2,6,23,1))",
+        background: "#020617",
       }}
     >
-      {/* Fallback background */}
       <div
         style={{
           position: "absolute",
@@ -182,7 +180,6 @@ const Auth: React.FC = () => {
         }}
       />
 
-      {/* Background video */}
       <video
         autoPlay
         muted
@@ -202,7 +199,6 @@ const Auth: React.FC = () => {
         Your browser does not support the video tag.
       </video>
 
-      {/* Dark overlay */}
       <div
         style={{
           position: "absolute",
@@ -213,7 +209,6 @@ const Auth: React.FC = () => {
         }}
       />
 
-      {/* Optional subtle glow */}
       <div
         style={{
           position: "absolute",
@@ -225,7 +220,6 @@ const Auth: React.FC = () => {
         }}
       />
 
-      {/* Auth card */}
       <div
         style={{
           position: "relative",
