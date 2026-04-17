@@ -14,6 +14,7 @@ from typing import Optional
 
 import pandas as pd
 import pytz
+import yaml
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
@@ -287,6 +288,24 @@ def load_creds() -> dict:
         "z_access_token": os.environ["Z_ACCESS_TOKEN"],
         "i_expiry_date_nifty": os.environ["I_EXPIRY_DATE_NIFTY"],
     }
+
+
+def ensure_legacy_cred_file() -> None:
+    """
+    Compatibility bridge for helper modules that still read cred.yml.
+    Creates cred.yml from Render environment variables.
+    """
+    cred = load_creds()
+    payload = {
+        "z_api_key": cred["z_api_key"],
+        "z_access_token": cred["z_access_token"],
+        "i_expiry_date_nifty": cred["i_expiry_date_nifty"],
+    }
+
+    with open("cred.yml", "w", encoding="utf-8") as f:
+        yaml.safe_dump(payload, f, sort_keys=False)
+
+    log_and_print("Generated legacy cred.yml from environment variables.")
 
 
 # =========================================================
@@ -569,6 +588,7 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
+        ensure_legacy_cred_file()
         from option_spreads import nfo_util
 
         publish_strategy_state(
