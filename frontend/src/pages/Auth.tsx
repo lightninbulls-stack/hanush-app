@@ -7,15 +7,33 @@ import {
 
 type AuthMode = "login" | "signup";
 
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
+  outline: "none",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: "8px",
+  color: "#cbd5e1",
+  fontSize: "14px",
+  fontWeight: 500,
+};
+
 const Auth: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>("login");
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -90,7 +108,6 @@ const Auth: React.FC = () => {
 
       const result = await loginUser(phone.trim(), password);
       saveAuthToken(result.access_token);
-
       localStorage.setItem("userPhone", phone.trim());
 
       window.location.href = "/dashboard";
@@ -145,52 +162,105 @@ const Auth: React.FC = () => {
     <div
       style={{
         minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background:
-          "radial-gradient(circle at top, rgba(30,41,59,0.95), rgba(2,6,23,1))",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         padding: "24px",
+        background:
+          "radial-gradient(circle at top, rgba(30,41,59,0.7), rgba(2,6,23,1))",
       }}
     >
-      <div
+      {/* Background video */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
         style={{
+          position: "absolute",
+          inset: 0,
           width: "100%",
-          maxWidth: "460px",
-          borderRadius: "24px",
-          padding: "28px",
-          background:
-            "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(30,41,59,0.96))",
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 16px 40px rgba(0,0,0,0.35)",
+          height: "100%",
+          objectFit: "cover",
+          zIndex: 0,
         }}
       >
-        <div style={{ marginBottom: "24px", textAlign: "center" }}>
-          <div
+        <source src="/videos/login-bg.mp4" type="video/mp4" />
+      </video>
+
+      {/* Dark overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          background:
+            "linear-gradient(135deg, rgba(2,6,23,0.82), rgba(15,23,42,0.68))",
+        }}
+      />
+
+      {/* Optional subtle glow */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          background:
+            "radial-gradient(circle at center, rgba(250,204,21,0.08), transparent 45%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Auth card */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          width: "100%",
+          maxWidth: "490px",
+          borderRadius: "28px",
+          padding: "36px 30px",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(15, 23, 42, 0.68)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          boxShadow: "0 20px 70px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+          <h1
             style={{
+              margin: 0,
               fontSize: "28px",
               fontWeight: 800,
               color: "#f8fafc",
-              marginBottom: "8px",
+              letterSpacing: "-0.02em",
             }}
           >
             Lightninbull
-          </div>
-          <div
+          </h1>
+
+          <p
             style={{
+              marginTop: "10px",
+              marginBottom: 0,
               color: "#94a3b8",
-              fontSize: "14px",
+              fontSize: "15px",
             }}
           >
             Sign in to access your dashboard
-          </div>
+          </p>
         </div>
 
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "10px",
-            marginBottom: "22px",
+            gap: "12px",
+            marginBottom: "24px",
           }}
         >
           <button
@@ -238,20 +308,11 @@ const Auth: React.FC = () => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: "14px" }}>
+        <form onSubmit={handleSubmit}>
           {mode === "signup" && (
             <>
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    color: "#cbd5e1",
-                    fontSize: "13px",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Name
-                </label>
+              <div style={{ marginBottom: "18px" }}>
+                <label style={labelStyle}>Name</label>
                 <input
                   type="text"
                   value={name}
@@ -261,17 +322,8 @@ const Auth: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    color: "#cbd5e1",
-                    fontSize: "13px",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Email
-                </label>
+              <div style={{ marginBottom: "18px" }}>
+                <label style={labelStyle}>Email</label>
                 <input
                   type="email"
                   value={email}
@@ -283,17 +335,8 @@ const Auth: React.FC = () => {
             </>
           )}
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "#cbd5e1",
-                fontSize: "13px",
-                marginBottom: "6px",
-              }}
-            >
-              Phone Number
-            </label>
+          <div style={{ marginBottom: "18px" }}>
+            <label style={labelStyle}>Phone Number</label>
             <input
               type="text"
               value={phone}
@@ -303,17 +346,8 @@ const Auth: React.FC = () => {
             />
           </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "#cbd5e1",
-                fontSize: "13px",
-                marginBottom: "6px",
-              }}
-            >
-              Password
-            </label>
+          <div style={{ marginBottom: "18px" }}>
+            <label style={labelStyle}>Password</label>
             <input
               type="password"
               value={password}
@@ -324,17 +358,8 @@ const Auth: React.FC = () => {
           </div>
 
           {mode === "signup" && (
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  color: "#cbd5e1",
-                  fontSize: "13px",
-                  marginBottom: "6px",
-                }}
-              >
-                Confirm Password
-              </label>
+            <div style={{ marginBottom: "18px" }}>
+              <label style={labelStyle}>Confirm Password</label>
               <input
                 type="password"
                 value={confirmPassword}
@@ -348,12 +373,13 @@ const Auth: React.FC = () => {
           {error && (
             <div
               style={{
-                color: "#f87171",
-                fontSize: "14px",
-                background: "rgba(248,113,113,0.08)",
-                border: "1px solid rgba(248,113,113,0.2)",
+                marginBottom: "16px",
+                padding: "12px 14px",
                 borderRadius: "12px",
-                padding: "10px 12px",
+                background: "rgba(239,68,68,0.12)",
+                border: "1px solid rgba(239,68,68,0.25)",
+                color: "#fecaca",
+                fontSize: "14px",
               }}
             >
               {error}
@@ -363,12 +389,13 @@ const Auth: React.FC = () => {
           {success && (
             <div
               style={{
-                color: "#4ade80",
-                fontSize: "14px",
-                background: "rgba(74,222,128,0.08)",
-                border: "1px solid rgba(74,222,128,0.2)",
+                marginBottom: "16px",
+                padding: "12px 14px",
                 borderRadius: "12px",
-                padding: "10px 12px",
+                background: "rgba(34,197,94,0.12)",
+                border: "1px solid rgba(34,197,94,0.25)",
+                color: "#bbf7d0",
+                fontSize: "14px",
               }}
             >
               {success}
@@ -379,17 +406,18 @@ const Auth: React.FC = () => {
             type="submit"
             disabled={loading}
             style={{
+              width: "100%",
               marginTop: "8px",
               padding: "14px 16px",
               borderRadius: "14px",
               border: "none",
-              cursor: loading ? "not-allowed" : "pointer",
-              background:
-                "linear-gradient(90deg, rgba(250,204,21,0.95), rgba(234,179,8,0.95))",
-              color: "#111827",
+              background: "#facc15",
+              color: "#0f172a",
+              fontSize: "18px",
               fontWeight: 800,
-              fontSize: "15px",
-              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.8 : 1,
+              boxShadow: "0 10px 30px rgba(250,204,21,0.18)",
             }}
           >
             {loading
@@ -404,18 +432,6 @@ const Auth: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#f8fafc",
-  outline: "none",
-  fontSize: "14px",
-  boxSizing: "border-box",
 };
 
 export default Auth;
