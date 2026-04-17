@@ -172,13 +172,23 @@ const Auth: React.FC = () => {
           "radial-gradient(circle at top, rgba(30,41,59,0.7), rgba(2,6,23,1))",
       }}
     >
+      {/* Fallback background */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "#020617",
+          zIndex: 0,
+        }}
+      />
+
       {/* Background video */}
       <video
         autoPlay
         muted
         loop
         playsInline
-        preload="auto"
+        preload="none"
         style={{
           position: "absolute",
           inset: 0,
@@ -189,6 +199,7 @@ const Auth: React.FC = () => {
         }}
       >
         <source src="/videos/login-bg.mp4" type="video/mp4" />
+        Your browser does not support the video tag.
       </video>
 
       {/* Dark overlay */}
@@ -425,8 +436,8 @@ const Auth: React.FC = () => {
                 ? "Logging in..."
                 : "Creating account..."
               : mode === "login"
-              ? "Login"
-              : "Create Account"}
+                ? "Login"
+                : "Create Account"}
           </button>
         </form>
       </div>
