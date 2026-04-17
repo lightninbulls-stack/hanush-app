@@ -9,19 +9,19 @@ type Props = {
   spreadType: "bull_call" | "bear_put";
 };
 
-const emptyMessageMap = {
-  bull_call: "No live  call debit  spreads available.",
-  bear_put: "No live  put  debit spreads available.",
+const emptyMessageMap: Record<Props["spreadType"], string> = {
+  bull_call: "No live call debit spreads available.",
+  bear_put: "No live put debit spreads available.",
 };
 
-const titleMap = {
-  bull_call: " Call debit Spreads",
-  bear_put: " Put debit Spreads",
+const titleMap: Record<Props["spreadType"], string> = {
+  bull_call: "Call Debit Spreads",
+  bear_put: "Put Debit Spreads",
 };
 
-const subtitleMap = {
-  bull_call: "Live intraday index  call debit spread trades with  MTM.",
-  bear_put: "Live intraday index  put debit spread trades with  MTM.",
+const subtitleMap: Record<Props["spreadType"], string> = {
+  bull_call: "Live intraday index call debit spread trades with MTM.",
+  bear_put: "Live intraday index put debit spread trades with MTM.",
 };
 
 const waitingStates = new Set([
@@ -35,94 +35,132 @@ const waitingStates = new Set([
 
 function WaitingSpreadCard({ spread }: { spread: IntradaySpread }) {
   const title =
-    spread.spread_type === "bear_put" ? "Bear Put Spreads" : "Bull Call Spreads";
+    spread.spread_type === "bear_put"
+      ? "Bear Put Spreads"
+      : "Bull Call Spreads";
 
   return (
     <div
+      className="dashboard-card"
       style={{
-        borderRadius: "18px",
-        padding: "22px",
-        background:
-          "linear-gradient(180deg, rgba(12,18,32,0.95), rgba(17,24,39,0.95))",
-        border: "1px solid rgba(255,255,255,0.08)",
+        padding: "18px",
+        borderRadius: "16px",
+        marginBottom: "16px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "18px" }}>
-        <div className="signal-loader-wrap">
-          <div className="signal-loader-ring"></div>
-          <div className="signal-loader-core"></div>
-        </div>
-
-        <div>
-          <div style={{ fontSize: "28px", fontWeight: 800, color: "#f8fafc" }}>
-            {title}
-          </div>
-          <div style={{ color: "#cbd5e1", marginTop: "8px", fontSize: "15px" }}>
-            {spread.message || "Strategy is running..."}
-          </div>
-          {spread.progress_text ? (
-            <div style={{ color: "#fbbf24", marginTop: "6px", fontSize: "14px" }}>
-              {spread.progress_text}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: "20px",
-          height: "8px",
-          width: "100%",
-          overflow: "hidden",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.08)",
-        }}
-      >
-        <div className="loading-bar"></div>
-      </div>
-
       <div
         style={{
           display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           gap: "12px",
+          marginBottom: "10px",
           flexWrap: "wrap",
-          marginTop: "16px",
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "var(--primary-gold, #facc15)",
+          }}
+        >
+          {title}
+        </h3>
+
+        <span
+          style={{
+            padding: "6px 10px",
+            borderRadius: "999px",
+            border: "1px solid rgba(255,215,0,0.18)",
+            background: "rgba(255,255,255,0.04)",
+            color: "#facc15",
+            fontSize: "12px",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+          }}
+        >
+          {spread.ui_state || spread.status}
+        </span>
+      </div>
+
+      <p
+        style={{
+          margin: "0 0 10px 0",
+          color: "#d1d5db",
+          fontSize: "15px",
+          lineHeight: 1.5,
+        }}
+      >
+        {spread.message || "Strategy is running..."}
+      </p>
+
+      {spread.progress_text ? (
+        <p
+          style={{
+            margin: "0 0 14px 0",
+            color: "#94a3b8",
+            fontSize: "13px",
+          }}
+        >
+          {spread.progress_text}
+        </p>
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: "12px",
         }}
       >
         <div
           style={{
-            padding: "10px 12px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,215,0,0.10)",
             borderRadius: "12px",
-            background: "rgba(255,255,255,0.05)",
-            color: "#e2e8f0",
-            fontSize: "14px",
+            padding: "12px",
           }}
         >
-          State: <strong>{spread.ui_state || spread.status}</strong>
+          <div style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "4px" }}>
+            State
+          </div>
+          <div style={{ color: "#f8fafc", fontWeight: 700 }}>
+            {spread.ui_state || spread.status}
+          </div>
         </div>
 
         <div
           style={{
-            padding: "10px 12px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,215,0,0.10)",
             borderRadius: "12px",
-            background: "rgba(255,255,255,0.05)",
-            color: "#e2e8f0",
-            fontSize: "14px",
+            padding: "12px",
           }}
         >
-          Stop Loss: <strong>₹ {spread.stop_loss?.toFixed(2) ?? "--"}</strong>
+          <div style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "4px" }}>
+            Stop Loss
+          </div>
+          <div style={{ color: "#f8fafc", fontWeight: 700 }}>
+            ₹ {spread.stop_loss?.toFixed(2) ?? "--"}
+          </div>
         </div>
 
         <div
           style={{
-            padding: "10px 12px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,215,0,0.10)",
             borderRadius: "12px",
-            background: "rgba(255,255,255,0.05)",
-            color: "#e2e8f0",
-            fontSize: "14px",
+            padding: "12px",
           }}
         >
-          Target: <strong>₹ {spread.target?.toFixed(2) ?? "--"}</strong>
+          <div style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "4px" }}>
+            Target
+          </div>
+          <div style={{ color: "#f8fafc", fontWeight: 700 }}>
+            ₹ {spread.target?.toFixed(2) ?? "--"}
+          </div>
         </div>
       </div>
     </div>
@@ -131,8 +169,8 @@ function WaitingSpreadCard({ spread }: { spread: IntradaySpread }) {
 
 const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
   const [spreads, setSpreads] = useState<IntradaySpread[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let intervalId: number | undefined;
@@ -141,6 +179,7 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
     const load = async () => {
       try {
         const data = await fetchAllIntradaySpreads();
+
         if (!isMounted) return;
 
         const allSpreads = Object.values(data || {});
@@ -175,6 +214,7 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
   const summary = useMemo(() => {
     const openCount = spreads.filter((s) => s.status === "OPEN").length;
     const totalPnl = spreads.reduce((acc, item) => acc + (item.net_pnl || 0), 0);
+
     return { openCount, totalPnl };
   }, [spreads]);
 
@@ -186,86 +226,156 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
     (spread) => !waitingStates.has(spread.ui_state || spread.status)
   );
 
+  const pnlClass =
+    summary.totalPnl > 0
+      ? "pnl pnl-positive"
+      : summary.totalPnl < 0
+      ? "pnl pnl-negative"
+      : "pnl pnl-neutral";
+
   return (
-    <div style={{ display: "grid", gap: "18px" }}>
+    <div className="dashboard-panel-wrap">
       <div
+        className="dashboard-card"
         style={{
+          padding: "22px",
           borderRadius: "18px",
-          padding: "18px",
-          background:
-            "linear-gradient(180deg, rgba(12,18,32,0.95), rgba(17,24,39,0.95))",
-          border: "1px solid rgba(255,255,255,0.08)",
+          marginBottom: "18px",
         }}
       >
-        <div style={{ fontSize: "28px", fontWeight: 800, color: "#f8fafc" }}>
-          {titleMap[spreadType]}
-        </div>
-        <div style={{ color: "#94a3b8", marginTop: "6px", fontSize: "14px" }}>
-          {subtitleMap[spreadType]}
-        </div>
-
         <div
           style={{
             display: "flex",
-            gap: "12px",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "16px",
             flexWrap: "wrap",
-            marginTop: "16px",
           }}
         >
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.05)",
-              color: "#e2e8f0",
-              fontSize: "14px",
-            }}
-          >
-            Open Trades: <strong>{summary.openCount}</strong>
+          <div>
+            <h2
+              className="glow-text"
+              style={{
+                margin: 0,
+                fontSize: "28px",
+                fontWeight: 800,
+              }}
+            >
+              {titleMap[spreadType]}
+            </h2>
+
+            <p
+              style={{
+                margin: "8px 0 0 0",
+                color: "#cbd5e1",
+                fontSize: "15px",
+              }}
+            >
+              {subtitleMap[spreadType]}
+            </p>
           </div>
+
           <div
             style={{
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.05)",
-              color: summary.totalPnl >= 0 ? "#22c55e" : "#ef4444",
-              fontSize: "14px",
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
             }}
           >
-            Total Net PnL: <strong>₹ {summary.totalPnl.toFixed(2)}</strong>
+            <div
+              style={{
+                minWidth: "140px",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,215,0,0.12)",
+              }}
+            >
+              <div
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "12px",
+                  marginBottom: "4px",
+                }}
+              >
+                Open Trades
+              </div>
+              <div
+                style={{
+                  color: "#f8fafc",
+                  fontWeight: 800,
+                  fontSize: "22px",
+                }}
+              >
+                {summary.openCount}
+              </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: "180px",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,215,0,0.12)",
+              }}
+            >
+              <div
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "12px",
+                  marginBottom: "4px",
+                }}
+              >
+                Total Net PnL
+              </div>
+              <div
+                className={pnlClass}
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 800,
+                }}
+              >
+                ₹ {summary.totalPnl.toFixed(2)}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ color: "#cbd5e1", fontSize: "15px" }}>Loading live spreads...</div>
+        <div className="dashboard-card" style={{ padding: "20px", borderRadius: "16px" }}>
+          <p style={{ margin: 0, color: "#cbd5e1" }}>Loading live spreads...</p>
+        </div>
       ) : error ? (
-        <div style={{ color: "#f87171", fontSize: "15px" }}>{error}</div>
+        <div className="dashboard-card" style={{ padding: "20px", borderRadius: "16px" }}>
+          <p style={{ margin: 0, color: "#fca5a5" }}>{error}</p>
+        </div>
       ) : waitingSpreads.length > 0 ? (
-        <div style={{ display: "grid", gap: "16px" }}>
+        <div>
           {waitingSpreads.map((spread) => (
             <WaitingSpreadCard
-              key={`${spread.strategy_name}-${spread.updated_at}`}
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
               spread={spread}
             />
           ))}
 
           {liveSpreads.map((spread) => (
             <IntradaySpreadCard
-              key={spread.strategy_name}
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
               spread={spread}
             />
           ))}
         </div>
       ) : liveSpreads.length === 0 ? (
-        <div style={{ color: "#94a3b8", fontSize: "15px" }}>
-          {emptyMessageMap[spreadType]}
+        <div className="dashboard-card" style={{ padding: "20px", borderRadius: "16px" }}>
+          <p style={{ margin: 0, color: "#cbd5e1" }}>{emptyMessageMap[spreadType]}</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "16px" }}>
+        <div>
           {liveSpreads.map((spread) => (
             <IntradaySpreadCard
-              key={spread.strategy_name}
+              key={`${spread.index}-${spread.strategy_name}-${spread.updated_at}-${spread.status}`}
               spread={spread}
             />
           ))}
