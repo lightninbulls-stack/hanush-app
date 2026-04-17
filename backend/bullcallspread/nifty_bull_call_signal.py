@@ -32,17 +32,12 @@ QUANTITY = 65
 STOP_LOSS_AMOUNT = -1500.0
 TARGET_AMOUNT = 3000.0
 
-MARKET_OPEN_HOUR = 9
-MARKET_OPEN_MINUTE = 20
-MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
+TARGET_HOUR = 9
+TARGET_MINUTE = 15
 
 LOG_FILE_NAME = "bull_call_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
-
-STRATEGY_RUN_LOCK = threading.Lock()
-STRATEGY_ALREADY_STARTED = False
 
 # =========================================================
 # ===================== Logging ===========================
@@ -124,13 +119,13 @@ def build_spread_payload(
         status = "NO_POSITION"
 
     if status == "OPEN":
-        message = "Debit spread is live."
+        message = "Bull call spread is live."
         is_loading = False
     elif status == "CLOSED":
-        message = "Debit spread closed."
+        message = "Bull call spread closed."
         is_loading = False
     else:
-        message = "Monitoring market conditions for bullish entry trigger..."
+        message = "Waiting for entry signal."
         is_loading = True
 
     return {
@@ -182,107 +177,39 @@ def publish_spread_update(payload: dict) -> None:
 # =========================================================
 # ===================== Utilities =========================
 # =========================================================
-def current_ist() -> datetime:
-    return datetime.now(IST)
-
-
-def get_market_open_close_ist(ref: Optional[datetime] = None) -> tuple[datetime, datetime]:
-    now_ist = ref or current_ist()
-    open_dt = now_ist.replace(
-        hour=MARKET_OPEN_HOUR,
-        minute=MARKET_OPEN_MINUTE,
-        second=0,
-        microsecond=0,
-    )
-    close_dt = now_ist.replace(
-        hour=MARKET_CLOSE_HOUR,
-        minute=MARKET_CLOSE_MINUTE,
-        second=0,
-        microsecond=0,
-    )
-    return open_dt, close_dt
-
-
-def is_weekday_ist(ref: Optional[datetime] = None) -> bool:
-    now_ist = ref or current_ist()
-    return now_ist.weekday() < 5  # Monday=0, Friday=4
-
-
-def is_market_open_ist(ref: Optional[datetime] = None) -> bool:
-    now_ist = ref or current_ist()
-    open_dt, close_dt = get_market_open_close_ist(now_ist)
-    return open_dt <= now_ist <= close_dt
-
-
-def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
-    now_ist = ref or current_ist()
-    _, close_dt = get_market_open_close_ist(now_ist)
-    return now_ist > close_dt
-
-
-def resolve_nifty_expiry() -> str:
-    """
-    Expiry priority:
-    1. I_EXPIRY_DATE_NIFTY_OVERRIDE (exact date, e.g. 20260429 or 2026-04-29)
-    2. I_EXPIRY_WEEKS_AHEAD (0 = nearest Tuesday, 1 = next week, 2 = third week, ...)
-    3. default nearest Tuesday
-    """
-    override = os.getenv("I_EXPIRY_DATE_NIFTY_OVERRIDE", "").strip()
-    if override:
-        cleaned = override.replace("-", "")
-        datetime.strptime(cleaned, "%Y%m%d")
-        return cleaned
-
-    weeks_ahead = int(os.getenv("I_EXPIRY_WEEKS_AHEAD", "0").strip() or "0")
-    if weeks_ahead < 0:
-        weeks_ahead = 0
-
-    today = current_ist().date()
-    days_ahead = (1 - today.weekday()) % 7  # Tuesday is weekday 1
-    if days_ahead == 0:
-        expiry = today
-    else:
-        expiry = today + timedelta(days=days_ahead)
-
-    expiry = expiry + timedelta(days=7 * weeks_ahead)
-    return expiry.strftime("%Y%m%d")
-
-
 def load_creds() -> dict:
     """
+    Read credentials from Render environment variables.
     Required env vars:
       - Z_API_KEY
       - Z_ACCESS_TOKEN
-
-    Optional:
-      - I_EXPIRY_DATE_NIFTY_OVERRIDE
-      - I_EXPIRY_WEEKS_AHEAD
+      - I_EXPIRY_DATE_NIFTY
     """
     return {
         "z_api_key": os.environ["Z_API_KEY"],
         "z_access_token": os.environ["Z_ACCESS_TOKEN"],
-        "i_expiry_date_nifty": resolve_nifty_expiry(),
+        "i_expiry_date_nifty": os.environ["I_EXPIRY_DATE_NIFTY"],
     }
 
 
-def wait_until_market_open() -> None:
-    now_ist = current_ist()
-    open_dt, _ = get_market_open_close_ist(now_ist)
+def wait_until(target_hour: int, target_minute: int) -> None:
+    now = datetime.now()
+    run_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
 
-    if now_ist < open_dt:
-        sleep_seconds = int((open_dt - now_ist).total_seconds())
+    if now < run_time:
+        sleep_seconds = int((run_time - now).total_seconds())
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_START_TIME",
-            message="Waiting for scheduled trading window...",
+            message=f"Waiting until {run_time.strftime('%H:%M:%S')} to start strategy.",
             progress_text=f"Start in {sleep_seconds} seconds",
             is_loading=True,
         )
 
-        log_and_print(f"Waiting until {open_dt.strftime('%H:%M:%S')} ({sleep_seconds} seconds)")
+        log_and_print(f"Waiting until {run_time.strftime('%H:%M:%S')} ({sleep_seconds} seconds)")
         try:
             for remaining in range(sleep_seconds, 0, -1):
                 print(f"\rTime left: {timedelta(seconds=remaining)}", end="")
@@ -292,7 +219,7 @@ def wait_until_market_open() -> None:
                         index_name=INDEX_NAME,
                         spread_type=SPREAD_TYPE,
                         ui_state="WAITING_START_TIME",
-                        message="Waiting for scheduled trading window...",
+                        message=f"Waiting until {run_time.strftime('%H:%M:%S')} to start strategy.",
                         progress_text=f"Start in {remaining} seconds",
                         is_loading=True,
                     )
@@ -302,28 +229,16 @@ def wait_until_market_open() -> None:
             print("\nCountdown interrupted by user.")
             raise SystemExit
     else:
-        log_and_print(f"It's after {open_dt.strftime('%H:%M:%S')} -- running strategy now.")
+        log_and_print(f"It's after {run_time.strftime('%H:%M:%S')} -- running strategy now.")
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="BOOTING",
-            message="Trading window opened. Initializing strategy...",
-            progress_text="Initializing market context...",
+            message="Start time reached. Booting strategy...",
+            progress_text="Initializing components",
             is_loading=True,
         )
-
-
-def publish_stopped_state(message: str) -> None:
-    publish_strategy_state(
-        strategy_name=STRATEGY_NAME,
-        index_name=INDEX_NAME,
-        spread_type=SPREAD_TYPE,
-        ui_state="STOPPED",
-        message=message,
-        progress_text=None,
-        is_loading=False,
-    )
 
 
 # =========================================================
@@ -350,7 +265,7 @@ class PaperOrderBook:
         ref_id = f"PAPER-{uuid.uuid4().hex[:10].upper()}"
         order = {
             "reference_id": ref_id,
-            "timestamp": current_ist(),
+            "timestamp": datetime.now(IST),
             "strategy_name": strategy_name,
             "symbol": symbol,
             "strike": strike,
@@ -399,7 +314,7 @@ class PaperOrderBook:
 
     def close_all_positions(self) -> None:
         with self.lock:
-            now_ts = current_ist()
+            now_ts = datetime.now(IST)
             for order in self.orders:
                 if order["exit_price"] is None:
                     order["exit_price"] = order["ltp"]
@@ -501,6 +416,11 @@ class PaperSpreadMTMTracker:
         except Exception as e:
             log_and_print(f"Error while stopping MTM tracker: {e}", "error")
 
+        orders_df = self.paper_book.get_all_orders()
+        if not orders_df.empty:
+            log_and_print("Final paper positions:")
+            print(orders_df.to_string(index=False))
+
         self._publish_current_state()
 
     def start(self) -> None:
@@ -517,13 +437,6 @@ class PaperSpreadMTMTracker:
 
         def on_ticks(ws, ticks):
             if not self.is_running:
-                return
-
-            if is_after_market_close_ist():
-                log_and_print("Market close reached. Closing paper spread positions.", "info")
-                self.paper_book.close_all_positions()
-                self._publish_current_state()
-                self.stop()
                 return
 
             for tick in ticks:
@@ -549,19 +462,10 @@ class PaperSpreadMTMTracker:
             ws.set_mode(ws.MODE_LTP, tokens)
 
         def on_close(ws, code, reason):
-            log_and_print(f"Option MTM websocket closed: {code} - {reason}", "warning")
+            log_and_print(f"Option MTM WS closed: {code} - {reason}", "warning")
 
         def on_error(ws, code, reason):
-            log_and_print(f"Option MTM websocket error: {code} - {reason}", "error")
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ERROR",
-                message="Runtime issue detected while tracking live positions.",
-                progress_text=None,
-                is_loading=False,
-            )
+            log_and_print(f"Option MTM WS error: {code} - {reason}", "error")
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
@@ -610,15 +514,15 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-        import nfo_util
+        from option_spreads import nfo_util
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Preparing debit spread entry...",
-            progress_text="Preparing spread structure...",
+            message="Signal confirmed. Building bull call spread...",
+            progress_text="Fetching option chain and selecting strikes",
             is_loading=True,
         )
 
@@ -628,12 +532,12 @@ class AlphaBullCall:
         option_chain_ce = nfo_util.bull_call_spreads_nifty(
             df_ce,
             gaps=(150, 200),
-            rr_target=1.7,
+            rr_target=1.5,
             atm_only=False,
         )
 
         if option_chain_ce.empty:
-            raise ValueError("No eligible bull call spread candidates found in option chain.")
+            raise ValueError("No bull call spread candidates found in option chain.")
 
         self.itm_strike = int(option_chain_ce.loc[0, "buy_strike"])
         self.otm_strike = int(option_chain_ce.loc[0, "sell_strike"])
@@ -641,8 +545,12 @@ class AlphaBullCall:
         log_and_print(f"ITM Strike selected: {self.itm_strike}")
         log_and_print(f"OTM Strike selected: {self.otm_strike}")
 
-        expiry_value = self.cred["i_expiry_date_nifty"]
-        self.expiry = str(expiry_value)
+        expiry_date_str = self.cred["i_expiry_date_nifty"]
+        self.expiry = (
+            expiry_date_str.strftime("%Y%m%d")
+            if hasattr(expiry_date_str, "strftime")
+            else str(expiry_date_str)
+        )
 
         buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
         sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
@@ -668,8 +576,8 @@ class AlphaBullCall:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Preparing debit spread entry...",
-            progress_text="Executing spread structure...",
+            message="Spread legs selected successfully.",
+            progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
             is_loading=True,
         )
 
@@ -712,14 +620,19 @@ class AlphaBullCall:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Preparing debit spread entry...",
-            progress_text="Executing spread structure...",
+            message="Signal confirmed. Creating paper bull call spread...",
+            progress_text="Placing paper orders",
             is_loading=True,
         )
 
         log_and_print("Alpha Bull Call PAPER strategy: START", "info")
         self.quote_details()
         log_and_print("Bull call spread paper entry created successfully.", "info")
+
+        orders_df = self.paper_book.get_all_orders()
+        if not orders_df.empty:
+            log_and_print("Current paper order book:")
+            print(orders_df.to_string(index=False))
 
         initial_payload = build_spread_payload(
             paper_book=self.paper_book,
@@ -764,8 +677,8 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="LOADING_HISTORY",
-            message="Initializing market context...",
-            progress_text="Preparing live market conditions...",
+            message="Loading historical data for EMA confirmation...",
+            progress_text="Preparing 1-minute candles",
             is_loading=True,
         )
 
@@ -776,21 +689,26 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Monitoring market conditions for bullish entry trigger...",
-            progress_text="Scanning live market conditions...",
+            message="Historical data loaded. Waiting for bullish EMA crossover...",
+            progress_text="Watching live market for entry signal",
             is_loading=True,
+            extra={
+                "history_rows": int(len(self.onemin_bars)),
+            },
         )
 
         self.prev_minute = None
         self.tick_buffer = pd.DataFrame(columns=["last_price"])
 
+        self.last_signal = 0
         self.last_trade_signal = 0
+
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
 
     def _load_history(self) -> pd.DataFrame:
         try:
-            end_dt = current_ist()
+            end_dt = datetime.today()
             start_dt = end_dt - timedelta(days=self.preload_days)
 
             hist = self.kite.historical_data(
@@ -816,8 +734,8 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="ERROR",
-                message="Unable to initialize market context.",
-                progress_text=None,
+                message=f"History load failed: {str(e)}",
+                progress_text="Check logs",
                 is_loading=False,
             )
             return pd.DataFrame(columns=["open", "high", "low", "close"])
@@ -867,8 +785,8 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Scanning live market conditions...",
+                message="Collecting enough candles for EMA crossover logic...",
+                progress_text=f"Loaded bars: {len(self.onemin_bars)} / 55",
                 is_loading=True,
             )
             return
@@ -882,16 +800,25 @@ class EMACrossover1Min:
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
         if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
+            self.last_signal = 1
             self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
+
+            log_and_print(
+                f"🚀 Bullish crossover @ {self.onemin_bars.index[-1].strftime('%H:%M:%S')} | Price: {latest['close']:.2f}"
+            )
 
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="SIGNAL_TRIGGERED",
-                message="Entry conditions satisfied. Preparing debit spread entry...",
-                progress_text="Executing spread structure...",
+                message=f"Bullish crossover detected at {self.onemin_bars.index[-1].strftime('%H:%M:%S')}",
+                progress_text="Preparing bull call spread entry",
                 is_loading=True,
+                extra={
+                    "signal_price": float(latest["close"]),
+                    "signal_type": "BULLISH_EMA_CROSSOVER",
+                },
             )
 
             if self.last_trade_signal != 1:
@@ -908,22 +835,44 @@ class EMACrossover1Min:
                             index_name=INDEX_NAME,
                             spread_type=SPREAD_TYPE,
                             ui_state="ERROR",
-                            message="Unable to complete entry preparation.",
-                            progress_text=None,
+                            message=f"Spread launch failed: {str(e)}",
+                            progress_text="Check backend logs",
                             is_loading=False,
                         )
 
                 threading.Thread(target=_launch_rider, daemon=True).start()
 
+        elif prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]:
+            self.last_signal = -1
+            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = -1
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Bearish crossover seen. Still waiting for bullish EMA crossover...",
+                progress_text="Monitoring EMA(5,55)",
+                is_loading=True,
+                extra={
+                    "signal_price": float(latest["close"]),
+                    "signal_type": "BEARISH_EMA_CROSSOVER",
+                },
+            )
         else:
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Scanning live market conditions...",
+                message="Live feed running. Waiting for bullish EMA crossover...",
+                progress_text="Monitoring EMA(5,55)",
                 is_loading=True,
+                extra={
+                    "last_price": float(latest["close"]),
+                    "ema5": round(float(latest["EMA5"]), 2),
+                    "ema55": round(float(latest["EMA55"]), 2),
+                },
             )
 
     def start(self, rider: AlphaBullCall) -> None:
@@ -936,18 +885,13 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Monitoring market conditions for bullish entry trigger...",
-            progress_text="Scanning live market conditions...",
+            message="Live feed started. Waiting for bullish EMA crossover...",
+            progress_text="Monitoring EMA(5,55)",
             is_loading=True,
         )
 
         def on_ticks(ws, ticks):
             if self._stop_flag:
-                return
-
-            if is_after_market_close_ist():
-                self._stop_nifty_stream()
-                publish_stopped_state("Trading window closed for the day.")
                 return
 
             ltt_utc = datetime.utcnow()
@@ -974,23 +918,23 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Scanning live market conditions...",
+                message="Connected to live NIFTY feed. Waiting for signal...",
+                progress_text="EMA engine active",
                 is_loading=True,
             )
 
         def on_close(ws, code, reason):
-            log_and_print(f"NIFTY market websocket closed: {code} - {reason}", "warning")
+            log_and_print(f"NIFTY EMA WS closed: {code} - {reason}", "warning")
 
         def on_error(ws, code, reason):
-            log_and_print(f"NIFTY market websocket error: {code} - {reason}", "error")
+            log_and_print(f"NIFTY EMA WS error: {code} - {reason}", "error")
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="ERROR",
-                message="Unable to continue market monitoring.",
-                progress_text=None,
+                message=f"NIFTY websocket error: {reason}",
+                progress_text="Check websocket connection",
                 is_loading=False,
             )
 
@@ -999,42 +943,22 @@ class EMACrossover1Min:
         kws.on_close = on_close
         kws.on_error = on_error
 
-        log_and_print("Starting NIFTY market websocket...")
+        log_and_print("Starting NIFTY EMA WebSocket…")
         kws.connect(threaded=True)
 
 
 def main():
-    global STRATEGY_ALREADY_STARTED
-
-    with STRATEGY_RUN_LOCK:
-        if STRATEGY_ALREADY_STARTED:
-            log_and_print("Strategy has already started for this process. Skipping duplicate start.", "warning")
-            return
-        STRATEGY_ALREADY_STARTED = True
-
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
         index_name=INDEX_NAME,
         spread_type=SPREAD_TYPE,
         ui_state="BOOTING",
-        message="Initializing strategy...",
-        progress_text="Preparing market context...",
+        message="Strategy process started.",
+        progress_text="Initializing",
         is_loading=True,
     )
 
-    now_ist = current_ist()
-
-    if not is_weekday_ist(now_ist):
-        publish_stopped_state("Strategy is inactive outside working days.")
-        log_and_print("Today is not a working day. Strategy will not run.", "info")
-        return
-
-    if is_after_market_close_ist(now_ist):
-        publish_stopped_state("Trading window closed for the day.")
-        log_and_print("It is after market close. Strategy will not run.", "info")
-        return
-
-    wait_until_market_open()
+    wait_until(TARGET_HOUR, TARGET_MINUTE)
 
     try:
         cred = load_creds()
@@ -1048,8 +972,8 @@ def main():
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="BOOTING",
-            message="Initializing strategy...",
-            progress_text="Preparing market context...",
+            message="Kite API authenticated successfully.",
+            progress_text="Preparing strategy objects",
             is_loading=True,
         )
 
@@ -1070,13 +994,22 @@ def main():
             target_amount=TARGET_AMOUNT,
         )
 
-        log_and_print("Starting NIFTY bullish-entry logic...")
+        log_and_print("Starting NIFTY EMA bullish-entry logic...")
         nifty_ema.start(alpha_bull)
-        log_and_print("Strategy monitoring started.")
+
+        log_and_print("Main finished.")
 
     except SystemExit:
         log_and_print("Exited after execution.")
-        publish_stopped_state("Strategy stopped manually.")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy stopped manually.",
+            progress_text=None,
+            is_loading=False,
+        )
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
         publish_strategy_state(
@@ -1084,8 +1017,8 @@ def main():
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ERROR",
-            message="Runtime issue detected during strategy execution.",
-            progress_text=None,
+            message=f"Strategy failed: {str(e)}",
+            progress_text="Check logs",
             is_loading=False,
         )
 
