@@ -276,13 +276,6 @@ def wait_until_market_open() -> None:
 
 
 def load_creds() -> dict:
-    """
-    Read credentials from Render environment variables.
-    Required env vars:
-      - Z_API_KEY
-      - Z_ACCESS_TOKEN
-      - I_EXPIRY_DATE_NIFTY
-    """
     return {
         "z_api_key": os.environ["Z_API_KEY"],
         "z_access_token": os.environ["Z_ACCESS_TOKEN"],
@@ -291,10 +284,6 @@ def load_creds() -> dict:
 
 
 def ensure_legacy_cred_file() -> None:
-    """
-    Compatibility bridge for helper modules that still read cred.yml.
-    Creates cred.yml from Render environment variables.
-    """
     cred = load_creds()
     payload = {
         "z_api_key": cred["z_api_key"],
@@ -777,6 +766,7 @@ class EMACrossover1Min:
 
         self.last_signal = 0
         self.last_trade_signal = 0
+        self.last_tick_log_time = 0.0
 
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
@@ -834,6 +824,9 @@ class EMACrossover1Min:
             ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
 
             if not ohlc.empty:
+                log_and_print(
+                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} Close={ohlc['close'].iloc[-1]:.2f}"
+                )
                 ohlc["signal"] = 0
                 self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
                 self._update_ema_crossover(rider)
@@ -851,8 +844,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
         if len(self.onemin_bars) < 55:
             publish_strategy_state(
@@ -960,8 +953,8 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Live feed started. Waiting for the upside signal...",
-            progress_text="Monitoring the live market ",
+            message="Live feed started. Waiting for bullish EMA crossover...",
+            progress_text="Monitoring EMA(5,55)",
             is_loading=True,
         )
 
@@ -983,6 +976,7 @@ class EMACrossover1Min:
                 return
 
             ltt_utc = datetime.utcnow()
+            latest_price = None
 
             for tick in ticks:
                 if tick.get("instrument_token") != self.token:
@@ -992,7 +986,13 @@ class EMACrossover1Min:
                 if price is None or price <= 0:
                     continue
 
-                self._prepare_1min_df(ltt_utc, float(price), rider)
+                latest_price = float(price)
+                self._prepare_1min_df(ltt_utc, latest_price, rider)
+
+            current_time = time.time()
+            if latest_price is not None and current_time - self.last_tick_log_time >= 5:
+                log_and_print(f"LIVE NIFTY TICK | Price={latest_price:.2f}")
+                self.last_tick_log_time = current_time
 
         def on_connect(ws, response):
             if self._stop_flag:
