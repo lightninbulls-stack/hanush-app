@@ -111,6 +111,7 @@ const Dashboard: React.FC = () => {
 
     handleResize();
     window.addEventListener("resize", handleResize);
+
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
@@ -299,7 +300,7 @@ const Dashboard: React.FC = () => {
     !selectedStock && !NON_FEATURE_TABS.includes(activeTab);
 
   return (
-    <div className="main-layout">
+    <div className="main-layout dashboard-theme">
       <Sidebar
         activeCategory={activeTab}
         setActiveCategory={handleCategoryChange}
@@ -308,7 +309,7 @@ const Dashboard: React.FC = () => {
         onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
-      <div className="content-area">
+      <div className="content-area dashboard-content">
         {isMobile && (
           <div className="mobile-topbar">
             <button
@@ -321,7 +322,7 @@ const Dashboard: React.FC = () => {
         )}
 
         {selectedStock ? (
-          <div className="detail-container">
+          <div className="detail-container dashboard-detail-container">
             <button className="back-btn" onClick={handleBackToDashboard}>
               <span>←</span> Back to Dashboard
             </button>
@@ -330,7 +331,7 @@ const Dashboard: React.FC = () => {
             <StockStats symbol={selectedStock} />
           </div>
         ) : activeTab === "Guide" ? (
-          <div className="glass-card helper-card">
+          <div className="glass-card helper-card dashboard-card">
             <h2 className="glow-text">User Guide</h2>
             <p>
               Welcome to Lightninbull Financial Analytics. This section helps you
@@ -338,16 +339,22 @@ const Dashboard: React.FC = () => {
             </p>
           </div>
         ) : activeTab === "Profile / Settings" ? (
-          <div className="glass-card helper-card">
+          <div className="glass-card helper-card dashboard-card">
             <h2 className="glow-text">Profile & Settings</h2>
             <p>Manage your account preferences and application settings here.</p>
           </div>
         ) : activeTab === "Portfolio Backtest" ? (
-          <PortfolioBacktestPanel />
+          <div className="dashboard-panel-wrap">
+            <PortfolioBacktestPanel />
+          </div>
         ) : activeTab === "Bull Call Spreads" ? (
-          <IntradaySpreadsPanel spreadType="bull_call" />
+          <div className="dashboard-panel-wrap">
+            <IntradaySpreadsPanel spreadType="bull_call" />
+          </div>
         ) : activeTab === "Bear Put Spreads" ? (
-          <IntradaySpreadsPanel spreadType="bear_put" />
+          <div className="dashboard-panel-wrap">
+            <IntradaySpreadsPanel spreadType="bear_put" />
+          </div>
         ) : (
           <>
             {showFeatureBackButton && (
@@ -361,7 +368,7 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="screener-header compact-screener-header">
+            <div className="screener-header compact-screener-header dashboard-card">
               <h2 className="glow-text">
                 {activeTab}{" "}
                 <span style={{ color: "var(--primary-gold)" }}>Screener</span>
@@ -371,7 +378,7 @@ const Dashboard: React.FC = () => {
               </p>
             </div>
 
-            <div className="table-view-container">
+            <div className="table-view-container dashboard-card">
               {loading ? (
                 <div className="loader-container">
                   <div className="loader"></div>
