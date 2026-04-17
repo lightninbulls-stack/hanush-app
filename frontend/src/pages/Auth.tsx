@@ -1,10 +1,7 @@
 import React, { useState } from "react";
-import { loginUser, registerUser, saveAuthToken } from "../api";
-
-type AuthMode = "login" | "signup";
+import { loginUser, saveAuthToken } from "../api";
 
 const Auth: React.FC = () => {
-  const [mode, setMode] = useState<AuthMode>("login");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,7 +29,7 @@ const Auth: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-start",
-        paddingLeft: "max(40px, 6%)", // ✅ PERFECT LEFT SPACING
+        paddingLeft: "28px", // 🔥 FINAL LEFT ALIGNMENT
         background: "#020617",
         overflow: "hidden",
       }}
@@ -61,7 +58,7 @@ const Auth: React.FC = () => {
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.2) 100%)",
+            "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.2) 100%)",
           zIndex: 1,
         }}
       />
@@ -74,11 +71,12 @@ const Auth: React.FC = () => {
           width: "320px",
           padding: "24px",
           borderRadius: "20px",
-          background: "rgba(15,15,15,0.75)",
-          backdropFilter: "blur(10px)",
-          border: "1px solid rgba(255,215,0,0.2)",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-          transform: "translateY(-10px)", // ✅ balanced vertical alignment
+          background: "rgba(10,10,10,0.78)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255,215,0,0.25)",
+          boxShadow:
+            "0 10px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.08)",
+          transform: "translateY(-8px)",
         }}
       >
         {/* 🔥 Title */}
@@ -86,7 +84,7 @@ const Auth: React.FC = () => {
           style={{
             fontSize: "28px",
             fontWeight: 800,
-            color: "#fff",
+            color: "#ffffff",
             marginBottom: "6px",
           }}
         >
@@ -107,27 +105,21 @@ const Auth: React.FC = () => {
         {/* Tabs */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
           <button
-            onClick={() => setMode("login")}
             style={{
               flex: 1,
               padding: "8px",
               borderRadius: "10px",
-              border: "1px solid rgba(255,215,0,0.3)",
-              background:
-                mode === "login"
-                  ? "linear-gradient(90deg, #facc15, #f59e0b)"
-                  : "transparent",
-              color: mode === "login" ? "#000" : "#fff",
+              border: "1px solid rgba(255,215,0,0.4)",
+              background: "linear-gradient(90deg, #facc15, #f59e0b)",
+              color: "#000",
               fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
+              fontWeight: 700,
             }}
           >
             Login
           </button>
 
           <button
-            onClick={() => setMode("signup")}
             style={{
               flex: 1,
               padding: "8px",
@@ -137,7 +129,6 @@ const Auth: React.FC = () => {
               color: "#fff",
               fontSize: "14px",
               fontWeight: 600,
-              cursor: "pointer",
             }}
           >
             Sign Up
@@ -179,7 +170,7 @@ const Auth: React.FC = () => {
             }}
           />
 
-          {/* 🔥 Gold Button */}
+          {/* 🔥 Gold CTA */}
           <button
             type="submit"
             disabled={loading}
@@ -192,9 +183,9 @@ const Auth: React.FC = () => {
                 "linear-gradient(90deg, #facc15 0%, #f59e0b 100%)",
               color: "#000",
               fontSize: "16px",
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: "pointer",
-              boxShadow: "0 6px 20px rgba(250,204,21,0.3)",
+              boxShadow: "0 6px 20px rgba(250,204,21,0.35)",
             }}
           >
             {loading ? "Loading..." : "Login"}
