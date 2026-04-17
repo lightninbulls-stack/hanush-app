@@ -14,7 +14,6 @@ from typing import Optional
 
 import pandas as pd
 import pytz
-import yaml
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
@@ -35,8 +34,16 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 19
+MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
+
+# 0 = nearest Tuesday expiry
+# 1 = next Tuesday expiry
+# 2 = third Tuesday expiry
+NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
+
+# Optional exact override: YYYYMMDD
+NIFTY_EXPIRY_OVERRIDE = os.getenv("NIFTY_EXPIRY_OVERRIDE", "").strip()
 
 LOG_FILE_NAME = "bull_call_spread.log"
 
@@ -128,7 +135,7 @@ def build_spread_payload(
         message = "Bull call spread closed."
         is_loading = False
     else:
-        message = "Waiting for entry signal."
+        message = "Monitoring market conditions for bullish entry trigger..."
         is_loading = True
 
     return {
@@ -275,26 +282,51 @@ def wait_until_market_open() -> None:
         raise SystemExit
 
 
+def resolve_nifty_weekly_expiry() -> str:
+    """
+    NIFTY weekly expiry based on Tuesday.
+    Priority:
+    1. NIFTY_EXPIRY_OVERRIDE=YYYYMMDD
+    2. nearest/next/third Tuesday via NIFTY_EXPIRY_WEEKS_AHEAD
+    """
+    if NIFTY_EXPIRY_OVERRIDE:
+        cleaned = NIFTY_EXPIRY_OVERRIDE.replace("-", "")
+        datetime.strptime(cleaned, "%Y%m%d")
+        return cleaned
+
+    today = current_ist().date()
+    days_ahead = (1 - today.weekday()) % 7  # Tuesday = 1
+
+    if days_ahead == 0:
+        expiry = today
+    else:
+        expiry = today + timedelta(days=days_ahead)
+
+    expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
+    return expiry.strftime("%Y%m%d")
+
+
 def load_creds() -> dict:
     return {
         "z_api_key": os.environ["Z_API_KEY"],
         "z_access_token": os.environ["Z_ACCESS_TOKEN"],
-        "i_expiry_date_nifty": os.environ["I_EXPIRY_DATE_NIFTY"],
+        "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
+        "i_inst_name_nifty": "NIFTY",
     }
 
 
-def ensure_legacy_cred_file() -> None:
-    cred = load_creds()
-    payload = {
-        "z_api_key": cred["z_api_key"],
-        "z_access_token": cred["z_access_token"],
-        "i_expiry_date_nifty": cred["i_expiry_date_nifty"],
-    }
+def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
+    """
+    Best-effort runtime patch so helper module does not need cred.yml.
+    """
+    if hasattr(nfo_util_module, "load_creds"):
+        nfo_util_module.load_creds = lambda: cred
 
-    with open("cred.yml", "w", encoding="utf-8") as f:
-        yaml.safe_dump(payload, f, sort_keys=False)
-
-    log_and_print("Generated legacy cred.yml from environment variables.")
+    # common module-level names used by helper files
+    setattr(nfo_util_module, "i_inst_name_nifty", cred["i_inst_name_nifty"])
+    setattr(nfo_util_module, "i_expiry_date_nifty", cred["i_expiry_date_nifty"])
+    setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
+    setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
 
 
 # =========================================================
@@ -577,16 +609,17 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-        ensure_legacy_cred_file()
         from option_spreads import nfo_util
+
+        patch_nfo_util_config(nfo_util, self.cred)
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
-            message="Signal confirmed. Building bull call spread...",
-            progress_text="Fetching option chain and selecting strikes",
+            message="Entry conditions satisfied. Preparing bull call spread...",
+            progress_text="Selecting spread structure...",
             is_loading=True,
         )
 
@@ -609,12 +642,7 @@ class AlphaBullCall:
         log_and_print(f"ITM Strike selected: {self.itm_strike}")
         log_and_print(f"OTM Strike selected: {self.otm_strike}")
 
-        expiry_date_str = self.cred["i_expiry_date_nifty"]
-        self.expiry = (
-            expiry_date_str.strftime("%Y%m%d")
-            if hasattr(expiry_date_str, "strftime")
-            else str(expiry_date_str)
-        )
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
         buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
         sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
@@ -684,7 +712,7 @@ class AlphaBullCall:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
-            message="Signal confirmed. Creating paper bull call spread...",
+            message="Entry conditions satisfied. Creating paper bull call spread...",
             progress_text="Placing paper orders",
             is_loading=True,
         )
@@ -741,7 +769,7 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="LOADING_HISTORY",
-            message="Loading historical data for EMA confirmation...",
+            message="Loading historical data...",
             progress_text="Preparing 1-minute candles",
             is_loading=True,
         )
@@ -753,18 +781,15 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Historical data loaded. Waiting for bullish EMA crossover...",
-            progress_text="Watching live market for entry signal",
+            message="Monitoring market conditions for bullish entry trigger...",
+            progress_text="Watching live market",
             is_loading=True,
-            extra={
-                "history_rows": int(len(self.onemin_bars)),
-            },
+            extra={"history_rows": int(len(self.onemin_bars))},
         )
 
         self.prev_minute = None
         self.tick_buffer = pd.DataFrame(columns=["last_price"])
 
-        self.last_signal = 0
         self.last_trade_signal = 0
         self.last_tick_log_time = 0.0
 
@@ -853,8 +878,8 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Collecting enough candles for EMA crossover logic...",
-                progress_text=f"Loaded bars: {len(self.onemin_bars)} / 55",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Building enough 1-minute candles",
                 is_loading=True,
             )
             return
@@ -868,7 +893,6 @@ class EMACrossover1Min:
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
         if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
-            self.last_signal = 1
             self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
 
             log_and_print(
@@ -880,12 +904,14 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="SIGNAL_TRIGGERED",
-                message=f"Bullish crossover detected at {self.onemin_bars.index[-1].strftime('%H:%M:%S')}",
+                message="Bullish entry signal detected. Preparing spread...",
                 progress_text="Preparing bull call spread entry",
                 is_loading=True,
                 extra={
                     "signal_price": float(latest["close"]),
-                    "signal_type": "BULLISH_EMA_CROSSOVER",
+                    "last_price": float(latest["close"]),
+                    "ema5": round(float(latest["EMA5"]), 2),
+                    "ema55": round(float(latest["EMA55"]), 2),
                 },
             )
 
@@ -910,31 +936,14 @@ class EMACrossover1Min:
 
                 threading.Thread(target=_launch_rider, daemon=True).start()
 
-        elif prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]:
-            self.last_signal = -1
-            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = -1
-
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Bearish crossover seen. Still waiting for bullish EMA crossover...",
-                progress_text="Monitoring EMA(5,55)",
-                is_loading=True,
-                extra={
-                    "signal_price": float(latest["close"]),
-                    "signal_type": "BEARISH_EMA_CROSSOVER",
-                },
-            )
         else:
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Live feed running. Waiting for bullish EMA crossover...",
-                progress_text="Monitoring EMA(5,55)",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Watching live market",
                 is_loading=True,
                 extra={
                     "last_price": float(latest["close"]),
@@ -953,8 +962,8 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Live feed started. Waiting for bullish EMA crossover...",
-            progress_text="Monitoring EMA(5,55)",
+            message="Monitoring market conditions for bullish entry trigger...",
+            progress_text="Watching live market",
             is_loading=True,
         )
 
@@ -1006,8 +1015,8 @@ class EMACrossover1Min:
                 index_name=INDEX_NAME,
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
-                message="Connected to live NIFTY feed. Waiting for signal...",
-                progress_text="EMA engine active",
+                message="Connected to live NIFTY feed. Monitoring for bullish trigger...",
+                progress_text="Live feed active",
                 is_loading=True,
             )
 
@@ -1069,6 +1078,7 @@ def main():
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
         log_and_print("Kite API authenticated.")
+        log_and_print(f"Resolved NIFTY weekly expiry: {cred['i_expiry_date_nifty']}")
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
