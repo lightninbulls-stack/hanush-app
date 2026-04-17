@@ -64,154 +64,225 @@ const getProgressWidth = (state?: string) => {
   }
 };
 
+const getProgressActive = (spread: IntradaySpread) => {
+  const state = spread.ui_state || spread.status || "";
+  return (
+    state === "WAITING_SIGNAL" ||
+    state === "SIGNAL_TRIGGERED" ||
+    state === "ENTERING_SPREAD" ||
+    String(spread.message || "").toLowerCase().includes("live")
+  );
+};
+
 const WaitingSpreadCard: React.FC<{
   spread: IntradaySpread;
   spreadType: Props["spreadType"];
 }> = ({ spread, spreadType }) => {
   const progressWidth = getProgressWidth(spread.ui_state || spread.status);
   const cardTitle = waitingTitleMap[spreadType];
+  const isAnimated = getProgressActive(spread);
 
   return (
-    <div
-      style={{
-        marginTop: "18px",
-        borderRadius: "24px",
-        padding: "24px",
-        background:
-          "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(12,18,30,0.94))",
-        border: "1px solid rgba(255,215,0,0.12)",
-        boxShadow: "0 10px 35px rgba(0,0,0,0.45)",
-      }}
-    >
+    <>
+      <style>
+        {`
+          @keyframes lb-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+
+          @keyframes lb-progress-shimmer {
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(220%); }
+          }
+
+          @keyframes lb-live-pulse {
+            0% { opacity: 0.65; text-shadow: 0 0 0 rgba(250,204,21,0); }
+            50% { opacity: 1; text-shadow: 0 0 14px rgba(250,204,21,0.45); }
+            100% { opacity: 0.7; text-shadow: 0 0 0 rgba(250,204,21,0); }
+          }
+        `}
+      </style>
+
       <div
         style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: "18px",
+          marginTop: "18px",
+          borderRadius: "24px",
+          padding: "24px",
+          background:
+            "linear-gradient(135deg, rgba(8,8,8,0.98), rgba(12,18,30,0.94))",
+          border: "1px solid rgba(255,215,0,0.12)",
+          boxShadow: "0 10px 35px rgba(0,0,0,0.45)",
         }}
       >
         <div
           style={{
-            width: "74px",
-            height: "74px",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle at center, rgba(30,30,30,0.95) 35%, rgba(10,10,10,1) 70%)",
-            border: "5px solid rgba(250,204,21,0.18)",
-            borderLeftColor: "#facc15",
-            boxSizing: "border-box",
-            flexShrink: 0,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "18px",
           }}
-        />
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2
+        >
+          <div
             style={{
-              margin: 0,
-              fontSize: "26px",
-              fontWeight: 800,
-              color: "#f8fafc",
-              lineHeight: 1.1,
+              position: "relative",
+              width: "78px",
+              height: "78px",
+              flexShrink: 0,
             }}
           >
-            {cardTitle}
-          </h2>
-
-          <p
-            style={{
-              margin: "10px 0 0 0",
-              color: "#d1d5db",
-              fontSize: "15px",
-              fontWeight: 500,
-            }}
-          >
-            {spread.message || "Waiting for strategy state update."}
-          </p>
-
-          {spread.progress_text ? (
-            <p
+            <div
               style={{
-                margin: "8px 0 0 0",
-                color: "#facc15",
-                fontSize: "14px",
-                fontWeight: 600,
+                position: "absolute",
+                inset: 0,
+                borderRadius: "50%",
+                border: "5px solid rgba(250,204,21,0.18)",
+                borderTopColor: "#facc15",
+                borderLeftColor: "#eab308",
+                animation: isAnimated ? "lb-spin 1.35s linear infinite" : "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: "10px",
+                borderRadius: "50%",
+                background:
+                  "radial-gradient(circle at center, rgba(35,35,35,0.95) 35%, rgba(10,10,10,1) 75%)",
+                boxShadow: "inset 0 0 16px rgba(0,0,0,0.65)",
+              }}
+            />
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "26px",
+                fontWeight: 800,
+                color: "#f8fafc",
+                lineHeight: 1.1,
               }}
             >
-              {spread.progress_text}
+              {cardTitle}
+            </h2>
+
+            <p
+              style={{
+                margin: "10px 0 0 0",
+                color: "#d1d5db",
+                fontSize: "15px",
+                fontWeight: 500,
+              }}
+            >
+              {spread.message || "Waiting for strategy state update."}
             </p>
-          ) : null}
-        </div>
-      </div>
 
-      <div
-        style={{
-          marginTop: "20px",
-          width: "100%",
-          height: "8px",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.10)",
-          overflow: "hidden",
-        }}
-      >
+            {spread.progress_text ? (
+              <p
+                style={{
+                  margin: "8px 0 0 0",
+                  color: "#facc15",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  animation: isAnimated ? "lb-live-pulse 1.5s ease-in-out infinite" : "none",
+                }}
+              >
+                {spread.progress_text}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
         <div
           style={{
-            width: progressWidth,
-            height: "100%",
+            marginTop: "20px",
+            width: "100%",
+            height: "8px",
             borderRadius: "999px",
-            background: "linear-gradient(90deg, #facc15, #eab308)",
-            boxShadow: "0 0 14px rgba(250,204,21,0.35)",
+            background: "rgba(255,255,255,0.10)",
+            overflow: "hidden",
+            position: "relative",
           }}
-        />
+        >
+          <div
+            style={{
+              width: progressWidth,
+              height: "100%",
+              borderRadius: "999px",
+              background: "linear-gradient(90deg, #facc15, #eab308)",
+              boxShadow: "0 0 14px rgba(250,204,21,0.35)",
+              position: "relative",
+              overflow: "hidden",
+              transition: "width 0.45s ease",
+            }}
+          >
+            {isAnimated && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "40%",
+                  height: "100%",
+                  background:
+                    "linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.55), rgba(255,255,255,0))",
+                  animation: "lb-progress-shimmer 1.4s linear infinite",
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "20px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: "14px",
+              background: "rgba(255,255,255,0.06)",
+              color: "#e5e7eb",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            State: <span style={{ fontWeight: 800 }}>{spread.ui_state || spread.status}</span>
+          </div>
+
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: "14px",
+              background: "rgba(255,255,255,0.06)",
+              color: "#e5e7eb",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            Stop Loss: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.stop_loss)}</span>
+          </div>
+
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: "14px",
+              background: "rgba(255,255,255,0.06)",
+              color: "#e5e7eb",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            Target: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.target)}</span>
+          </div>
+        </div>
       </div>
-
-      <div
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div
-          style={{
-            padding: "10px 14px",
-            borderRadius: "14px",
-            background: "rgba(255,255,255,0.06)",
-            color: "#e5e7eb",
-            fontSize: "14px",
-            fontWeight: 600,
-          }}
-        >
-          State: <span style={{ fontWeight: 800 }}>{spread.ui_state || spread.status}</span>
-        </div>
-
-        <div
-          style={{
-            padding: "10px 14px",
-            borderRadius: "14px",
-            background: "rgba(255,255,255,0.06)",
-            color: "#e5e7eb",
-            fontSize: "14px",
-            fontWeight: 600,
-          }}
-        >
-          Stop Loss: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.stop_loss)}</span>
-        </div>
-
-        <div
-          style={{
-            padding: "10px 14px",
-            borderRadius: "14px",
-            background: "rgba(255,255,255,0.06)",
-            color: "#e5e7eb",
-            fontSize: "14px",
-            fontWeight: 600,
-          }}
-        >
-          Target: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.target)}</span>
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 
