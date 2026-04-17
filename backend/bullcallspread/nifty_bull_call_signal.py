@@ -851,8 +851,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
 
         if len(self.onemin_bars) < 55:
             publish_strategy_state(
@@ -960,8 +960,8 @@ class EMACrossover1Min:
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             ui_state="WAITING_SIGNAL",
-            message="Live feed started. Waiting for bullish EMA crossover...",
-            progress_text="Monitoring EMA(5,55)",
+            message="Live feed started. Waiting for the upside signal...",
+            progress_text="Monitoring the live market ",
             is_loading=True,
         )
 
