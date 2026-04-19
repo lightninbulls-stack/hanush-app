@@ -34,15 +34,10 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 21
+MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
 
-# 0 = nearest Tuesday expiry
-# 1 = next Tuesday expiry
-# 2 = third Tuesday expiry
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-
-# Optional exact override: YYYYMMDD
 NIFTY_EXPIRY_OVERRIDE = os.getenv("NIFTY_EXPIRY_OVERRIDE", "").strip()
 
 LOG_FILE_NAME = "bull_call_spread.log"
@@ -138,6 +133,12 @@ def build_spread_payload(
         message = "Monitoring market conditions for bullish entry trigger..."
         is_loading = True
 
+    entry_time = None
+    if orders:
+        valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
+        if valid_timestamps:
+            entry_time = min(valid_timestamps).strftime("%H:%M:%S")
+
     return {
         "index": index_name,
         "spread_type": spread_type,
@@ -151,6 +152,7 @@ def build_spread_payload(
         "stop_loss": stop_loss_amount,
         "target": target_amount,
         "updated_at": datetime.now(IST).isoformat(),
+        "entry_time": entry_time,
         "legs": [
             {
                 "side": buy_leg["side"] if buy_leg else None,
@@ -163,6 +165,9 @@ def build_spread_payload(
                 "expiry": buy_leg["expiry"] if buy_leg else None,
                 "right": buy_leg["right"] if buy_leg else None,
                 "status": buy_leg["status"] if buy_leg else None,
+                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
+                if buy_leg and buy_leg.get("timestamp") is not None
+                else None,
             },
             {
                 "side": sell_leg["side"] if sell_leg else None,
@@ -175,6 +180,9 @@ def build_spread_payload(
                 "expiry": sell_leg["expiry"] if sell_leg else None,
                 "right": sell_leg["right"] if sell_leg else None,
                 "status": sell_leg["status"] if sell_leg else None,
+                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
+                if sell_leg and sell_leg.get("timestamp") is not None
+                else None,
             },
         ],
     }
@@ -283,12 +291,6 @@ def wait_until_market_open() -> None:
 
 
 def resolve_nifty_weekly_expiry() -> str:
-    """
-    NIFTY weekly expiry based on Tuesday.
-    Priority:
-    1. NIFTY_EXPIRY_OVERRIDE=YYYYMMDD
-    2. nearest/next/third Tuesday via NIFTY_EXPIRY_WEEKS_AHEAD
-    """
     if NIFTY_EXPIRY_OVERRIDE:
         cleaned = NIFTY_EXPIRY_OVERRIDE.replace("-", "")
         datetime.strptime(cleaned, "%Y%m%d")
@@ -316,13 +318,9 @@ def load_creds() -> dict:
 
 
 def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
-    """
-    Best-effort runtime patch so helper module does not need cred.yml.
-    """
     if hasattr(nfo_util_module, "load_creds"):
         nfo_util_module.load_creds = lambda: cred
 
-    # common module-level names used by helper files
     setattr(nfo_util_module, "i_inst_name_nifty", cred["i_inst_name_nifty"])
     setattr(nfo_util_module, "i_expiry_date_nifty", cred["i_expiry_date_nifty"])
     setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
@@ -438,6 +436,8 @@ class PaperSpreadMTMTracker:
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_print_time = 0.0
+        self.pnl_history = []
+        self.entry_reference_time = None
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
@@ -448,6 +448,52 @@ class PaperSpreadMTMTracker:
             stop_loss_amount=self.stop_loss_amount,
             target_amount=self.target_amount,
         )
+
+        orders = self.paper_book.get_orders_snapshot()
+
+        if orders and self.entry_reference_time is None:
+            valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
+            if valid_timestamps:
+                self.entry_reference_time = min(valid_timestamps)
+
+        current_time = datetime.now(IST).strftime("%H:%M:%S")
+        current_pnl = float(payload["net_pnl"])
+
+        self.pnl_history.append({
+            "time": current_time,
+            "pnl": current_pnl,
+        })
+
+        self.pnl_history = self.pnl_history[-200:]
+
+        running_peak = None
+        pnl_curve = []
+
+        for point in self.pnl_history:
+            pnl_val = float(point["pnl"])
+
+            if running_peak is None:
+                running_peak = pnl_val
+            else:
+                running_peak = max(running_peak, pnl_val)
+
+            drawdown = pnl_val - running_peak
+
+            pnl_curve.append({
+                "time": point["time"],
+                "pnl": pnl_val,
+                "stop_loss": self.stop_loss_amount,
+                "target": self.target_amount,
+                "drawdown": drawdown,
+            })
+
+        payload["pnl_curve"] = pnl_curve
+        payload["entry_marker_time"] = (
+            self.entry_reference_time.strftime("%H:%M:%S")
+            if self.entry_reference_time is not None
+            else None
+        )
+
         publish_spread_update(payload)
 
     def _log_live_mtm(self) -> None:
