@@ -1,5 +1,6 @@
 import React from "react";
 import type { IntradaySpread, SpreadLeg } from "../services/intradaySpreads";
+import PnlCurveChart from "./PnlCurveChart";
 
 type Props = {
   spread: IntradaySpread;
@@ -28,6 +29,7 @@ function getPnlColor(value: number | null | undefined): string {
 function getStatusColor(status: string): string {
   if (status === "OPEN") return "#16a34a";
   if (status === "CLOSED") return "#dc2626";
+  if (status === "STOPPED") return "#94a3b8";
   return "#94a3b8";
 }
 
@@ -68,7 +70,10 @@ function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
       </div>
 
       <div style={{ color: "#f8fafc", fontWeight: 600 }}>
-        {leg.trading_symbol || "--"}
+        <div>{leg.trading_symbol || "--"}</div>
+        <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "4px" }}>
+          Entry: {leg.entry_time ?? "--"}
+        </div>
       </div>
 
       <div style={{ color: "#cbd5e1" }}>
@@ -179,6 +184,7 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
         >
           Stop Loss: {formatNumber(spread.stop_loss)}
         </div>
+
         <div
           style={{
             padding: "8px 10px",
@@ -188,6 +194,17 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
         >
           Target: {formatNumber(spread.target)}
         </div>
+
+        <div
+          style={{
+            padding: "8px 10px",
+            borderRadius: "10px",
+            background: "rgba(255,255,255,0.04)",
+          }}
+        >
+          Entry Time: {spread.entry_time ?? "--"}
+        </div>
+
         <div
           style={{
             padding: "8px 10px",
@@ -198,6 +215,11 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
           Updated: {spread.updated_at ? new Date(spread.updated_at).toLocaleTimeString() : "--"}
         </div>
       </div>
+
+      <PnlCurveChart
+        data={spread.pnl_curve || []}
+        entryMarkerTime={spread.entry_marker_time ?? null}
+      />
     </div>
   );
 };
