@@ -11,6 +11,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type {
+  NameType,
+  ValueType,
+} from "recharts/types/component/DefaultTooltipContent";
 
 type PnlPoint = {
   time: string;
@@ -26,8 +30,8 @@ type Props = {
 };
 
 const tooltipFormatter = (
-  value: number | string | undefined,
-  name: string
+  value: ValueType,
+  name: NameType
 ): [string, string] => {
   const labelMap: Record<string, string> = {
     pnl: "PnL",
@@ -36,18 +40,29 @@ const tooltipFormatter = (
     drawdown: "Drawdown",
   };
 
-  const numericValue =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-      ? Number(value)
-      : NaN;
+  let numericValue: number | null = null;
 
-  const formattedValue = Number.isFinite(numericValue)
-    ? `₹ ${numericValue.toFixed(2)}`
-    : "₹ --";
+  if (typeof value === "number") {
+    numericValue = value;
+  } else if (typeof value === "string") {
+    const parsed = Number(value);
+    numericValue = Number.isFinite(parsed) ? parsed : null;
+  } else if (Array.isArray(value) && value.length > 0) {
+    const firstValue = value[0];
+    const parsed =
+      typeof firstValue === "number"
+        ? firstValue
+        : typeof firstValue === "string"
+        ? Number(firstValue)
+        : NaN;
 
-  return [formattedValue, labelMap[name] ?? name];
+    numericValue = Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const formattedValue =
+    numericValue !== null ? `₹ ${numericValue.toFixed(2)}` : "₹ --";
+
+  return [formattedValue, labelMap[String(name)] ?? String(name)];
 };
 
 const PnlCurveChart: React.FC<Props> = ({ data, entryMarkerTime }) => {
