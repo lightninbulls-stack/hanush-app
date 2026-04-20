@@ -149,6 +149,34 @@ async function deleteWatchlist(request, env, symbolFromPath) {
   return json({ symbols, deleted: symbol });
 }
 
+async function proxyIntradaySpreads(env) {
+  const backendUrl = `${getBackendBaseUrl(env)}/intraday-spreads/all`;
+
+  let response;
+  try {
+    response = await fetch(backendUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch {
+    throw new HttpError(502, "Intraday spreads backend is unavailable");
+  }
+
+  const text = await response.text();
+
+  return new Response(text, {
+    status: response.status,
+    headers: {
+      ...JSON_HEADERS,
+      "content-type":
+        response.headers.get("content-type") ||
+        "application/json; charset=utf-8",
+    },
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -174,6 +202,13 @@ export default {
             pathname.replace("/api/watchlist/", ""),
           );
           return await deleteWatchlist(request, env, symbol);
+        }
+        return json({ detail: "Method not allowed" }, 405);
+      }
+
+      if (pathname === "/api/intraday-spreads/all") {
+        if (request.method === "GET") {
+          return await proxyIntradaySpreads(env);
         }
         return json({ detail: "Method not allowed" }, 405);
       }
