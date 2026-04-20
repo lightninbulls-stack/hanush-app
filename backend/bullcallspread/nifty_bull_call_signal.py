@@ -690,6 +690,11 @@ class AlphaBullCall:
 
         self.expiry = str(self.cred["i_expiry_date_nifty"])
 
+        log_and_print(
+            f"📊 SPREAD SELECTED | BUY {self.itm_strike} CE | "
+            f"SELL {self.otm_strike} CE | Expiry={self.expiry}"
+        )
+
         buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
         sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
 
@@ -765,7 +770,12 @@ class AlphaBullCall:
 
         log_and_print("Alpha Bull Call PAPER strategy: START", "info")
         self.quote_details()
-        log_and_print("Bull call spread paper entry created successfully.", "info")
+
+        log_and_print(
+            f"✅ SPREAD EXECUTED | "
+            f"BUY {self.buy_leg_symbol} @ {self.buy_entry_price:.2f} | "
+            f"SELL {self.sell_leg_symbol} @ {self.sell_entry_price:.2f}"
+        )
 
         orders_df = self.paper_book.get_all_orders()
         if not orders_df.empty:
@@ -896,7 +906,7 @@ class EMACrossover1Min:
 
             if not ohlc.empty:
                 log_and_print(
-                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} Close={ohlc['close'].iloc[-1]:.2f}"
+                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} | Close={ohlc['close'].iloc[-1]:.2f}"
                 )
                 ohlc["signal"] = 0
                 self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
@@ -915,10 +925,13 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
+        # Keeping your current testing setup:
+        # EMA5 label -> span=1
+        # EMA55 label -> span=2
         self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
         self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
 
-        if len(self.onemin_bars) < 55:
+        if len(self.onemin_bars) < 2:
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -936,14 +949,32 @@ class EMACrossover1Min:
         if "signal" not in self.onemin_bars.columns:
             self.onemin_bars["signal"] = 0
 
-        self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
-        if latest["EMA5"] > latest["EMA55"]:
+        log_and_print(
+            f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+            f"Close={latest['close']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+        )
 
-        # if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
+        self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
+
+        # Current testing condition
+        signal_condition = latest["EMA5"] > latest["EMA55"]
+
+        log_and_print(
+            f"CHECKING SIGNAL | "
+            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
+            f"Condition={signal_condition}"
+        )
+
+        if signal_condition:
             self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
 
             log_and_print(
-                f"🚀 Bullish crossover @ {self.onemin_bars.index[-1].strftime('%H:%M:%S')} | Price: {latest['close']:.2f}"
+                f"🚀 EMA CROSSOVER SIGNAL | "
+                f"Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"Price={latest['close']:.2f} | "
+                f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
             )
 
             publish_strategy_state(
@@ -963,6 +994,7 @@ class EMACrossover1Min:
             )
 
             if self.last_trade_signal != 1:
+                log_and_print("Signal is new. Stopping NIFTY stream and launching spread entry.")
                 self.last_trade_signal = 1
                 self._stop_nifty_stream()
 
@@ -984,6 +1016,11 @@ class EMACrossover1Min:
                 threading.Thread(target=_launch_rider, daemon=True).start()
 
         else:
+            log_and_print(
+                f"NO SIGNAL | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"EMA5={latest['EMA5']:.2f} <= EMA55={latest['EMA55']:.2f}"
+            )
+
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -1047,7 +1084,19 @@ class EMACrossover1Min:
 
             current_time = time.time()
             if latest_price is not None and current_time - self.last_tick_log_time >= 5:
-                log_and_print(f"LIVE NIFTY TICK | Price={latest_price:.2f}")
+                ema5 = None
+                ema55 = None
+
+                if len(self.onemin_bars) > 0:
+                    latest_bar = self.onemin_bars.iloc[-1]
+                    ema5 = latest_bar.get("EMA5", None)
+                    ema55 = latest_bar.get("EMA55", None)
+
+                log_and_print(
+                    f"LIVE NIFTY TICK | Price={latest_price:.2f} | "
+                    f"EMA5={round(float(ema5), 2) if pd.notna(ema5) else 'NA'} | "
+                    f"EMA55={round(float(ema55), 2) if pd.notna(ema55) else 'NA'}"
+                )
                 self.last_tick_log_time = current_time
 
         def on_connect(ws, response):
