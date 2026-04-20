@@ -672,81 +672,106 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-        ensure_cred_yml(self.cred)
+    ensure_cred_yml(self.cred)
 
-        from option_spreads import nfo_util
+    from option_spreads import nfo_util
 
-        patch_nfo_util_config(nfo_util, self.cred)
+    patch_nfo_util_config(nfo_util, self.cred)
 
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Preparing bull call spread...",
-            progress_text="Selecting spread structure...",
-            is_loading=True,
-        )
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        index_name=INDEX_NAME,
+        spread_type=SPREAD_TYPE,
+        ui_state="ENTERING_SPREAD",
+        message="Entry conditions satisfied. Preparing bull call spread...",
+        progress_text="Selecting spread structure...",
+        is_loading=True,
+    )
 
-        _ = self.kite.ltp(nfo_util.get_instrument_tokens_ce_nifty())
+    tokens = nfo_util.get_instrument_tokens_ce_nifty()
+    if not tokens:
+        raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
 
-        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
-        option_chain_ce = nfo_util.bull_call_spreads_nifty(
-            df_ce,
-            gaps=(150, 200),
-            rr_target=1.5,
-            atm_only=False,
-        )
+    _ = self.kite.ltp(tokens)
 
-        if option_chain_ce.empty:
-            raise ValueError("No bull call spread candidates found in option chain.")
+    df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
 
-        self.itm_strike = int(option_chain_ce.loc[0, "buy_strike"])
-        self.otm_strike = int(option_chain_ce.loc[0, "sell_strike"])
+    if df_ce is None or df_ce.empty:
+        raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
 
-        log_and_print(f"ITM Strike selected: {self.itm_strike}")
-        log_and_print(f"OTM Strike selected: {self.otm_strike}")
+    log_and_print(f"DEBUG df_ce rows: {len(df_ce)}")
 
-        self.expiry = str(self.cred["i_expiry_date_nifty"])
+    option_chain_ce = nfo_util.bull_call_spreads_nifty(
+        df_ce,
+        gaps=(150, 200),
+        rr_target=1.5,
+        atm_only=False,
+    )
 
-        log_and_print(
-            f"📊 SPREAD SELECTED | BUY {self.itm_strike} CE | "
-            f"SELL {self.otm_strike} CE | Expiry={self.expiry}"
-        )
+    if option_chain_ce is None or option_chain_ce.empty:
+        raise ValueError("No valid bull call spread candidates found in option chain.")
 
-        buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
-        sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
+    log_and_print(f"DEBUG spread_df rows: {len(option_chain_ce)}")
 
-        self.buy_leg_token = int(buy_row["instrument_token"])
-        self.sell_leg_token = int(sell_row["instrument_token"])
+    best = option_chain_ce.iloc[0]
 
-        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+    self.itm_strike = int(best["buy_strike"])
+    self.otm_strike = int(best["sell_strike"])
 
-        self.buy_entry_price = float(buy_row["last_price_y"])
-        self.sell_entry_price = float(sell_row["last_price_y"])
+    log_and_print("✅ Selected Spread:")
+    log_and_print(f"Buy Strike: {self.itm_strike}")
+    log_and_print(f"Sell Strike: {self.otm_strike}")
 
-        log_and_print(
-            f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
-        )
-        log_and_print(
-            f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
-        )
+    self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Spread legs selected successfully.",
-            progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
-            is_loading=True,
-        )
+    log_and_print(
+        f"📊 SPREAD SELECTED | BUY {self.itm_strike} CE | "
+        f"SELL {self.otm_strike} CE | Expiry={self.expiry}"
+    )
 
-        if not self.trade_initialized:
-            self.place_ce_order_buy()
-            self.place_ce_order_sell()
-            self.trade_initialized = True
+    buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike]
+    sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike]
+
+    if buy_match.empty:
+        raise ValueError(f"Buy strike {self.itm_strike} not found in df_ce.")
+    if sell_match.empty:
+        raise ValueError(f"Sell strike {self.otm_strike} not found in df_ce.")
+
+    buy_row = buy_match.iloc[0]
+    sell_row = sell_match.iloc[0]
+
+    self.buy_leg_token = int(buy_row["instrument_token"])
+    self.sell_leg_token = int(sell_row["instrument_token"])
+
+    self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+    self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+
+    self.buy_entry_price = float(buy_row["last_price_y"])
+    self.sell_entry_price = float(sell_row["last_price_y"])
+
+    log_and_print(
+        f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
+    )
+    log_and_print(
+        f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
+    )
+
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        index_name=INDEX_NAME,
+        spread_type=SPREAD_TYPE,
+        ui_state="ENTERING_SPREAD",
+        message="Spread legs selected successfully.",
+        progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
+        is_loading=True,
+    )
+
+    if not self.trade_initialized:
+        self.place_ce_order_buy()
+        self.place_ce_order_sell()
+        self.trade_initialized = True
+
+
 
     def place_ce_order_buy(self) -> str:
         return self.paper_book.place_order(
@@ -1228,8 +1253,7 @@ def main():
 
         log_and_print("Starting NIFTY EMA bullish-entry logic...")
         nifty_ema.start(alpha_bull)
-
-        log_and_print("Main finished.")
+        log_and_print("Strategy initialized successfully. Live websocket is running in background.")
 
     except SystemExit:
         log_and_print("Exited after execution.")
