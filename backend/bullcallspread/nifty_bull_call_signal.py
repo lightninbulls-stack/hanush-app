@@ -15,6 +15,7 @@ from typing import Optional
 import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
+
 print("✅ nifty_bull_call_spread_signal.py imported")
 
 from shared.intraday_spreads_state import spread_state
@@ -231,6 +232,11 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
+
+    log_and_print(
+        f"WAIT CHECK | now_ist={now_ist} | "
+        f"market_open={market_open} | market_close={market_close}"
+    )
 
     if now_ist > market_close:
         publish_strategy_state(
@@ -926,7 +932,7 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        # Keeping your current testing setup:
+        # Testing setup:
         # EMA5 label -> span=1
         # EMA55 label -> span=2
         self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
@@ -958,7 +964,6 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # Current testing condition
         signal_condition = latest["EMA5"] > latest["EMA55"]
 
         log_and_print(
@@ -1142,6 +1147,9 @@ class EMACrossover1Min:
 
 
 def main():
+    log_and_print("✅ Strategy main() entered")
+    log_and_print(f"MAIN STARTED | Current IST={current_ist()}")
+
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
         index_name=INDEX_NAME,
@@ -1153,6 +1161,7 @@ def main():
     )
 
     now_ist = current_ist()
+    log_and_print(f"WEEKDAY CHECK | now_ist={now_ist} | weekday={now_ist.weekday()}")
 
     if not is_weekday_ist(now_ist):
         publish_strategy_state(
