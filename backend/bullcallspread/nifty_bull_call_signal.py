@@ -16,7 +16,7 @@ import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
-print("✅ nifty_bull_call_spread_signal.py imported")
+print("✅ nifty_bull_call_signal.py imported")
 
 from shared.intraday_spreads_state import spread_state
 
@@ -39,8 +39,9 @@ MARKET_OPEN_MINUTE = 15
 MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
 
+# Expiry always comes from function resolution below.
+# No need to set expiry in Render env.
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-NIFTY_EXPIRY_OVERRIDE = os.getenv("NIFTY_EXPIRY_OVERRIDE", "").strip()
 
 LOG_FILE_NAME = "bull_call_spread.log"
 
@@ -298,11 +299,6 @@ def wait_until_market_open() -> None:
 
 
 def resolve_nifty_weekly_expiry() -> str:
-    if NIFTY_EXPIRY_OVERRIDE:
-        cleaned = NIFTY_EXPIRY_OVERRIDE.replace("-", "")
-        datetime.strptime(cleaned, "%Y%m%d")
-        return cleaned
-
     today = current_ist().date()
     days_ahead = (1 - today.weekday()) % 7  # Tuesday = 1
 
@@ -317,11 +313,25 @@ def resolve_nifty_weekly_expiry() -> str:
 
 def load_creds() -> dict:
     return {
-        "z_api_key": os.environ["Z_API_KEY"],
-        "z_access_token": os.environ["Z_ACCESS_TOKEN"],
+        "z_api_key": os.environ["Z_API_KEY"].strip(),
+        "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
         "i_inst_name_nifty": "NIFTY",
     }
+
+
+def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
+    content = (
+        f"z_api_key: {cred['z_api_key']}\n"
+        f"z_access_token: {cred['z_access_token']}\n"
+        f"i_expiry_date_nifty: {cred['i_expiry_date_nifty']}\n"
+        f"i_inst_name_nifty: {cred['i_inst_name_nifty']}\n"
+    )
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(content)
+
+    log_and_print(f"cred.yml created for legacy spread utilities at {file_path}")
 
 
 def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
@@ -662,6 +672,8 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
+        ensure_cred_yml(self.cred)
+
         from option_spreads import nfo_util
 
         patch_nfo_util_config(nfo_util, self.cred)
@@ -932,9 +944,6 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        # Testing setup:
-        # EMA5 label -> span=1
-        # EMA55 label -> span=2
         self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
         self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
 
