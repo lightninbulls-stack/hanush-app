@@ -36,7 +36,7 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 19
+MARKET_CLOSE_HOUR = 22
 MARKET_CLOSE_MINUTE = 30
 
 # Expiry always comes from function resolution below.
