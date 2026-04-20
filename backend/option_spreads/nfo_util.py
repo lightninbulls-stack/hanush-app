@@ -120,7 +120,7 @@ def get_nfo_file_data_nifty(inst_name):
     global nfo_data
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
+    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
     a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_nifty"]]
     if inst_name == "BN":
         nfo_data = a[a["name"] == "BANKNIFTY"]
@@ -142,7 +142,7 @@ def get_nfo_file_data_crude_oil(inst_name):
     global nfo_data
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
+    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
     a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_crude_oil"]]
     if inst_name == "BN":
         nfo_data = a[a["name"] == "BANKNIFTY"]
@@ -164,7 +164,7 @@ def get_nfo_file_data_sensex(inst_name):
     global nfo_data
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
+    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
     a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_sensex"]]
     if inst_name == "BN":
         nfo_data = a[a["name"] == "BANKNIFTY"]
@@ -184,7 +184,7 @@ def get_nfo_file_data_banknifty(inst_name):
     global nfo_data
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
+    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
     a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_banknifty"]]
     if inst_name == "BN":
         nfo_data = a[a["name"] == "BANKNIFTY"]
