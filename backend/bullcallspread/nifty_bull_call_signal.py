@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -36,11 +37,9 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 23
-MARKET_CLOSE_MINUTE = 59
+MARKET_CLOSE_HOUR = 15
+MARKET_CLOSE_MINUTE = 30
 
-# Expiry always comes from function resolution below.
-# No need to set expiry in Render env.
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
 
 LOG_FILE_NAME = "bull_call_spread.log"
@@ -673,11 +672,11 @@ class AlphaBullCall:
 
     def quote_details(self) -> None:
         ensure_cred_yml(self.cred)
-    
+
         from option_spreads import nfo_util
-    
+
         patch_nfo_util_config(nfo_util, self.cred)
-    
+
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
@@ -687,91 +686,91 @@ class AlphaBullCall:
             progress_text="Selecting spread structure...",
             is_loading=True,
         )
-    
+
         log_and_print("DEBUG STEP 1 | quote_details() entered")
         log_and_print(f"DEBUG STEP 2 | expiry from cred = {self.cred.get('i_expiry_date_nifty')}")
-    
+
         tokens = nfo_util.get_instrument_tokens_ce_nifty()
         log_and_print(f"DEBUG STEP 3 | CE tokens fetched = {0 if tokens is None else len(tokens)}")
-    
+
         if not tokens:
             raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
-    
+
         ltp_snapshot = self.kite.ltp(tokens)
         log_and_print(f"DEBUG STEP 4 | LTP snapshot type = {type(ltp_snapshot).__name__}")
-    
+
         df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
         log_and_print(f"DEBUG STEP 5 | df_ce built = {'None' if df_ce is None else f'{len(df_ce)} rows'}")
-    
+
         if df_ce is None or df_ce.empty:
             raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
-    
+
         log_and_print(
             "DEBUG STEP 6 | df_ce sample = "
             + df_ce[["tradingsymbol", "strike", "instrument_token", "last_price_y"]]
             .head(10)
             .to_string(index=False)
         )
-    
+
         option_chain_ce = nfo_util.bull_call_spreads_nifty(
             df_ce,
             gaps=(150, 200),
             rr_target=1.5,
             atm_only=False,
         )
-    
+
         log_and_print(
             f"DEBUG STEP 7 | option_chain_ce = "
             f"{'None' if option_chain_ce is None else f'{len(option_chain_ce)} rows'}"
         )
-    
+
         if option_chain_ce is None or option_chain_ce.empty:
             raise ValueError("No valid bull call spread candidates found in option chain.")
-    
+
         log_and_print(
             "DEBUG STEP 8 | option_chain_ce sample = "
             + option_chain_ce.head(10).to_string(index=False)
         )
-    
+
         best = option_chain_ce.iloc[0]
         log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
-    
+
         self.itm_strike = int(best["buy_strike"])
         self.otm_strike = int(best["sell_strike"])
-    
+
         log_and_print(f"✅ Selected Spread | Buy Strike = {self.itm_strike} | Sell Strike = {self.otm_strike}")
-    
+
         self.expiry = str(self.cred["i_expiry_date_nifty"])
-    
+
         buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike]
         sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike]
-    
+
         log_and_print(f"DEBUG STEP 10 | buy_match rows = {len(buy_match)} | sell_match rows = {len(sell_match)}")
-    
+
         if buy_match.empty:
             raise ValueError(f"Buy strike {self.itm_strike} not found in df_ce.")
         if sell_match.empty:
             raise ValueError(f"Sell strike {self.otm_strike} not found in df_ce.")
-    
+
         buy_row = buy_match.iloc[0]
         sell_row = sell_match.iloc[0]
-    
+
         self.buy_leg_token = int(buy_row["instrument_token"])
         self.sell_leg_token = int(sell_row["instrument_token"])
-    
+
         self.buy_leg_symbol = str(buy_row["tradingsymbol"])
         self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-    
+
         self.buy_entry_price = float(buy_row["last_price_y"])
         self.sell_entry_price = float(sell_row["last_price_y"])
-    
+
         log_and_print(
             f"DEBUG STEP 11 | BUY leg = {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price}"
         )
         log_and_print(
             f"DEBUG STEP 12 | SELL leg = {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price}"
         )
-    
+
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
@@ -781,12 +780,11 @@ class AlphaBullCall:
             progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
             is_loading=True,
         )
-    
+
         if not self.trade_initialized:
             self.place_ce_order_buy()
             self.place_ce_order_sell()
             self.trade_initialized = True
-
 
     def place_ce_order_buy(self) -> str:
         return self.paper_book.place_order(
@@ -907,6 +905,7 @@ class EMACrossover1Min:
 
         self.last_trade_signal = 0
         self.last_tick_log_time = 0.0
+        self._last_candle_flush_time: Optional[datetime] = None
 
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
@@ -958,19 +957,33 @@ class EMACrossover1Min:
 
         if self.prev_minute is None:
             self.prev_minute = ltt.minute
+            self._last_candle_flush_time = ltt
             return
 
-        if ltt.minute != self.prev_minute:
-            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+        minute_changed = ltt.minute != self.prev_minute
+
+        # Force flush after 90 seconds if minute boundary hasn't crossed (testing outside market hours)
+        force_flush = (
+            self._last_candle_flush_time is not None
+            and (ltt - self._last_candle_flush_time).total_seconds() >= 90
+        )
+
+        if minute_changed or force_flush:
+            if minute_changed:
+                ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+            else:
+                ohlc = self.tick_buffer["last_price"].resample("1min").ohlc()
 
             if not ohlc.empty:
                 log_and_print(
                     f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} | Close={ohlc['close'].iloc[-1]:.2f}"
+                    + (" [FORCE FLUSH]" if force_flush and not minute_changed else "")
                 )
                 ohlc["signal"] = 0
                 self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
                 self._update_ema_crossover(rider)
 
+            self._last_candle_flush_time = ltt
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
@@ -984,8 +997,8 @@ class EMACrossover1Min:
             log_and_print(f"WebSocket close error: {e}", "error")
 
     def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
         if len(self.onemin_bars) < 2:
             publish_strategy_state(
@@ -1013,10 +1026,9 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
+        # ⚠️ TEST MODE: force signal True — swap with real condition when going live:
         # signal_condition = latest["EMA5"] >= latest["EMA55"]
-            # FORCE SIGNAL FOR TESTING
         signal_condition = True
-        
         log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
 
         log_and_print(
@@ -1059,9 +1071,11 @@ class EMACrossover1Min:
 
                 def _launch_rider():
                     try:
+                        log_and_print("🚀 _launch_rider: calling rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBullCall.start() failed: {e}", "error")
+                        log_and_print(traceback.format_exc(), "error")
                         publish_strategy_state(
                             strategy_name=STRATEGY_NAME,
                             index_name=INDEX_NAME,
@@ -1175,6 +1189,37 @@ class EMACrossover1Min:
                 is_loading=True,
             )
 
+            # ── TEST MODE: inject fake candle 3s after connect to fire signal immediately ──
+            def _inject_test_signal():
+                time.sleep(3)
+                if self._stop_flag:
+                    return
+                try:
+                    log_and_print("⚠️ TEST MODE: Injecting fake candle to trigger spread entry...")
+                    now_ist = current_ist()
+                    fake_close = 24364.85
+
+                    fake_bar1 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close,
+                         "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
+                    )
+                    fake_bar2 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close,
+                         "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
+                    )
+
+                    self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
+                    log_and_print("⚠️ TEST MODE: Fake bars injected. Firing _update_ema_crossover...")
+                    self._update_ema_crossover(rider)
+                except Exception as e:
+                    log_and_print(f"TEST SIGNAL injection failed: {e}", "error")
+                    log_and_print(traceback.format_exc(), "error")
+
+            threading.Thread(target=_inject_test_signal, daemon=True).start()
+            # ── END TEST MODE ──
+
         def on_close(ws, code, reason):
             log_and_print(f"NIFTY EMA WS closed: {code} - {reason}", "warning")
 
@@ -1283,6 +1328,7 @@ def main():
         )
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
+        log_and_print(traceback.format_exc(), "error")
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
