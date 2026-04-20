@@ -36,8 +36,8 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 22
-MARKET_CLOSE_MINUTE = 30
+MARKET_CLOSE_HOUR = 23
+MARKET_CLOSE_MINUTE = 59
 
 # Expiry always comes from function resolution below.
 # No need to set expiry in Render env.
