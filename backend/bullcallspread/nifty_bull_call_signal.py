@@ -688,12 +688,12 @@ class AlphaBullCall:
             is_loading=True,
         )
     
+
         tokens = nfo_util.get_instrument_tokens_ce_nifty()
         if not tokens:
             raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
-    
         _ = self.kite.ltp(tokens)
-    
+            
         df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
     
         if df_ce is None or df_ce.empty:
