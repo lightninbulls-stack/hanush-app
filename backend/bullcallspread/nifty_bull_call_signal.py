@@ -315,7 +315,7 @@ def load_creds() -> dict:
         "z_api_key": os.environ["Z_API_KEY"].strip(),
         "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
-        "i_inst_name_nifty": "NIFTY",
+        "i_inst_name_nifty": "N",
     }
 
 
