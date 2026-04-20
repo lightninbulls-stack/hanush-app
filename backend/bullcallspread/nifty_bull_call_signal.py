@@ -15,6 +15,7 @@ from typing import Optional
 import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
+print("✅ nifty_bull_call_spread_signal.py imported")
 
 from shared.intraday_spreads_state import spread_state
 
