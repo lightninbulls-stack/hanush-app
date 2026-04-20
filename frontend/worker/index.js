@@ -150,7 +150,7 @@ async function deleteWatchlist(request, env, symbolFromPath) {
 }
 
 async function proxyIntradaySpreads(env) {
-  const backendUrl = `${getBackendBaseUrl(env)}/intraday-spreads/all`;
+  const backendUrl = `${getBackendBaseUrl(env)}/api/intraday-spreads/all`;
 
   let response;
   try {
