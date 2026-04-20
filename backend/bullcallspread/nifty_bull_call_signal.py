@@ -673,7 +673,7 @@ class AlphaBullCall:
 
     def quote_details(self) -> None:
         ensure_cred_yml(self.cred)
-
+    
         from option_spreads import nfo_util
     
         patch_nfo_util_config(nfo_util, self.cred)
@@ -688,18 +688,30 @@ class AlphaBullCall:
             is_loading=True,
         )
     
-
+        log_and_print("DEBUG STEP 1 | quote_details() entered")
+        log_and_print(f"DEBUG STEP 2 | expiry from cred = {self.cred.get('i_expiry_date_nifty')}")
+    
         tokens = nfo_util.get_instrument_tokens_ce_nifty()
+        log_and_print(f"DEBUG STEP 3 | CE tokens fetched = {0 if tokens is None else len(tokens)}")
+    
         if not tokens:
             raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
-        _ = self.kite.ltp(tokens)
-            
+    
+        ltp_snapshot = self.kite.ltp(tokens)
+        log_and_print(f"DEBUG STEP 4 | LTP snapshot type = {type(ltp_snapshot).__name__}")
+    
         df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
+        log_and_print(f"DEBUG STEP 5 | df_ce built = {'None' if df_ce is None else f'{len(df_ce)} rows'}")
     
         if df_ce is None or df_ce.empty:
             raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
     
-        log_and_print(f"DEBUG df_ce rows: {len(df_ce)}")
+        log_and_print(
+            "DEBUG STEP 6 | df_ce sample = "
+            + df_ce[["tradingsymbol", "strike", "instrument_token", "last_price_y"]]
+            .head(10)
+            .to_string(index=False)
+        )
     
         option_chain_ce = nfo_util.bull_call_spreads_nifty(
             df_ce,
@@ -708,29 +720,33 @@ class AlphaBullCall:
             atm_only=False,
         )
     
+        log_and_print(
+            f"DEBUG STEP 7 | option_chain_ce = "
+            f"{'None' if option_chain_ce is None else f'{len(option_chain_ce)} rows'}"
+        )
+    
         if option_chain_ce is None or option_chain_ce.empty:
             raise ValueError("No valid bull call spread candidates found in option chain.")
     
-        log_and_print(f"DEBUG spread_df rows: {len(option_chain_ce)}")
+        log_and_print(
+            "DEBUG STEP 8 | option_chain_ce sample = "
+            + option_chain_ce.head(10).to_string(index=False)
+        )
     
         best = option_chain_ce.iloc[0]
+        log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
     
         self.itm_strike = int(best["buy_strike"])
         self.otm_strike = int(best["sell_strike"])
     
-        log_and_print("✅ Selected Spread:")
-        log_and_print(f"Buy Strike: {self.itm_strike}")
-        log_and_print(f"Sell Strike: {self.otm_strike}")
+        log_and_print(f"✅ Selected Spread | Buy Strike = {self.itm_strike} | Sell Strike = {self.otm_strike}")
     
         self.expiry = str(self.cred["i_expiry_date_nifty"])
     
-        log_and_print(
-            f"📊 SPREAD SELECTED | BUY {self.itm_strike} CE | "
-            f"SELL {self.otm_strike} CE | Expiry={self.expiry}"
-        )
-    
         buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike]
         sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike]
+    
+        log_and_print(f"DEBUG STEP 10 | buy_match rows = {len(buy_match)} | sell_match rows = {len(sell_match)}")
     
         if buy_match.empty:
             raise ValueError(f"Buy strike {self.itm_strike} not found in df_ce.")
@@ -750,10 +766,10 @@ class AlphaBullCall:
         self.sell_entry_price = float(sell_row["last_price_y"])
     
         log_and_print(
-            f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
+            f"DEBUG STEP 11 | BUY leg = {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price}"
         )
         log_and_print(
-            f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
+            f"DEBUG STEP 12 | SELL leg = {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price}"
         )
     
         publish_strategy_state(
@@ -770,7 +786,6 @@ class AlphaBullCall:
             self.place_ce_order_buy()
             self.place_ce_order_sell()
             self.trade_initialized = True
-
 
 
     def place_ce_order_buy(self) -> str:
