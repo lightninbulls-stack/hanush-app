@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -9,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from api_service import auth_routes
+from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
+from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
@@ -17,14 +19,7 @@ from fetch_service.main import (
     fetch_historical_data,
     fetch_stock_info,
 )
-from models import user  # noqa: F401  # required before create_all
-from shared.intraday_spreads_state import spread_state
 from shared.models import HistoricalData, StockInfo, StockListResponse
-from strategy_runner import is_strategy_running, start_strategy_background
-
-# Adjust this import only if your strategy file lives somewhere else.
-from nifty_bull_call_spread_signal import main as bull_call_strategy_main
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,19 +27,66 @@ logger = logging.getLogger(__name__)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trading Bible API")
+data_service = DataService()
 
-app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+_strategy_thread: threading.Thread | None = None
+_strategy_lock = threading.Lock()
+
+
+def start_bull_call_strategy() -> bool:
+    global _strategy_thread
+
+    with _strategy_lock:
+        if _strategy_thread is not None and _strategy_thread.is_alive():
+            logger.info("⚠️ Bull Call strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Bull Call strategy thread started.")
+                bull_call_main()
+            except Exception as exc:
+                logger.error("❌ Bull call strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Bull Call strategy thread finished.")
+
+        _strategy_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="bull-call-strategy-thread",
+        )
+        _strategy_thread.start()
+        return True
+
+
+def is_strategy_running() -> bool:
+    global _strategy_thread
+    return _strategy_thread is not None and _strategy_thread.is_alive()
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    logger.info("✅ FastAPI startup triggered.")
+    started = start_bull_call_strategy()
+
+    if started:
+        logger.info("✅ Bull Call strategy launched from startup.")
+    else:
+        logger.info("⚠️ Bull Call strategy was already running.")
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten later for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
-data_service = DataService()
+app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
+app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
+app.include_router(intraday_spreads_routes.router, prefix="/api", tags=["intraday_spreads"])
 
 
 def get_db():
@@ -55,28 +97,12 @@ def get_db():
         db.close()
 
 
-@app.on_event("startup")
-def startup_event() -> None:
-    logger.info("✅ FastAPI app startup triggered.")
-
-    # Auto-start strategy on backend boot.
-    started = start_strategy_background(bull_call_strategy_main)
-
-    if started:
-        logger.info("✅ Bull call strategy launched from FastAPI startup.")
-    else:
-        logger.info("⚠️ Bull call strategy already running.")
-
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Global error: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": "Internal Server Error",
-            "error": str(exc),
-        },
+        content={"detail": "Internal Server Error", "error": str(exc)},
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "*",
@@ -85,18 +111,22 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Trading Bible API is running"}
+
+
 @app.get("/health")
-def health_check():
+def health():
     return {
-        "status": "ok",
+        "status": "healthy",
         "strategy_running": is_strategy_running(),
-        "service": "api_service",
     }
 
 
 @app.post("/api/strategy/start")
 def start_strategy():
-    started = start_strategy_background(bull_call_strategy_main)
+    started = start_bull_call_strategy()
     return {
         "started": started,
         "strategy_running": is_strategy_running(),
@@ -111,25 +141,21 @@ def strategy_status():
     }
 
 
-@app.get("/api/intraday-spreads/all")
-def get_all_intraday_spreads():
-    return spread_state.get_all()
-
-
-@app.get("/api/intraday-spreads/{strategy_name}")
-def get_one_intraday_spread(strategy_name: str):
-    payload = spread_state.get_one(strategy_name)
-    if payload is None:
-        raise HTTPException(status_code=404, detail="Strategy state not found")
-    return payload
-
-
 @app.get("/debug/users")
 def list_users(db: Session = Depends(get_db)):
     from models.user import User
 
     users = db.query(User).all()
-    return [{"id": u.id, "name": u.name, "email": u.email} for u in users]
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "phone": getattr(u, "phone", None),
+            "created_at": getattr(u, "created_at", None),
+        }
+        for u in users
+    ]
 
 
 @app.get("/debug/migrations")
@@ -178,7 +204,7 @@ async def get_stocks(category: str):
         except Exception as exc:
             logger.error("Fetch failed: %s", exc)
 
-        logger.warning("No data found for category: %s in Excel or Google Sheets.", category)
+        logger.warning("No data found for category: %s", category)
         return StockListResponse(category=category, stocks=[])
 
     except Exception as exc:
@@ -223,8 +249,6 @@ async def get_info(symbol: str):
 
         raise HTTPException(status_code=404, detail="Stock info not found")
 
-    except HTTPException:
-        raise
     except Exception as exc:
         logger.error("Error in get_info: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
