@@ -47,7 +47,7 @@ type IntradaySpreadsResponse = {
 export async function fetchAllIntradaySpreads(): Promise<
   Record<string, IntradaySpread>
 > {
-  const response = await fetch("/intraday-spreads/all", {
+  const response = await fetch("/api/intraday-spreads/all", {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
