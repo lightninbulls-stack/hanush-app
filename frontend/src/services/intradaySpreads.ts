@@ -38,3 +38,31 @@ export type IntradaySpread = {
   entry_marker_time?: string | null;
   pnl_curve?: PnlCurvePoint[];
 };
+
+type IntradaySpreadsResponse = {
+  status: string;
+  data: Record<string, IntradaySpread>;
+};
+
+export async function fetchAllIntradaySpreads(): Promise<
+  Record<string, IntradaySpread>
+> {
+  const response = await fetch("/intraday-spreads/all", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch intraday spreads: ${response.status}`);
+  }
+
+  const payload: IntradaySpreadsResponse = await response.json();
+
+  if (payload.status !== "ok" || !payload.data) {
+    return {};
+  }
+
+  return payload.data;
+}
