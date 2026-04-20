@@ -25,7 +25,10 @@ type Props = {
   entryMarkerTime?: string | null;
 };
 
-const tooltipFormatter = (value: number, name: string) => {
+const tooltipFormatter = (
+  value: number | string | undefined,
+  name: string
+): [string, string] => {
   const labelMap: Record<string, string> = {
     pnl: "PnL",
     stop_loss: "Stop Loss",
@@ -33,7 +36,18 @@ const tooltipFormatter = (value: number, name: string) => {
     drawdown: "Drawdown",
   };
 
-  return [`₹ ${Number(value).toFixed(2)}`, labelMap[name] ?? name];
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+      ? Number(value)
+      : NaN;
+
+  const formattedValue = Number.isFinite(numericValue)
+    ? `₹ ${numericValue.toFixed(2)}`
+    : "₹ --";
+
+  return [formattedValue, labelMap[name] ?? name];
 };
 
 const PnlCurveChart: React.FC<Props> = ({ data, entryMarkerTime }) => {
