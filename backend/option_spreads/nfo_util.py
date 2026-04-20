@@ -12,37 +12,86 @@ DATA_DIR = BASE_DIR / "data"
 CSV_PATH = DATA_DIR / "inst_zerodha_nfo.csv"
 CRED_PATH = Path.cwd() / "cred.yml"
 
+nfo_data = None
+i_inst_name = "N"
+expiry_date = None
+
 
 def _read_cred():
     with open(CRED_PATH, "r", encoding="utf-8") as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
+def _write_cred(cred: dict):
+    with open(CRED_PATH, "w", encoding="utf-8") as fp:
+        yaml.dump(cred, fp)
+
+
 def _read_inst_csv():
     return pd.read_csv(CSV_PATH)
 
 
-df = _read_inst_csv()
+def _get_kite():
+    cred = _read_cred()
+    kite = KiteConnect(api_key=cred["z_api_key"])
+    kite.set_access_token(str(cred["z_access_token"]).strip())
+    return kite
 
-# ----------------------------------------------------------
-# 1. Load credentials and initialize Kite API
-# ----------------------------------------------------------
-cred = _read_cred()
 
-kite = KiteConnect(api_key=cred["z_api_key"])
-kite.set_access_token(str(cred["z_access_token"]).strip())
+def _safe_ltp_response(payload):
+    if payload is None:
+        return {}
+    if isinstance(payload, dict):
+        return payload
+    return {}
 
-nfo_data = None
-# i_inst_name = 'S' if datetime.now().strftime('%A') == 'Tuesday' else 'N'
-i_inst_name = 'N'
-expiry_date = None
 
-cred = _read_cred()
-# with open(CRED_PATH) as f:
-#     cred = yaml.load(f, Loader=yaml.FullLoader)
-#     z_user_id = cred['z_user_id']
-#     z_password = cred['z_password']
-#     z_tsecret = cred['z_tsecret']
+def _get_last_price_from_ltp(payload, token: int) -> float:
+    payload = _safe_ltp_response(payload)
+
+    key1 = str(token)
+    key2 = token
+
+    if key1 in payload and isinstance(payload[key1], dict):
+        return float(payload[key1].get("last_price", 0.0) or 0.0)
+
+    if key2 in payload and isinstance(payload[key2], dict):
+        return float(payload[key2].get("last_price", 0.0) or 0.0)
+
+    raise ValueError(f"LTP not found for token {token}. Response keys: {list(payload.keys())[:10]}")
+
+
+def _build_ltp_df(quote_details):
+    payload = _safe_ltp_response(quote_details)
+    if not payload:
+        raise ValueError("Empty LTP response received from Kite.")
+
+    rows = []
+    for key, value in payload.items():
+        if not isinstance(value, dict):
+            continue
+
+        instrument_token = value.get("instrument_token")
+        last_price = value.get("last_price")
+
+        if instrument_token is None:
+            try:
+                instrument_token = int(str(key).split(":")[-1])
+            except Exception:
+                continue
+
+        rows.append(
+            {
+                "instrument_token": int(instrument_token),
+                "last_price_y": float(last_price or 0.0),
+            }
+        )
+
+    df_ltp = pd.DataFrame(rows)
+    if df_ltp.empty:
+        raise ValueError("Could not build LTP dataframe from Kite response.")
+
+    return df_ltp
 
 
 def get_zerodha_inst_file():
@@ -162,36 +211,24 @@ def get_instrument_tokens():
     a = df_inst[df_inst["InsertedDates"].dt.date == expiry_date]
     if cred["i_inst_name"] == "BX":
         b = a[a["name"] == "BANKEX"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(b["instrument_token"]).tolist()
     if cred["i_inst_name"] == "FN":
         b = a[a["name"] == "FINNIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(b["instrument_token"]).tolist()
     if cred["i_inst_name"] == "BN":
         b = a[a["name"] == "BANKNIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(b["instrument_token"]).tolist()
     if cred["i_inst_name"] == "N":
         b = a[a["name"] == "NIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(b["instrument_token"]).tolist()
     if cred["i_inst_name"] == "S":
         b = a[a["name"] == "SENSEX"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(b["instrument_token"]).tolist()
     if cred["i_inst_name"] == "C":
         print("fetch inst tokens for crude oil")
         b = a[a["name"] == "CRUDEOIL"]
         c = b[b["exchange"] == "MCX"]
-        instrument_tokens_list = np.int64(c["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
+        return np.int64(c["instrument_token"]).tolist()
 
 
 def get_instrument_tokens_pe_sensex():
@@ -202,8 +239,7 @@ def get_instrument_tokens_pe_sensex():
         get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
     df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
     if len(df2) > 0:
-        instrument_tokens = df2["instrument_token"].tolist()
-        return instrument_tokens
+        return df2["instrument_token"].tolist()
     return None
 
 
@@ -215,8 +251,7 @@ def get_instrument_tokens_pe_crude_oil():
         get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
     df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
     if len(df2) > 0:
-        instrument_tokens = df2["instrument_token"].tolist()
-        return instrument_tokens
+        return df2["instrument_token"].tolist()
     return None
 
 
@@ -228,8 +263,7 @@ def get_instrument_tokens_pe_nifty():
         get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
     df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
     if len(df2) > 0:
-        instrument_tokens = df2["instrument_token"].tolist()
-        return instrument_tokens
+        return df2["instrument_token"].tolist()
     return None
 
 
@@ -241,8 +275,7 @@ def get_instrument_tokens_pe_banknifty(inst_token_pe=None):
         get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
     df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
     if len(df2) > 0:
-        instrument_tokens = df2["instrument_token"].tolist()
-        return instrument_tokens
+        return df2["instrument_token"].tolist()
     return None
 
 
@@ -255,8 +288,7 @@ def get_instrument_tokens_ce_sensex():
     df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
     df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
     if len(df1) > 0:
-        instrument_tokens = df1["instrument_token"].tolist()
-        return instrument_tokens
+        return df1["instrument_token"].tolist()
     return None
 
 
@@ -269,8 +301,7 @@ def get_instrument_tokens_ce_nifty():
     df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
     df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
     if len(df1) > 0:
-        instrument_tokens = df1["instrument_token"].tolist()
-        return instrument_tokens
+        return df1["instrument_token"].tolist()
     return None
 
 
@@ -283,8 +314,7 @@ def get_instrument_tokens_ce_banknifty(inst_token_ce=None):
     df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
     df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
     if len(df1) > 0:
-        instrument_tokens = df1["instrument_token"].tolist()
-        return instrument_tokens
+        return df1["instrument_token"].tolist()
     return None
 
 
@@ -297,8 +327,7 @@ def get_instrument_tokens_ce_crude_oil():
     df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
     df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
     if len(df1) > 0:
-        instrument_tokens = df1["instrument_token"].tolist()
-        return instrument_tokens
+        return df1["instrument_token"].tolist()
     return None
 
 
@@ -314,21 +343,34 @@ def get_option_chain_ce_nifty():
 
 
 def build_nifty_ce_chain_50_strike_with_ltp():
+    global nfo_data
+
     if nfo_data is not None and len(nfo_data) > 0:
         pass
     else:
         cred = _read_cred()
         get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"]
+
+    if nfo_data is None or len(nfo_data) == 0:
+        raise ValueError("NFO data for NIFTY is empty.")
+
+    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
+    if df_ce.empty:
+        raise ValueError("No CE contracts found in NFO data for NIFTY.")
+
     df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
     current_date = pd.Timestamp.today().normalize()
     nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
+
+    if pd.isna(nearest_expiry):
+        raise ValueError("No valid nearest expiry found for NIFTY CE chain.")
+
     df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
 
-    spot_data = kite.ltp(256265)
-    nifty_spot = spot_data["256265"]["last_price"]
+    spot_data = _get_kite().ltp([256265])
+    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
     print(f"Current NIFTY Spot: {nifty_spot:.2f}")
 
     atm_strike = round(nifty_spot / 50) * 50
@@ -337,14 +379,20 @@ def build_nifty_ce_chain_50_strike_with_ltp():
     strike_min = atm_strike - (6 * 50)
     strike_max = atm_strike + (6 * 50)
 
-    df_ce = df_ce[(df_ce["strike"] >= strike_min) & (df_ce["strike"] <= strike_max)]
+    df_ce = df_ce[(df_ce["strike"] >= strike_min) & (df_ce["strike"] <= strike_max)].copy()
 
-    ce_tokens = df_ce["instrument_token"].tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = pd.DataFrame(quote_details_ce).T.reset_index(drop=True)
+    if df_ce.empty:
+        raise ValueError("No CE strikes found in selected NIFTY 50-point strike range.")
+
+    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
+    if not ce_tokens:
+        raise ValueError("No CE instrument tokens found for selected NIFTY strikes.")
+
+    quote_details_ce = _get_kite().ltp(ce_tokens)
+    df_ltp = _build_ltp_df(quote_details_ce)
 
     df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -375,8 +423,8 @@ def build_banknifty_ce_chain_100_strike_with_ltp():
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
 
-    spot_data = kite.ltp(260105)
-    banknifty_spot = spot_data["260105"]["last_price"]
+    spot_data = _get_kite().ltp([260105])
+    banknifty_spot = _get_last_price_from_ltp(spot_data, 260105)
     print(f"Current BANKNIFTY Spot: {banknifty_spot:.2f}")
 
     atm_strike = round(banknifty_spot / 100) * 100
@@ -392,12 +440,12 @@ def build_banknifty_ce_chain_100_strike_with_ltp():
         & (df_ce["strike"] % 100 == 0)
     ].copy()
 
-    ce_tokens = df_ce["instrument_token"].tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = pd.DataFrame(quote_details_ce).T.reset_index(drop=True)
+    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
+    quote_details_ce = _get_kite().ltp(ce_tokens)
+    df_ltp = _build_ltp_df(quote_details_ce)
 
     df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -428,8 +476,8 @@ def build_sensex_ce_chain_100_strike_with_ltp():
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
 
-    spot_data = kite.ltp(265)
-    sensex_spot = spot_data["265"]["last_price"]
+    spot_data = _get_kite().ltp([265])
+    sensex_spot = _get_last_price_from_ltp(spot_data, 265)
     print(f"Current SENSEX Spot: {sensex_spot:.2f}")
 
     atm_strike = round(sensex_spot / 100) * 100
@@ -445,12 +493,12 @@ def build_sensex_ce_chain_100_strike_with_ltp():
         & (df_ce["strike"] % 100 == 0)
     ].copy()
 
-    ce_tokens = df_ce["instrument_token"].tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = pd.DataFrame(quote_details_ce).T.reset_index(drop=True)
+    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
+    quote_details_ce = _get_kite().ltp(ce_tokens)
+    df_ltp = _build_ltp_df(quote_details_ce)
 
     df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -467,22 +515,34 @@ def build_sensex_ce_chain_100_strike_with_ltp():
 
 
 def build_nifty_ce_chain_100_strike_with_ltp():
+    global nfo_data
+
     if nfo_data is not None and len(nfo_data) > 0:
         pass
     else:
         cred = _read_cred()
         get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"]
+
+    if nfo_data is None or len(nfo_data) == 0:
+        raise ValueError("NFO data for NIFTY is empty.")
+
+    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
+    if df_ce.empty:
+        raise ValueError("No CE contracts found in NFO data for NIFTY.")
 
     df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
     current_date = pd.Timestamp.today().normalize()
     nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
+
+    if pd.isna(nearest_expiry):
+        raise ValueError("No valid nearest expiry found for NIFTY CE chain.")
+
     df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
 
-    spot_data = kite.ltp(256265)
-    nifty_spot = spot_data["256265"]["last_price"]
+    spot_data = _get_kite().ltp([256265])
+    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
     print(f"Current NIFTY Spot: {nifty_spot:.2f}")
 
     atm_strike = round(nifty_spot / 100) * 100
@@ -496,16 +556,20 @@ def build_nifty_ce_chain_100_strike_with_ltp():
         (df_ce["strike"] >= strike_min)
         & (df_ce["strike"] <= strike_max)
         & (df_ce["strike"] % 100 == 0)
-    ]
+    ].copy()
 
-    df_ce = df_ce[(df_ce["strike"] >= strike_min) & (df_ce["strike"] <= strike_max)]
+    if df_ce.empty:
+        raise ValueError("No CE strikes found in selected NIFTY strike range.")
 
-    ce_tokens = df_ce["instrument_token"].tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = pd.DataFrame(quote_details_ce).T.reset_index(drop=True)
+    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
+    if not ce_tokens:
+        raise ValueError("No CE instrument tokens found for selected NIFTY strikes.")
+
+    quote_details_ce = _get_kite().ltp(ce_tokens)
+    df_ltp = _build_ltp_df(quote_details_ce)
 
     df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -536,8 +600,8 @@ def build_nifty_pe_chain_100_strike_with_ltp():
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
 
-    spot_data = kite.ltp(256265)
-    nifty_spot = spot_data["256265"]["last_price"]
+    spot_data = _get_kite().ltp([256265])
+    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
     print(f"Current NIFTY Spot: {nifty_spot:.2f}")
 
     atm_strike = round(nifty_spot / 100) * 100
@@ -553,12 +617,12 @@ def build_nifty_pe_chain_100_strike_with_ltp():
         & (df_pe["strike"] % 100 == 0)
     ]
 
-    pe_tokens = df_pe["instrument_token"].tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = pd.DataFrame(quote_details_pe).T.reset_index(drop=True)
+    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
+    quote_details_pe = _get_kite().ltp(pe_tokens)
+    df_ltp = _build_ltp_df(quote_details_pe)
 
     df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -589,8 +653,8 @@ def build_banknifty_pe_chain_100_strike_with_ltp():
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
 
-    spot_data = kite.ltp(260105)
-    banknifty_spot = spot_data["260105"]["last_price"]
+    spot_data = _get_kite().ltp([260105])
+    banknifty_spot = _get_last_price_from_ltp(spot_data, 260105)
     print(f"Current BANKNIFTY Spot: {banknifty_spot:.2f}")
 
     atm_strike = round(banknifty_spot / 100) * 100
@@ -606,12 +670,12 @@ def build_banknifty_pe_chain_100_strike_with_ltp():
         & (df_pe["strike"] % 100 == 0)
     ].copy()
 
-    pe_tokens = df_pe["instrument_token"].tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = pd.DataFrame(quote_details_pe).T.reset_index(drop=True)
+    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
+    quote_details_pe = _get_kite().ltp(pe_tokens)
+    df_ltp = _build_ltp_df(quote_details_pe)
 
     df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -642,8 +706,8 @@ def build_sensex_pe_chain_100_strike_with_ltp():
 
     print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
 
-    spot_data = kite.ltp(265)
-    sensex_spot = spot_data["265"]["last_price"]
+    spot_data = _get_kite().ltp([265])
+    sensex_spot = _get_last_price_from_ltp(spot_data, 265)
     print(f"Current SENSEX Spot: {sensex_spot:.2f}")
 
     atm_strike = round(sensex_spot / 100) * 100
@@ -659,12 +723,12 @@ def build_sensex_pe_chain_100_strike_with_ltp():
         & (df_pe["strike"] % 100 == 0)
     ].copy()
 
-    pe_tokens = df_pe["instrument_token"].tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = pd.DataFrame(quote_details_pe).T.reset_index(drop=True)
+    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
+    quote_details_pe = _get_kite().ltp(pe_tokens)
+    df_ltp = _build_ltp_df(quote_details_pe)
 
     df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price"]],
+        df_ltp[["instrument_token", "last_price_y"]],
         on="instrument_token",
         how="left"
     )
@@ -722,31 +786,30 @@ def bull_call_spreads_nifty(
             sell_ltp = ltp_map.get(s)
             if sell_ltp is None:
                 continue
-
             width = s - b
             net_debit = buy_ltp - sell_ltp
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": b,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": s,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(b + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": b,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": s,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(b + net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -792,45 +855,39 @@ def bull_call_spreads_banknifty(
         buy_candidates = d["strike"].tolist()
 
     rows = []
-
     for buy_strike in buy_candidates:
         buy_ltp = ltp_map.get(buy_strike)
         if buy_ltp is None:
             continue
-
         for gap in gaps:
             sell_strike = buy_strike + gap
             sell_ltp = ltp_map.get(sell_strike)
-
             if sell_ltp is None:
                 continue
-
             width = sell_strike - buy_strike
             net_debit = buy_ltp - sell_ltp
-
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": buy_strike,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": sell_strike,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(buy_strike + net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -876,45 +933,39 @@ def bull_call_spreads_sensex(
         buy_candidates = d["strike"].tolist()
 
     rows = []
-
     for buy_strike in buy_candidates:
         buy_ltp = ltp_map.get(buy_strike)
         if buy_ltp is None:
             continue
-
         for gap in gaps:
             sell_strike = buy_strike + gap
             sell_ltp = ltp_map.get(sell_strike)
-
             if sell_ltp is None:
                 continue
-
             width = sell_strike - buy_strike
             net_debit = buy_ltp - sell_ltp
-
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": buy_strike,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": sell_strike,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(buy_strike + net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -960,45 +1011,39 @@ def bear_put_spreads_nifty(
         buy_candidates = d["strike"].tolist()
 
     rows = []
-
     for buy_strike in buy_candidates:
         buy_ltp = ltp_map.get(buy_strike)
         if buy_ltp is None:
             continue
-
         for gap in gaps:
             sell_strike = buy_strike - gap
             sell_ltp = ltp_map.get(sell_strike)
-
             if sell_ltp is None:
                 continue
-
             width = buy_strike - sell_strike
             net_debit = buy_ltp - sell_ltp
-
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": buy_strike,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": sell_strike,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(buy_strike - net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -1044,45 +1089,39 @@ def bear_put_spreads_banknifty(
         buy_candidates = d["strike"].tolist()
 
     rows = []
-
     for buy_strike in buy_candidates:
         buy_ltp = ltp_map.get(buy_strike)
         if buy_ltp is None:
             continue
-
         for gap in gaps:
             sell_strike = buy_strike - gap
             sell_ltp = ltp_map.get(sell_strike)
-
             if sell_ltp is None:
                 continue
-
             width = buy_strike - sell_strike
             net_debit = buy_ltp - sell_ltp
-
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": buy_strike,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": sell_strike,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(buy_strike - net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -1128,45 +1167,39 @@ def bear_put_spreads_sensex(
         buy_candidates = d["strike"].tolist()
 
     rows = []
-
     for buy_strike in buy_candidates:
         buy_ltp = ltp_map.get(buy_strike)
         if buy_ltp is None:
             continue
-
         for gap in gaps:
             sell_strike = buy_strike - gap
             sell_ltp = ltp_map.get(sell_strike)
-
             if sell_ltp is None:
                 continue
-
             width = buy_strike - sell_strike
             net_debit = buy_ltp - sell_ltp
-
             if net_debit <= 0:
                 continue
-
             max_profit = width - net_debit
             if max_profit < 0:
                 continue
-
             rr = max_profit / net_debit
-
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
+            rows.append(
+                {
+                    "buy_strike": buy_strike,
+                    "buy_ltp": round(buy_ltp, 2),
+                    "sell_strike": sell_strike,
+                    "sell_ltp": round(sell_ltp, 2),
+                    "gap": int(width),
+                    "net_debit": round(net_debit, 2),
+                    "max_profit": round(max_profit, 2),
+                    "rr": round(rr, 3),
+                    "breakeven": round(buy_strike - net_debit, 2),
+                    "per_lot_debit": round(net_debit * lot_size, 2),
+                    "per_lot_max_profit": round(max_profit * lot_size, 2),
+                    "lot_size": lot_size,
+                }
+            )
 
     out = pd.DataFrame(rows)
     if out.empty:
@@ -1347,3 +1380,186 @@ def get_trading_symbol_pe_crude_oil(instrument_token):
     if len(df2) == 1:
         return df2.iloc[-1]["tradingsymbol"]
     return None
+
+
+def get_trading_symbol_for_inst_token_sensex(instrument_token):
+    cred = _read_cred()
+    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
+    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
+    if len(df1) == 1:
+        return df1.iloc[-1]["tradingsymbol"]
+    return None
+
+
+def get_trading_symbol_for_inst_token_nifty(instrument_token):
+    cred = _read_cred()
+    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
+    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
+    if len(df1) == 1:
+        return df1.iloc[-1]["tradingsymbol"]
+    return None
+
+
+def get_inst_token_for_trading_symbol_sensex(tradingsymbol):
+    cred = _read_cred()
+    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
+    df1 = nfo_data[nfo_data["tradingsymbol"] == tradingsymbol]
+    df2 = df1[df1["exchange"] == cred["i_exchange_code"]]
+    if len(df2) == 1:
+        return df2.iloc[-1]["instrument_token"]
+    return None
+
+
+def get_inst_token_for_trading_symbol_nifty(tradingsymbol):
+    cred = _read_cred()
+    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
+    df1 = nfo_data[nfo_data["tradingsymbol"] == tradingsymbol]
+    df2 = df1[df1["exchange"] == cred["i_exchange_code"]]
+    if len(df2) == 1:
+        return df2.iloc[-1]["instrument_token"]
+    return None
+
+
+def get_inst_type_for_inst_token_nifty(inst_token):
+    if nfo_data is not None and len(nfo_data) > 0:
+        pass
+    else:
+        cred = _read_cred()
+        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
+    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
+    if len(df1) == 1:
+        return df1.iloc[-1]["instrument_type"]
+    return None
+
+
+def get_inst_type_for_inst_token_banknifty(inst_token):
+    if nfo_data is not None and len(nfo_data) > 0:
+        pass
+    else:
+        cred = _read_cred()
+        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
+    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
+    if len(df1) == 1:
+        return df1.iloc[-1]["instrument_type"]
+    return None
+
+
+def get_inst_type_for_inst_token_crude_oil(inst_token):
+    if nfo_data is not None and len(nfo_data) > 0:
+        pass
+    else:
+        cred = _read_cred()
+        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
+    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
+    if len(df1) == 1:
+        return df1.iloc[-1]["instrument_type"]
+    return None
+
+
+def get_instrument_details_nifty():
+    i_inst_name = "N"
+    i_stock_code = "NIFTY"
+    i_exchange_code = "NFO"
+
+    today = datetime.now().date()
+    days_ahead = (1 - today.weekday()) % 7
+    if days_ahead == 0:
+        expiry = today
+    else:
+        expiry = today + timedelta(days=days_ahead)
+
+    i_expiry_date_nifty = expiry
+    print("Expiry Date Util:", i_expiry_date_nifty, i_inst_name, i_stock_code, i_exchange_code)
+    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_nifty
+
+
+def get_instrument_details_banknifty():
+    i_inst_name = "BN"
+    i_stock_code = "BANKNIFTY"
+    i_exchange_code = "NFO"
+
+    today = datetime.now().date()
+    if today.month == 12:
+        first_day_next_month = datetime(today.year + 1, 1, 1).date()
+    else:
+        first_day_next_month = datetime(today.year, today.month + 1, 1).date()
+
+    last_day_this_month = first_day_next_month - timedelta(days=1)
+
+    while last_day_this_month.weekday() != 3:
+        last_day_this_month -= timedelta(days=1)
+
+    i_expiry_date_banknifty = last_day_this_month
+    print("Expiry Date Util:", i_expiry_date_banknifty, i_inst_name, i_stock_code, i_exchange_code)
+    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_banknifty
+
+
+def get_instrument_details_sensex():
+    i_inst_name = "S"
+    i_stock_code = "SENSEX"
+    i_exchange_code = "BFO"
+
+    today = datetime.now().date()
+    days_ahead = (1 - today.weekday()) % 7
+    if days_ahead == 0:
+        expiry = today
+    else:
+        expiry = today + timedelta(days=days_ahead)
+
+    i_expiry_date_sensex = expiry
+    print("Expiry Date Util:", i_expiry_date_sensex, i_inst_name, i_stock_code, i_exchange_code)
+    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_sensex
+
+
+def get_instrument_details_crude_oil():
+    i_inst_name = "C"
+    i_stock_code = "CRUDEOIL"
+    i_exchange_code = "MCX"
+
+    today = datetime.now()
+
+    if today.month == 12:
+        first_day_next_month = datetime(today.year + 1, 1, 1).date()
+    else:
+        first_day_next_month = datetime(today.year, today.month + 1, 1).date()
+
+    last_day_this_month = first_day_next_month - timedelta(days=1)
+
+    while last_day_this_month.weekday() != 0:
+        last_day_this_month -= timedelta(days=1)
+
+    i_expiry_date_crude_oil = last_day_this_month
+    print("Expiry Date Util:", i_expiry_date_crude_oil, i_inst_name, i_stock_code, i_exchange_code)
+    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_crude_oil
+
+
+def main():
+    get_zerodha_inst_file()
+    cred = _read_cred()
+
+    i_inst_name_nifty, i_stock_code_nifty, i_exchange_code_nifty, i_expiry_date_nifty = get_instrument_details_nifty()
+    i_inst_name_banknifty, i_stock_code_banknifty, i_exchange_code_banknifty, i_expiry_date_banknifty = get_instrument_details_banknifty()
+    i_inst_name_sensex, i_stock_code_sensex, i_exchange_code_sensex, i_expiry_date_sensex = get_instrument_details_sensex()
+    i_inst_name_crude_oil, i_stock_code_crude_oil, i_exchange_code_crude_oil, i_expiry_date_crude_oil = get_instrument_details_crude_oil()
+
+    insert_data_rec(cred, "i_expiry_date_nifty", i_expiry_date_nifty)
+    insert_data_rec(cred, "i_expiry_date_banknifty", i_expiry_date_banknifty)
+    insert_data_rec(cred, "i_expiry_date_sensex", i_expiry_date_sensex)
+    insert_data_rec(cred, "i_expiry_date_crude_oil", i_expiry_date_crude_oil)
+
+    insert_data_rec(cred, "i_inst_name_nifty", i_inst_name_nifty)
+    insert_data_rec(cred, "i_inst_name_banknifty", i_inst_name_banknifty)
+    insert_data_rec(cred, "i_inst_name_sensex", i_inst_name_sensex)
+    insert_data_rec(cred, "i_inst_name_crude_oil", i_inst_name_crude_oil)
+
+    insert_data_rec(cred, "i_stock_code_nifty", i_stock_code_nifty)
+    insert_data_rec(cred, "i_stock_code_banknifty", i_stock_code_banknifty)
+    insert_data_rec(cred, "i_stock_code_sensex", i_stock_code_sensex)
+    insert_data_rec(cred, "i_stock_code_crude_oil", i_stock_code_crude_oil)
+
+    insert_data_rec(cred, "i_exchange_code_nifty", i_exchange_code_nifty)
+    insert_data_rec(cred, "i_exchange_code_banknifty", i_exchange_code_banknifty)
+    insert_data_rec(cred, "i_exchange_code_sensex", i_exchange_code_sensex)
+    insert_data_rec(cred, "i_exchange_code_crude_oil", i_exchange_code_crude_oil)
+
+    _write_cred(cred)
