@@ -1,1548 +1,1255 @@
-import yaml
-import numpy as np
-import pandas as pd
-import requests
+from __future__ import annotations
+
+import warnings
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
+import logging
+import os
+import sys
+import threading
+import time
+import uuid
 from datetime import datetime, timedelta
-from kiteconnect import KiteConnect
-from typing import Iterable, Optional
-from pathlib import Path
+from typing import Optional
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = BASE_DIR / "data"
-CSV_PATH = DATA_DIR / "inst_zerodha_nfo.csv"
-CRED_PATH = Path.cwd() / "cred.yml"
+import pandas as pd
+import pytz
+from kiteconnect import KiteConnect, KiteTicker
+
+print("✅ nifty_bull_call_signal.py imported")
+
+from shared.intraday_spreads_state import spread_state
+
+# =========================================================
+# ========== CONFIGURATION: CHANGE FROM HERE ==============
+# =========================================================
+INDEX_NAME = "NIFTY"
+SPREAD_TYPE = "bull_call"
+STRATEGY_NAME = "ALPHA_BULL_PAPER"
+
+NIFTY_SPOT_TOKEN = 256265
+PRELOAD_DAYS = 2
+QUANTITY = 65
+
+STOP_LOSS_AMOUNT = -1500.0
+TARGET_AMOUNT = 3000.0
+
+MARKET_OPEN_HOUR = 9
+MARKET_OPEN_MINUTE = 15
+MARKET_CLOSE_HOUR = 15
+MARKET_CLOSE_MINUTE = 30
+
+# Expiry always comes from function resolution below.
+# No need to set expiry in Render env.
+NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
+
+LOG_FILE_NAME = "bull_call_spread.log"
+
+IST = pytz.timezone("Asia/Kolkata")
+
+# =========================================================
+# ===================== Logging ===========================
+# =========================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE_NAME, mode="a", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+logger = logging.getLogger("alpha_bull_strategy")
 
 
-def _read_cred():
-    with open(CRED_PATH, "r", encoding="utf-8") as f:
-        return yaml.load(f, Loader=yaml.FullLoader)
+def log_and_print(msg: str, level: str = "info") -> None:
+    stamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{stamp}] {msg}"
+    print(line)
+    getattr(logger, level if level in {"info", "warning", "error", "debug"} else "info")(line)
 
 
-def _write_cred(cred: dict):
-    with open(CRED_PATH, "w", encoding="utf-8") as fp:
-        yaml.dump(cred, fp)
+# =========================================================
+# ===================== Frontend Payload ==================
+# =========================================================
+def publish_strategy_state(
+    *,
+    strategy_name: str,
+    index_name: str,
+    spread_type: str,
+    ui_state: str,
+    message: str,
+    progress_text: str | None = None,
+    is_loading: bool = False,
+    extra: dict | None = None,
+) -> None:
+    payload = {
+        "index": index_name,
+        "spread_type": spread_type,
+        "strategy_name": strategy_name,
+        "status": ui_state,
+        "ui_state": ui_state,
+        "message": message,
+        "progress_text": progress_text,
+        "is_loading": is_loading,
+        "updated_at": datetime.now(IST).isoformat(),
+        "net_pnl": 0.0,
+        "stop_loss": STOP_LOSS_AMOUNT,
+        "target": TARGET_AMOUNT,
+        "legs": [],
+    }
+
+    if extra:
+        payload.update(extra)
+
+    spread_state.update(strategy_name, payload)
 
 
-def _read_inst_csv():
-    return pd.read_csv(CSV_PATH)
+def build_spread_payload(
+    *,
+    paper_book: "PaperOrderBook",
+    index_name: str,
+    spread_type: str,
+    strategy_name: str,
+    stop_loss_amount: float,
+    target_amount: float,
+) -> dict:
+    orders = paper_book.get_orders_snapshot()
+
+    buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
+    sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
+
+    net_pnl = round(sum(o.get("pnl", 0.0) for o in orders), 2)
+
+    status = "OPEN"
+    if orders and all(o.get("status") == "CLOSED" for o in orders):
+        status = "CLOSED"
+    elif not orders:
+        status = "NO_POSITION"
+
+    if status == "OPEN":
+        message = "Bull call spread is live."
+        is_loading = False
+    elif status == "CLOSED":
+        message = "Bull call spread closed."
+        is_loading = False
+    else:
+        message = "Monitoring market conditions for bullish entry trigger..."
+        is_loading = True
+
+    entry_time = None
+    if orders:
+        valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
+        if valid_timestamps:
+            entry_time = min(valid_timestamps).strftime("%H:%M:%S")
+
+    return {
+        "index": index_name,
+        "spread_type": spread_type,
+        "strategy_name": strategy_name,
+        "status": status,
+        "ui_state": status,
+        "message": message,
+        "progress_text": None,
+        "is_loading": is_loading,
+        "net_pnl": net_pnl,
+        "stop_loss": stop_loss_amount,
+        "target": target_amount,
+        "updated_at": datetime.now(IST).isoformat(),
+        "entry_time": entry_time,
+        "legs": [
+            {
+                "side": buy_leg["side"] if buy_leg else None,
+                "trading_symbol": buy_leg["trading_symbol"] if buy_leg else None,
+                "avg_price": round(float(buy_leg["entry_price"]), 2) if buy_leg else None,
+                "ltp": round(float(buy_leg["ltp"]), 2) if buy_leg else None,
+                "pnl": round(float(buy_leg["pnl"]), 2) if buy_leg else None,
+                "quantity": int(buy_leg["quantity"]) if buy_leg else None,
+                "strike": int(buy_leg["strike"]) if buy_leg else None,
+                "expiry": buy_leg["expiry"] if buy_leg else None,
+                "right": buy_leg["right"] if buy_leg else None,
+                "status": buy_leg["status"] if buy_leg else None,
+                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
+                if buy_leg and buy_leg.get("timestamp") is not None
+                else None,
+            },
+            {
+                "side": sell_leg["side"] if sell_leg else None,
+                "trading_symbol": sell_leg["trading_symbol"] if sell_leg else None,
+                "avg_price": round(float(sell_leg["entry_price"]), 2) if sell_leg else None,
+                "ltp": round(float(sell_leg["ltp"]), 2) if sell_leg else None,
+                "pnl": round(float(sell_leg["pnl"]), 2) if sell_leg else None,
+                "quantity": int(sell_leg["quantity"]) if sell_leg else None,
+                "strike": int(sell_leg["strike"]) if sell_leg else None,
+                "expiry": sell_leg["expiry"] if sell_leg else None,
+                "right": sell_leg["right"] if sell_leg else None,
+                "status": sell_leg["status"] if sell_leg else None,
+                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
+                if sell_leg and sell_leg.get("timestamp") is not None
+                else None,
+            },
+        ],
+    }
 
 
-def _safe_ltp_response(payload):
-    if payload is None:
-        return {}
-    if isinstance(payload, dict):
-        return payload
-    return {}
+def publish_spread_update(payload: dict) -> None:
+    spread_state.update(payload["strategy_name"], payload)
 
 
-def _get_last_price_from_ltp(payload, token: int) -> float:
-    payload = _safe_ltp_response(payload)
-
-    key1 = str(token)
-    key2 = token
-
-    if key1 in payload and isinstance(payload[key1], dict):
-        return float(payload[key1].get("last_price", 0.0) or 0.0)
-
-    if key2 in payload and isinstance(payload[key2], dict):
-        return float(payload[key2].get("last_price", 0.0) or 0.0)
-
-    raise ValueError(f"LTP not found for token {token}. Response keys: {list(payload.keys())[:10]}")
+# =========================================================
+# ===================== Utilities =========================
+# =========================================================
+def current_ist() -> datetime:
+    return datetime.now(IST)
 
 
-def _build_ltp_df(quote_details):
-    payload = _safe_ltp_response(quote_details)
-    if not payload:
-        raise ValueError("Empty LTP response received from Kite.")
+def get_market_open_close_ist(ref: Optional[datetime] = None) -> tuple[datetime, datetime]:
+    now_ist = ref or current_ist()
+    market_open = now_ist.replace(
+        hour=MARKET_OPEN_HOUR,
+        minute=MARKET_OPEN_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    market_close = now_ist.replace(
+        hour=MARKET_CLOSE_HOUR,
+        minute=MARKET_CLOSE_MINUTE,
+        second=0,
+        microsecond=0,
+    )
+    return market_open, market_close
 
-    rows = []
-    for key, value in payload.items():
-        if not isinstance(value, dict):
-            continue
 
-        instrument_token = value.get("instrument_token")
-        last_price = value.get("last_price")
+def is_weekday_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    return now_ist.weekday() < 5
 
-        if instrument_token is None:
-            try:
-                instrument_token = int(str(key).split(":")[-1])
-            except Exception:
-                continue
 
-        rows.append({
+def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    _, market_close = get_market_open_close_ist(now_ist)
+    return now_ist > market_close
+
+
+def wait_until_market_open() -> None:
+    now_ist = current_ist()
+    market_open, market_close = get_market_open_close_ist(now_ist)
+
+    log_and_print(
+        f"WAIT CHECK | now_ist={now_ist} | "
+        f"market_open={market_open} | market_close={market_close}"
+    )
+
+    if now_ist > market_close:
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Trading window closed for the day.",
+            progress_text=None,
+            is_loading=False,
+        )
+        log_and_print("It is after 3:30 PM IST. Strategy will not run today.")
+        raise SystemExit
+
+    if now_ist >= market_open:
+        log_and_print("Market is already open in IST -- running strategy now.")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="BOOTING",
+            message="Market is open. Initializing strategy...",
+            progress_text="Preparing market context...",
+            is_loading=True,
+        )
+        return
+
+    sleep_seconds = int((market_open - now_ist).total_seconds())
+
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        index_name=INDEX_NAME,
+        spread_type=SPREAD_TYPE,
+        ui_state="WAITING_START_TIME",
+        message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
+        progress_text=f"Start in {sleep_seconds} seconds",
+        is_loading=True,
+    )
+
+    log_and_print(f"Waiting until {market_open.strftime('%H:%M:%S')} IST ({sleep_seconds} seconds)")
+    try:
+        for remaining in range(sleep_seconds, 0, -1):
+            print(f"\rTime left: {timedelta(seconds=remaining)}", end="")
+            if remaining % 5 == 0 or remaining <= 10:
+                publish_strategy_state(
+                    strategy_name=STRATEGY_NAME,
+                    index_name=INDEX_NAME,
+                    spread_type=SPREAD_TYPE,
+                    ui_state="WAITING_START_TIME",
+                    message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
+                    progress_text=f"Start in {remaining} seconds",
+                    is_loading=True,
+                )
+            time.sleep(1)
+        print()
+    except KeyboardInterrupt:
+        print("\nCountdown interrupted by user.")
+        raise SystemExit
+
+
+def resolve_nifty_weekly_expiry() -> str:
+    today = current_ist().date()
+    days_ahead = (1 - today.weekday()) % 7  # Tuesday = 1
+
+    if days_ahead == 0:
+        expiry = today
+    else:
+        expiry = today + timedelta(days=days_ahead)
+
+    expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
+    return expiry.strftime("%Y%m%d")
+
+
+def load_creds() -> dict:
+    return {
+        "z_api_key": os.environ["Z_API_KEY"].strip(),
+        "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
+        "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
+        "i_inst_name_nifty": "NIFTY",
+    }
+
+
+def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
+    content = (
+        f"z_api_key: {cred['z_api_key']}\n"
+        f"z_access_token: {cred['z_access_token']}\n"
+        f"i_expiry_date_nifty: {cred['i_expiry_date_nifty']}\n"
+        f"i_inst_name_nifty: {cred['i_inst_name_nifty']}\n"
+    )
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(content)
+
+    log_and_print(f"cred.yml created for legacy spread utilities at {file_path}")
+
+
+def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
+    if hasattr(nfo_util_module, "load_creds"):
+        nfo_util_module.load_creds = lambda: cred
+
+    setattr(nfo_util_module, "i_inst_name_nifty", cred["i_inst_name_nifty"])
+    setattr(nfo_util_module, "i_expiry_date_nifty", cred["i_expiry_date_nifty"])
+    setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
+    setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
+
+
+# =========================================================
+# ===================== Paper Order Book ==================
+# =========================================================
+class PaperOrderBook:
+    def __init__(self) -> None:
+        self.orders: list[dict] = []
+        self.lock = threading.Lock()
+
+    def place_order(
+        self,
+        strategy_name: str,
+        symbol: str,
+        strike: int,
+        expiry: str,
+        side: str,
+        quantity: int,
+        right: str,
+        entry_price: float,
+        instrument_token: int,
+        trading_symbol: str,
+    ) -> str:
+        ref_id = f"PAPER-{uuid.uuid4().hex[:10].upper()}"
+        order = {
+            "reference_id": ref_id,
+            "timestamp": datetime.now(IST),
+            "strategy_name": strategy_name,
+            "symbol": symbol,
+            "strike": strike,
+            "expiry": expiry,
+            "side": side,
+            "quantity": quantity,
+            "right": right,
+            "entry_price": float(entry_price),
+            "ltp": float(entry_price),
             "instrument_token": int(instrument_token),
-            "last_price_y": float(last_price or 0.0),
+            "status": "FILLED",
+            "trading_symbol": trading_symbol,
+            "pnl": 0.0,
+            "exit_price": None,
+            "exit_timestamp": None,
+        }
+
+        with self.lock:
+            self.orders.append(order)
+
+        log_and_print(
+            f"📝 PAPER ORDER | RefID={ref_id} | {side} {quantity} {trading_symbol} | Entry={entry_price:.2f}"
+        )
+        return ref_id
+
+    def get_all_orders(self) -> pd.DataFrame:
+        with self.lock:
+            if not self.orders:
+                return pd.DataFrame()
+            return pd.DataFrame(self.orders)
+
+    def update_ltp_and_pnl(self, instrument_token: int, ltp: float) -> None:
+        with self.lock:
+            for order in self.orders:
+                if order["instrument_token"] == instrument_token:
+                    order["ltp"] = float(ltp)
+
+                    if order["side"] == "BUY":
+                        order["pnl"] = (order["ltp"] - order["entry_price"]) * order["quantity"]
+                    elif order["side"] == "SELL":
+                        order["pnl"] = (order["entry_price"] - order["ltp"]) * order["quantity"]
+
+    def total_pnl(self) -> float:
+        with self.lock:
+            return float(sum(order.get("pnl", 0.0) for order in self.orders))
+
+    def close_all_positions(self) -> None:
+        with self.lock:
+            now_ts = datetime.now(IST)
+            for order in self.orders:
+                if order["exit_price"] is None:
+                    order["exit_price"] = order["ltp"]
+                    order["exit_timestamp"] = now_ts
+                    order["status"] = "CLOSED"
+
+    def get_orders_snapshot(self) -> list[dict]:
+        with self.lock:
+            return [order.copy() for order in self.orders]
+
+
+# =========================================================
+# ===================== Live MTM Tracker ==================
+# =========================================================
+class PaperSpreadMTMTracker:
+    def __init__(
+        self,
+        cred: dict,
+        paper_book: PaperOrderBook,
+        stop_loss_amount: float = STOP_LOSS_AMOUNT,
+        target_amount: float = TARGET_AMOUNT,
+        index_name: str = INDEX_NAME,
+        spread_type: str = SPREAD_TYPE,
+        strategy_name: str = STRATEGY_NAME,
+    ):
+        self.cred = cred
+        self.paper_book = paper_book
+        self.stop_loss_amount = float(stop_loss_amount)
+        self.target_amount = float(target_amount)
+        self.index_name = index_name
+        self.spread_type = spread_type
+        self.strategy_name = strategy_name
+        self.ws: Optional[KiteTicker] = None
+        self.is_running = False
+        self.last_print_time = 0.0
+        self.pnl_history = []
+        self.entry_reference_time = None
+
+    def _publish_current_state(self) -> None:
+        payload = build_spread_payload(
+            paper_book=self.paper_book,
+            index_name=self.index_name,
+            spread_type=self.spread_type,
+            strategy_name=self.strategy_name,
+            stop_loss_amount=self.stop_loss_amount,
+            target_amount=self.target_amount,
+        )
+
+        orders = self.paper_book.get_orders_snapshot()
+
+        if orders and self.entry_reference_time is None:
+            valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
+            if valid_timestamps:
+                self.entry_reference_time = min(valid_timestamps)
+
+        current_time = datetime.now(IST).strftime("%H:%M:%S")
+        current_pnl = float(payload["net_pnl"])
+
+        self.pnl_history.append({
+            "time": current_time,
+            "pnl": current_pnl,
         })
 
-    df_ltp = pd.DataFrame(rows)
-    if df_ltp.empty:
-        raise ValueError("Could not build LTP dataframe from Kite response.")
-
-    return df_ltp
-
-
-df = _read_inst_csv()
-
-# ----------------------------------------------------------
-# 1. Load credentials and initialize Kite API
-# ----------------------------------------------------------
-cred = _read_cred()
-
-kite = KiteConnect(api_key=cred["z_api_key"])
-kite.set_access_token(str(cred["z_access_token"]).strip())
-
-nfo_data = None
-i_inst_name = "N"
-expiry_date = None
-
-cred = _read_cred()
-
-
-def get_zerodha_inst_file():
-    url = "https://api.kite.trade/instruments"
-    r = requests.get(url, allow_redirects=True)
-    with open(CSV_PATH, "wb") as f:
-        f.write(r.content)
-
-
-def insert_data_rec(iterable, search_key, data):
-    if isinstance(iterable, dict):
-        for k, v in iterable.items():
-            if k == search_key:
-                iterable[k] = data
-
-
-def nearest_strike(x):
-    return round(round(x), -2)
-
-
-def round_to_multiple(number, multiple=100):
-    return multiple * round(number / multiple)
-
-
-def get_nfo_file_data_nifty(inst_name):
-    global nfo_data
-    cred = _read_cred()
-    df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_nifty"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
-    if inst_name == "GP":
-        nfo_data = a[a["name"] == "GOLDPETAL"]
-
-
-def get_nfo_file_data_crude_oil(inst_name):
-    global nfo_data
-    cred = _read_cred()
-    df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_crude_oil"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
-    if inst_name == "GP":
-        nfo_data = a[a["name"] == "GOLDPETAL"]
-
-
-def get_nfo_file_data_sensex(inst_name):
-    global nfo_data
-    cred = _read_cred()
-    df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_sensex"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
-
-
-def get_nfo_file_data_banknifty(inst_name):
-    global nfo_data
-    cred = _read_cred()
-    df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_banknifty"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
-
-
-def get_instrument_tokens():
-    global instrument_tokens
-    cred = _read_cred()
-    df_inst = _read_inst_csv()
-    inst_name = cred["i_inst_name"]
-    expiry_date = cred["i_expiry_date"]
-    print("inst_name :", inst_name, ", expiry_date :", expiry_date)
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%Y-%m-%d")
-    a = df_inst[df_inst["InsertedDates"].dt.date == expiry_date]
-    if cred["i_inst_name"] == "BX":
-        b = a[a["name"] == "BANKEX"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-    if cred["i_inst_name"] == "FN":
-        b = a[a["name"] == "FINNIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-    if cred["i_inst_name"] == "BN":
-        b = a[a["name"] == "BANKNIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-    if cred["i_inst_name"] == "N":
-        b = a[a["name"] == "NIFTY"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-    if cred["i_inst_name"] == "S":
-        b = a[a["name"] == "SENSEX"]
-        instrument_tokens_list = np.int64(b["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-    if cred["i_inst_name"] == "C":
-        print("fetch inst tokens for crude oil")
-        b = a[a["name"] == "CRUDEOIL"]
-        c = b[b["exchange"] == "MCX"]
-        instrument_tokens_list = np.int64(c["instrument_token"])
-        instrument_tokens = instrument_tokens_list.tolist()
-        return instrument_tokens
-
-
-def get_instrument_tokens_pe_sensex():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_pe_crude_oil():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_pe_nifty():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_pe_banknifty(inst_token_pe=None):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_ce_sensex():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_ce_nifty():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_ce_banknifty(inst_token_ce=None):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_ce_crude_oil():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
-
-
-def get_option_chain_ce_nifty():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    return None
-
-
-def build_nifty_ce_chain_50_strike_with_ltp():
-    global nfo_data
-
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-
-    if nfo_data is None or len(nfo_data) == 0:
-        raise ValueError("NFO data for NIFTY is empty.")
-
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
-    if df_ce.empty:
-        raise ValueError("No CE contracts found in NFO data for NIFTY.")
-
-    df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
-
-    if pd.isna(nearest_expiry):
-        raise ValueError("No valid nearest expiry found for NIFTY CE chain.")
-
-    df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
-
-    spot_data = kite.ltp([256265])
-    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
-    print(f"Current NIFTY Spot: {nifty_spot:.2f}")
-
-    atm_strike = round(nifty_spot / 50) * 50
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (6 * 50)
-    strike_max = atm_strike + (6 * 50)
-
-    df_ce = df_ce[(df_ce["strike"] >= strike_min) & (df_ce["strike"] <= strike_max)].copy()
-
-    if df_ce.empty:
-        raise ValueError("No CE strikes found in selected NIFTY 50-point strike range.")
-
-    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
-    if not ce_tokens:
-        raise ValueError("No CE instrument tokens found for selected NIFTY strikes.")
-
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = _build_ltp_df(quote_details_ce)
-
-    df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_ce = df_ce.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== NIFTY CE Option Chain (ATM ±4 Strikes) ===")
-    print(
-        df_ce[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_ce
-
-
-def build_banknifty_ce_chain_100_strike_with_ltp():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
-    df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
-    df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
-
-    spot_data = kite.ltp([260105])
-    banknifty_spot = _get_last_price_from_ltp(spot_data, 260105)
-    print(f"Current BANKNIFTY Spot: {banknifty_spot:.2f}")
-
-    atm_strike = round(banknifty_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_ce = df_ce[
-        (df_ce["strike"] >= strike_min)
-        & (df_ce["strike"] <= strike_max)
-        & (df_ce["strike"] % 100 == 0)
-    ].copy()
-
-    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = _build_ltp_df(quote_details_ce)
-
-    df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_ce = df_ce.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== BANKNIFTY CE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_ce[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_ce
-
-
-def build_sensex_ce_chain_100_strike_with_ltp():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
-    df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
-    df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
-
-    spot_data = kite.ltp([265])
-    sensex_spot = _get_last_price_from_ltp(spot_data, 265)
-    print(f"Current SENSEX Spot: {sensex_spot:.2f}")
-
-    atm_strike = round(sensex_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_ce = df_ce[
-        (df_ce["strike"] >= strike_min)
-        & (df_ce["strike"] <= strike_max)
-        & (df_ce["strike"] % 100 == 0)
-    ].copy()
-
-    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = _build_ltp_df(quote_details_ce)
-
-    df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_ce = df_ce.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== SENSEX CE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_ce[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_ce
-
-
-def build_nifty_ce_chain_100_strike_with_ltp():
-    global nfo_data
-
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-
-    if nfo_data is None or len(nfo_data) == 0:
-        raise ValueError("NFO data for NIFTY is empty.")
-
-    df_ce = nfo_data[nfo_data["instrument_type"] == "CE"].copy()
-    if df_ce.empty:
-        raise ValueError("No CE contracts found in NFO data for NIFTY.")
-
-    df_ce["expiry"] = pd.to_datetime(df_ce["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_ce[df_ce["expiry"] >= current_date]["expiry"].min()
-
-    if pd.isna(nearest_expiry):
-        raise ValueError("No valid nearest expiry found for NIFTY CE chain.")
-
-    df_ce = df_ce[df_ce["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | CE contracts: {len(df_ce)}")
-
-    spot_data = kite.ltp([256265])
-    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
-    print(f"Current NIFTY Spot: {nifty_spot:.2f}")
-
-    atm_strike = round(nifty_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_ce = df_ce[
-        (df_ce["strike"] >= strike_min)
-        & (df_ce["strike"] <= strike_max)
-        & (df_ce["strike"] % 100 == 0)
-    ].copy()
-
-    if df_ce.empty:
-        raise ValueError("No CE strikes found in selected NIFTY strike range.")
-
-    ce_tokens = df_ce["instrument_token"].dropna().astype(int).tolist()
-    if not ce_tokens:
-        raise ValueError("No CE instrument tokens found for selected NIFTY strikes.")
-
-    quote_details_ce = kite.ltp(ce_tokens)
-    df_ltp = _build_ltp_df(quote_details_ce)
-
-    df_ce = df_ce.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_ce = df_ce.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== NIFTY CE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_ce[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_ce
-
-
-def build_nifty_pe_chain_100_strike_with_ltp():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-
-    df_pe = nfo_data[nfo_data["instrument_type"] == "PE"].copy()
-    df_pe["expiry"] = pd.to_datetime(df_pe["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_pe[df_pe["expiry"] >= current_date]["expiry"].min()
-    df_pe = df_pe[df_pe["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
-
-    spot_data = kite.ltp([256265])
-    nifty_spot = _get_last_price_from_ltp(spot_data, 256265)
-    print(f"Current NIFTY Spot: {nifty_spot:.2f}")
-
-    atm_strike = round(nifty_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_pe = df_pe[
-        (df_pe["strike"] >= strike_min)
-        & (df_pe["strike"] <= strike_max)
-        & (df_pe["strike"] % 100 == 0)
-    ]
-
-    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = _build_ltp_df(quote_details_pe)
-
-    df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_pe = df_pe.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== NIFTY PE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_pe[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_pe
-
-
-def build_banknifty_pe_chain_100_strike_with_ltp():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-
-    df_pe = nfo_data[nfo_data["instrument_type"] == "PE"].copy()
-    df_pe["expiry"] = pd.to_datetime(df_pe["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_pe[df_pe["expiry"] >= current_date]["expiry"].min()
-    df_pe = df_pe[df_pe["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
-
-    spot_data = kite.ltp([260105])
-    banknifty_spot = _get_last_price_from_ltp(spot_data, 260105)
-    print(f"Current BANKNIFTY Spot: {banknifty_spot:.2f}")
-
-    atm_strike = round(banknifty_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_pe = df_pe[
-        (df_pe["strike"] >= strike_min)
-        & (df_pe["strike"] <= strike_max)
-        & (df_pe["strike"] % 100 == 0)
-    ].copy()
-
-    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = _build_ltp_df(quote_details_pe)
-
-    df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_pe = df_pe.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== BANKNIFTY PE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_pe[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_pe
-
-
-def build_sensex_pe_chain_100_strike_with_ltp():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-
-    df_pe = nfo_data[nfo_data["instrument_type"] == "PE"].copy()
-    df_pe["expiry"] = pd.to_datetime(df_pe["expiry"], errors="coerce")
-    current_date = pd.Timestamp.today().normalize()
-    nearest_expiry = df_pe[df_pe["expiry"] >= current_date]["expiry"].min()
-    df_pe = df_pe[df_pe["expiry"] == nearest_expiry].reset_index(drop=True)
-
-    print(f"\nNearest expiry: {nearest_expiry.date()} | PE contracts: {len(df_pe)}")
-
-    spot_data = kite.ltp([265])
-    sensex_spot = _get_last_price_from_ltp(spot_data, 265)
-    print(f"Current SENSEX Spot: {sensex_spot:.2f}")
-
-    atm_strike = round(sensex_spot / 100) * 100
-    print(f"Detected ATM Strike: {atm_strike}")
-
-    strike_min = atm_strike - (4 * 100)
-    strike_max = atm_strike + (6 * 100)
-    print(f"Strike Range: {strike_min} to {strike_max}")
-
-    df_pe = df_pe[
-        (df_pe["strike"] >= strike_min)
-        & (df_pe["strike"] <= strike_max)
-        & (df_pe["strike"] % 100 == 0)
-    ].copy()
-
-    pe_tokens = df_pe["instrument_token"].dropna().astype(int).tolist()
-    quote_details_pe = kite.ltp(pe_tokens)
-    df_ltp = _build_ltp_df(quote_details_pe)
-
-    df_pe = df_pe.merge(
-        df_ltp[["instrument_token", "last_price_y"]],
-        on="instrument_token",
-        how="left"
-    )
-
-    df_pe = df_pe.sort_values("strike").reset_index(drop=True)
-
-    print("\n=== SENSEX PE Option Chain (ATM ±6 Strikes) ===")
-    print(
-        df_pe[["instrument_token", "tradingsymbol", "strike", "expiry", "last_price_y"]]
-        .to_string(index=False)
-    )
-
-    return df_pe
-
-
-def bull_call_spreads_nifty(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (150, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = (df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna())
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for b in buy_candidates:
-        buy_ltp = ltp_map.get(b)
-        if buy_ltp is None:
-            continue
-        for g in gaps:
-            s = b + g
-            sell_ltp = ltp_map.get(s)
-            if sell_ltp is None:
-                continue
-            width = s - b
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": b,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": s,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(b + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
+        self.pnl_history = self.pnl_history[-200:]
+
+        running_peak = None
+        pnl_curve = []
+
+        for point in self.pnl_history:
+            pnl_val = float(point["pnl"])
+
+            if running_peak is None:
+                running_peak = pnl_val
+            else:
+                running_peak = max(running_peak, pnl_val)
+
+            drawdown = pnl_val - running_peak
+
+            pnl_curve.append({
+                "time": point["time"],
+                "pnl": pnl_val,
+                "stop_loss": self.stop_loss_amount,
+                "target": self.target_amount,
+                "drawdown": drawdown,
             })
 
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def bull_call_spreads_banknifty(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (100, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna().copy()
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for buy_strike in buy_candidates:
-        buy_ltp = ltp_map.get(buy_strike)
-        if buy_ltp is None:
-            continue
-        for gap in gaps:
-            sell_strike = buy_strike + gap
-            sell_ltp = ltp_map.get(sell_strike)
-            if sell_ltp is None:
-                continue
-            width = sell_strike - buy_strike
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
-
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def bull_call_spreads_sensex(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (100, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna().copy()
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for buy_strike in buy_candidates:
-        buy_ltp = ltp_map.get(buy_strike)
-        if buy_ltp is None:
-            continue
-        for gap in gaps:
-            sell_strike = buy_strike + gap
-            sell_ltp = ltp_map.get(sell_strike)
-            if sell_ltp is None:
-                continue
-            width = sell_strike - buy_strike
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike + net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
-
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def bear_put_spreads_nifty(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (150, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna().copy()
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for buy_strike in buy_candidates:
-        buy_ltp = ltp_map.get(buy_strike)
-        if buy_ltp is None:
-            continue
-        for gap in gaps:
-            sell_strike = buy_strike - gap
-            sell_ltp = ltp_map.get(sell_strike)
-            if sell_ltp is None:
-                continue
-            width = buy_strike - sell_strike
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
-
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def bear_put_spreads_banknifty(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (100, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna().copy()
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for buy_strike in buy_candidates:
-        buy_ltp = ltp_map.get(buy_strike)
-        if buy_ltp is None:
-            continue
-        for gap in gaps:
-            sell_strike = buy_strike - gap
-            sell_ltp = ltp_map.get(sell_strike)
-            if sell_ltp is None:
-                continue
-            width = buy_strike - sell_strike
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
-
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def bear_put_spreads_sensex(
-    df: pd.DataFrame,
-    gaps: Iterable[int] = (100, 200),
-    rr_target: float = 1.7,
-    atm_only: bool = False,
-    spot: Optional[float] = None,
-) -> pd.DataFrame:
-    required = {"strike", "last_price_y", "lot_size"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    d = df.rename(columns={"last_price_y": "ltp"}).loc[:, ["strike", "ltp", "lot_size"]].dropna().copy()
-    d["strike"] = d["strike"].astype(float)
-    d["ltp"] = d["ltp"].astype(float)
-    d = d.sort_values("strike").reset_index(drop=True)
-
-    ltp_map = d.set_index("strike")["ltp"].to_dict()
-    lot_size = int(d["lot_size"].iloc[0])
-
-    if atm_only:
-        if spot is None:
-            raise ValueError("Provide `spot` when atm_only=True.")
-        atm_idx = (d["strike"] - float(spot)).abs().argmin()
-        buy_candidates = [float(d.loc[atm_idx, "strike"])]
-    else:
-        buy_candidates = d["strike"].tolist()
-
-    rows = []
-    for buy_strike in buy_candidates:
-        buy_ltp = ltp_map.get(buy_strike)
-        if buy_ltp is None:
-            continue
-        for gap in gaps:
-            sell_strike = buy_strike - gap
-            sell_ltp = ltp_map.get(sell_strike)
-            if sell_ltp is None:
-                continue
-            width = buy_strike - sell_strike
-            net_debit = buy_ltp - sell_ltp
-            if net_debit <= 0:
-                continue
-            max_profit = width - net_debit
-            if max_profit < 0:
-                continue
-            rr = max_profit / net_debit
-            rows.append({
-                "buy_strike": buy_strike,
-                "buy_ltp": round(buy_ltp, 2),
-                "sell_strike": sell_strike,
-                "sell_ltp": round(sell_ltp, 2),
-                "gap": int(width),
-                "net_debit": round(net_debit, 2),
-                "max_profit": round(max_profit, 2),
-                "rr": round(rr, 3),
-                "breakeven": round(buy_strike - net_debit, 2),
-                "per_lot_debit": round(net_debit * lot_size, 2),
-                "per_lot_max_profit": round(max_profit * lot_size, 2),
-                "lot_size": lot_size,
-            })
-
-    out = pd.DataFrame(rows)
-    if out.empty:
-        return out
-
-    out["rr_distance"] = (out["rr"] - rr_target).abs()
-    out = out.sort_values(["rr_distance", "rr"], ascending=[True, False]).reset_index(drop=True)
-    return out
-
-
-def get_strike_for_inst_token_ce_banknifty(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_strike_for_inst_token_ce_crude_oil(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_strike_for_inst_token_pe_sensex(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        print("else")
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-        print("inst_token : ", inst_token)
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_strike_for_inst_token_pe_nifty(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        print("else")
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-        print("inst_token : ", inst_token)
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_strike_for_inst_token_pe_banknifty(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        print("else")
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-        print("inst_token : ", inst_token)
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_strike_for_inst_token_pe_crude_oil(inst_token):
-    global strike
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        print("else")
-        cred = _read_cred()
-        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-        print("inst_token : ", inst_token)
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        strike = np.int64(df1.iloc[-1]["strike"]).item()
-        return np.int64(df1.iloc[-1]["strike"]).item()
-    return None
-
-
-def get_trading_symbol_ce_crude_oil(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "CE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_ce_sensex(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "CE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_ce_nifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "CE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_ce_banknifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "CE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_pe_sensex(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "PE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_pe_nifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "PE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_pe_banknifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "PE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_pe_crude_oil(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    df2 = df1[df1["instrument_type"] == "PE"]
-    if len(df2) == 1:
-        return df2.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_for_inst_token_sensex(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_for_inst_token_nifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_trading_symbol_for_inst_token_banknifty(instrument_token):
-    cred = _read_cred()
-    get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == instrument_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["tradingsymbol"]
-    return None
-
-
-def get_inst_token_for_trading_symbol_sensex(tradingsymbol):
-    cred = _read_cred()
-    get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["tradingsymbol"] == tradingsymbol]
-    df2 = df1[df1["exchange"] == cred["i_exchange_code"]]
-    if len(df2) == 1:
-        return df2.iloc[-1]["instrument_token"]
-    return None
-
-
-def get_inst_token_for_trading_symbol_nifty(tradingsymbol):
-    cred = _read_cred()
-    get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["tradingsymbol"] == tradingsymbol]
-    df2 = df1[df1["exchange"] == cred["i_exchange_code"]]
-    if len(df2) == 1:
-        return df2.iloc[-1]["instrument_token"]
-    return None
-
-
-def get_inst_type_for_inst_token_nifty(inst_token):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["instrument_type"]
-    return None
-
-
-def get_inst_type_for_inst_token_banknifty(inst_token):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["instrument_type"]
-    return None
-
-
-def get_inst_type_for_inst_token_crude_oil(inst_token):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_crude_oil(cred["i_inst_name_crude_oil"])
-    df1 = nfo_data[nfo_data["instrument_token"] == inst_token]
-    if len(df1) == 1:
-        return df1.iloc[-1]["instrument_type"]
-    return None
-
-
-def get_instrument_details_nifty():
-    i_inst_name = "N"
-    i_stock_code = "NIFTY"
-    i_exchange_code = "NFO"
-
-    today = datetime.now().date()
-    days_ahead = (1 - today.weekday()) % 7
-    if days_ahead == 0:
-        expiry = today
-    else:
-        expiry = today + timedelta(days=days_ahead)
-
-    i_expiry_date_nifty = expiry
-
-    print("Expiry Date Util:", i_expiry_date_nifty, i_inst_name, i_stock_code, i_exchange_code)
-    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_nifty
-
-
-def get_instrument_details_banknifty():
-    i_inst_name = "BN"
-    i_stock_code = "BANKNIFTY"
-    i_exchange_code = "NFO"
-
-    today = datetime.now().date()
-    if today.month == 12:
-        first_day_next_month = datetime(today.year + 1, 1, 1).date()
-    else:
-        first_day_next_month = datetime(today.year, today.month + 1, 1).date()
-
-    last_day_this_month = first_day_next_month - timedelta(days=1)
-
-    while last_day_this_month.weekday() != 3:
-        last_day_this_month -= timedelta(days=1)
-
-    i_expiry_date_banknifty = last_day_this_month
-
-    print("Expiry Date Util:", i_expiry_date_banknifty, i_inst_name, i_stock_code, i_exchange_code)
-    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_banknifty
-
-
-def get_instrument_details_sensex():
-    i_inst_name = "S"
-    i_stock_code = "SENSEX"
-    i_exchange_code = "BFO"
-
-    today = datetime.now().date()
-    days_ahead = (1 - today.weekday()) % 7
-    if days_ahead == 0:
-        expiry = today
-    else:
-        expiry = today + timedelta(days=days_ahead)
-
-    i_expiry_date_sensex = expiry
-
-    print("Expiry Date Util:", i_expiry_date_sensex, i_inst_name, i_stock_code, i_exchange_code)
-    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_sensex
-
-
-def get_instrument_details_crude_oil():
-    i_inst_name = "C"
-    i_stock_code = "CRUDEOIL"
-    i_exchange_code = "MCX"
-
-    today = datetime.now()
-
-    if today.month == 12:
-        first_day_next_month = datetime(today.year + 1, 1, 1).date()
-    else:
-        first_day_next_month = datetime(today.year, today.month + 1, 1).date()
-
-    last_day_this_month = first_day_next_month - timedelta(days=1)
-
-    while last_day_this_month.weekday() != 0:
-        last_day_this_month -= timedelta(days=1)
-
-    i_expiry_date_crude_oil = last_day_this_month
-
-    print("Expiry Date Util:", i_expiry_date_crude_oil, i_inst_name, i_stock_code, i_exchange_code)
-    return i_inst_name, i_stock_code, i_exchange_code, i_expiry_date_crude_oil
+        payload["pnl_curve"] = pnl_curve
+        payload["entry_marker_time"] = (
+            self.entry_reference_time.strftime("%H:%M:%S")
+            if self.entry_reference_time is not None
+            else None
+        )
+
+        publish_spread_update(payload)
+
+    def _log_live_mtm(self) -> None:
+        orders = self.paper_book.get_orders_snapshot()
+        if len(orders) < 2:
+            return
+
+        total = self.paper_book.total_pnl()
+
+        buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
+        sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
+
+        if buy_leg and sell_leg:
+            log_and_print(
+                "LIVE MTM | "
+                f"BUY {buy_leg['trading_symbol']} Entry={buy_leg['entry_price']:.2f} "
+                f"LTP={buy_leg['ltp']:.2f} PnL={buy_leg['pnl']:.2f} | "
+                f"SELL {sell_leg['trading_symbol']} Entry={sell_leg['entry_price']:.2f} "
+                f"LTP={sell_leg['ltp']:.2f} PnL={sell_leg['pnl']:.2f} | "
+                f"NET={total:.2f}"
+            )
+
+    def _check_exit_conditions(self) -> None:
+        total = self.paper_book.total_pnl()
+
+        if total <= self.stop_loss_amount:
+            log_and_print(
+                f"🛑 STOP LOSS HIT | Net PnL={total:.2f} <= {self.stop_loss_amount:.2f}",
+                "warning",
+            )
+            self.paper_book.close_all_positions()
+            self._publish_current_state()
+            self.stop()
+
+        elif total >= self.target_amount:
+            log_and_print(
+                f"🎯 TARGET HIT | Net PnL={total:.2f} >= {self.target_amount:.2f}",
+                "info",
+            )
+            self.paper_book.close_all_positions()
+            self._publish_current_state()
+            self.stop()
+
+    def stop(self) -> None:
+        self.is_running = False
+        try:
+            if self.ws is not None:
+                orders_df = self.paper_book.get_all_orders()
+                if not orders_df.empty:
+                    tokens = orders_df["instrument_token"].tolist()
+                    if tokens:
+                        self.ws.unsubscribe(tokens)
+                self.ws.close()
+        except Exception as e:
+            log_and_print(f"Error while stopping MTM tracker: {e}", "error")
+
+        orders_df = self.paper_book.get_all_orders()
+        if not orders_df.empty:
+            log_and_print("Final paper positions:")
+            print(orders_df.to_string(index=False))
+
+        self._publish_current_state()
+
+    def start(self) -> None:
+        orders_df = self.paper_book.get_all_orders()
+        if orders_df.empty or len(orders_df) < 2:
+            log_and_print("No paper positions available for MTM tracking.", "warning")
+            return
+
+        tokens = orders_df["instrument_token"].tolist()
+
+        kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
+        self.ws = kws
+        self.is_running = True
+
+        def on_ticks(ws, ticks):
+            if not self.is_running:
+                return
+
+            if is_after_market_close_ist():
+                log_and_print("Market is closed in IST. Closing paper positions.", "info")
+                self.paper_book.close_all_positions()
+                self._publish_current_state()
+                self.stop()
+                return
+
+            for tick in ticks:
+                token = tick.get("instrument_token")
+                ltp = tick.get("last_price")
+
+                if token is None or ltp is None or ltp <= 0:
+                    continue
+
+                self.paper_book.update_ltp_and_pnl(token, float(ltp))
+
+            current_time = time.time()
+            if current_time - self.last_print_time >= 1.0:
+                self._log_live_mtm()
+                self.last_print_time = current_time
+
+            self._publish_current_state()
+            self._check_exit_conditions()
+
+        def on_connect(ws, response):
+            log_and_print("Connected to option-leg MTM websocket.")
+            ws.subscribe(tokens)
+            ws.set_mode(ws.MODE_LTP, tokens)
+
+        def on_close(ws, code, reason):
+            log_and_print(f"Option MTM WS closed: {code} - {reason}", "warning")
+
+        def on_error(ws, code, reason):
+            log_and_print(f"Option MTM WS error: {code} - {reason}", "error")
+
+        kws.on_ticks = on_ticks
+        kws.on_connect = on_connect
+        kws.on_close = on_close
+        kws.on_error = on_error
+
+        log_and_print("Starting option-leg MTM websocket...")
+        self._publish_current_state()
+        kws.connect(threaded=True)
+
+
+# =========================================================
+# ================= Alpha Bull Strategy ===================
+# =========================================================
+class AlphaBullCall:
+    def __init__(
+        self,
+        kite: KiteConnect,
+        cred: dict,
+        paper_book: PaperOrderBook,
+        stop_loss_amount: float = STOP_LOSS_AMOUNT,
+        target_amount: float = TARGET_AMOUNT,
+    ):
+        self.kite = kite
+        self.cred = cred
+        self.paper_book = paper_book
+        self.quantity = QUANTITY
+        self.stop_loss_amount = stop_loss_amount
+        self.target_amount = target_amount
+        self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
+        self.reset_state()
+
+    def reset_state(self) -> None:
+        self.trade_initialized = False
+        self.position_closed = False
+        self.expiry = None
+        self.itm_strike = None
+        self.otm_strike = None
+        self.symbol_ce = "NIFTY"
+
+        self.buy_leg_token = None
+        self.sell_leg_token = None
+        self.buy_leg_symbol = None
+        self.sell_leg_symbol = None
+        self.buy_entry_price = None
+        self.sell_entry_price = None
+
+    def quote_details(self) -> None:
+        ensure_cred_yml(self.cred)
+
+        from option_spreads import nfo_util
+
+        patch_nfo_util_config(nfo_util, self.cred)
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ENTERING_SPREAD",
+            message="Entry conditions satisfied. Preparing bull call spread...",
+            progress_text="Selecting spread structure...",
+            is_loading=True,
+        )
+
+        _ = self.kite.ltp(nfo_util.get_instrument_tokens_ce_nifty())
+
+        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
+        option_chain_ce = nfo_util.bull_call_spreads_nifty(
+            df_ce,
+            gaps=(150, 200),
+            rr_target=1.5,
+            atm_only=False,
+        )
+
+        if option_chain_ce.empty:
+            raise ValueError("No bull call spread candidates found in option chain.")
+
+        self.itm_strike = int(option_chain_ce.loc[0, "buy_strike"])
+        self.otm_strike = int(option_chain_ce.loc[0, "sell_strike"])
+
+        log_and_print(f"ITM Strike selected: {self.itm_strike}")
+        log_and_print(f"OTM Strike selected: {self.otm_strike}")
+
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
+
+        log_and_print(
+            f"📊 SPREAD SELECTED | BUY {self.itm_strike} CE | "
+            f"SELL {self.otm_strike} CE | Expiry={self.expiry}"
+        )
+
+        buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
+        sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
+
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
+
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
+
+        log_and_print(
+            f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
+        )
+        log_and_print(
+            f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
+        )
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ENTERING_SPREAD",
+            message="Spread legs selected successfully.",
+            progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
+            is_loading=True,
+        )
+
+        if not self.trade_initialized:
+            self.place_ce_order_buy()
+            self.place_ce_order_sell()
+            self.trade_initialized = True
+
+    def place_ce_order_buy(self) -> str:
+        return self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.itm_strike,
+            expiry=self.expiry,
+            side="BUY",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.buy_entry_price,
+            instrument_token=self.buy_leg_token,
+            trading_symbol=self.buy_leg_symbol,
+        )
+
+    def place_ce_order_sell(self) -> str:
+        return self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.otm_strike,
+            expiry=self.expiry,
+            side="SELL",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.sell_entry_price,
+            instrument_token=self.sell_leg_token,
+            trading_symbol=self.sell_leg_symbol,
+        )
+
+    def start(self) -> None:
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ENTERING_SPREAD",
+            message="Entry conditions satisfied. Creating paper bull call spread...",
+            progress_text="Placing paper orders",
+            is_loading=True,
+        )
+
+        log_and_print("Alpha Bull Call PAPER strategy: START", "info")
+        self.quote_details()
+
+        log_and_print(
+            f"✅ SPREAD EXECUTED | "
+            f"BUY {self.buy_leg_symbol} @ {self.buy_entry_price:.2f} | "
+            f"SELL {self.sell_leg_symbol} @ {self.sell_entry_price:.2f}"
+        )
+
+        orders_df = self.paper_book.get_all_orders()
+        if not orders_df.empty:
+            log_and_print("Current paper order book:")
+            print(orders_df.to_string(index=False))
+
+        initial_payload = build_spread_payload(
+            paper_book=self.paper_book,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            strategy_name=STRATEGY_NAME,
+            stop_loss_amount=self.stop_loss_amount,
+            target_amount=self.target_amount,
+        )
+        publish_spread_update(initial_payload)
+
+        self.mtm_tracker = PaperSpreadMTMTracker(
+            cred=self.cred,
+            paper_book=self.paper_book,
+            stop_loss_amount=self.stop_loss_amount,
+            target_amount=self.target_amount,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            strategy_name=STRATEGY_NAME,
+        )
+        self.mtm_tracker.start()
+
+
+# =========================================================
+# ============= Nifty EMA Confirmation Handler ============
+# =========================================================
+class EMACrossover1Min:
+    def __init__(
+        self,
+        kite: KiteConnect,
+        cred: dict,
+        instrument_token: int = NIFTY_SPOT_TOKEN,
+        preload_days: int = PRELOAD_DAYS,
+    ):
+        self.kite = kite
+        self.cred = cred
+        self.token = instrument_token
+        self.preload_days = preload_days
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="LOADING_HISTORY",
+            message="Loading historical data...",
+            progress_text="Preparing 1-minute candles",
+            is_loading=True,
+        )
+
+        self.onemin_bars = self._load_history()
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="WAITING_SIGNAL",
+            message="Monitoring market conditions for bullish entry trigger...",
+            progress_text="Watching live market",
+            is_loading=True,
+            extra={"history_rows": int(len(self.onemin_bars))},
+        )
+
+        self.prev_minute = None
+        self.tick_buffer = pd.DataFrame(columns=["last_price"])
+
+        self.last_trade_signal = 0
+        self.last_tick_log_time = 0.0
+
+        self._stop_flag = False
+        self._ws: Optional[KiteTicker] = None
+
+    def _load_history(self) -> pd.DataFrame:
+        try:
+            end_dt = datetime.today()
+            start_dt = end_dt - timedelta(days=self.preload_days)
+
+            hist = self.kite.historical_data(
+                instrument_token=self.token,
+                from_date=start_dt,
+                to_date=end_dt,
+                interval="minute",
+            )
+
+            df = pd.DataFrame(hist)
+            if df.empty:
+                log_and_print("No historical data received; starting with empty frame.", "warning")
+                return pd.DataFrame(columns=["open", "high", "low", "close"])
+
+            df["datetime"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(IST)
+            df = df.set_index("datetime")[["open", "high", "low", "close"]].sort_index()
+            return df
+
+        except Exception as e:
+            log_and_print(f"History load failed: {e}", "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"History load failed: {str(e)}",
+                progress_text="Check logs",
+                is_loading=False,
+            )
+            return pd.DataFrame(columns=["open", "high", "low", "close"])
+
+    def _to_ist(self, ts: datetime) -> datetime:
+        if ts.tzinfo is None:
+            ts = pytz.utc.localize(ts)
+        return ts.astimezone(IST)
+
+    def _prepare_1min_df(self, ltt: datetime, last_price: float, rider: AlphaBullCall) -> None:
+        ltt = self._to_ist(ltt)
+        row = pd.DataFrame([[last_price]], columns=["last_price"], index=[ltt])
+
+        self.tick_buffer = pd.concat([self.tick_buffer, row]) if not self.tick_buffer.empty else row
+
+        if self.prev_minute is None:
+            self.prev_minute = ltt.minute
+            return
+
+        if ltt.minute != self.prev_minute:
+            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+
+            if not ohlc.empty:
+                log_and_print(
+                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} | Close={ohlc['close'].iloc[-1]:.2f}"
+                )
+                ohlc["signal"] = 0
+                self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
+                self._update_ema_crossover(rider)
+
+            self.tick_buffer = row
+            self.prev_minute = ltt.minute
+
+    def _stop_nifty_stream(self) -> None:
+        self._stop_flag = True
+        try:
+            if self._ws:
+                self._ws.unsubscribe([self.token])
+                self._ws.close()
+        except Exception as e:
+            log_and_print(f"WebSocket close error: {e}", "error")
+
+    def _update_ema_crossover(self, rider: AlphaBullCall) -> None:
+        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=1, adjust=False).mean()
+        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=2, adjust=False).mean()
+
+        if len(self.onemin_bars) < 2:
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Building enough 1-minute candles",
+                is_loading=True,
+            )
+            return
+
+        latest = self.onemin_bars.iloc[-1]
+        prev = self.onemin_bars.iloc[-2]
+
+        if "signal" not in self.onemin_bars.columns:
+            self.onemin_bars["signal"] = 0
+
+        log_and_print(
+            f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+            f"Close={latest['close']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+        )
+
+        self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
+
+        signal_condition = latest["EMA5"] > latest["EMA55"]
+
+        log_and_print(
+            f"CHECKING SIGNAL | "
+            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
+            f"Condition={signal_condition}"
+        )
+
+        if signal_condition:
+            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
+
+            log_and_print(
+                f"🚀 EMA CROSSOVER SIGNAL | "
+                f"Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"Price={latest['close']:.2f} | "
+                f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+            )
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="SIGNAL_TRIGGERED",
+                message="Bullish entry signal detected. Preparing spread...",
+                progress_text="Preparing bull call spread entry",
+                is_loading=True,
+                extra={
+                    "signal_price": float(latest["close"]),
+                    "last_price": float(latest["close"]),
+                    "ema5": round(float(latest["EMA5"]), 2),
+                    "ema55": round(float(latest["EMA55"]), 2),
+                },
+            )
+
+            if self.last_trade_signal != 1:
+                log_and_print("Signal is new. Stopping NIFTY stream and launching spread entry.")
+                self.last_trade_signal = 1
+                self._stop_nifty_stream()
+
+                def _launch_rider():
+                    try:
+                        rider.start()
+                    except Exception as e:
+                        log_and_print(f"AlphaBullCall.start() failed: {e}", "error")
+                        publish_strategy_state(
+                            strategy_name=STRATEGY_NAME,
+                            index_name=INDEX_NAME,
+                            spread_type=SPREAD_TYPE,
+                            ui_state="ERROR",
+                            message=f"Spread launch failed: {str(e)}",
+                            progress_text="Check backend logs",
+                            is_loading=False,
+                        )
+
+                threading.Thread(target=_launch_rider, daemon=True).start()
+
+        else:
+            log_and_print(
+                f"NO SIGNAL | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"EMA5={latest['EMA5']:.2f} <= EMA55={latest['EMA55']:.2f}"
+            )
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Watching live market",
+                is_loading=True,
+                extra={
+                    "last_price": float(latest["close"]),
+                    "ema5": round(float(latest["EMA5"]), 2),
+                    "ema55": round(float(latest["EMA55"]), 2),
+                },
+            )
+
+    def start(self, rider: AlphaBullCall) -> None:
+        tokens = [self.token]
+        kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
+        self._ws = kws
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="WAITING_SIGNAL",
+            message="Monitoring market conditions for bullish entry trigger...",
+            progress_text="Watching live market",
+            is_loading=True,
+        )
+
+        def on_ticks(ws, ticks):
+            if self._stop_flag:
+                return
+
+            if is_after_market_close_ist():
+                self._stop_nifty_stream()
+                publish_strategy_state(
+                    strategy_name=STRATEGY_NAME,
+                    index_name=INDEX_NAME,
+                    spread_type=SPREAD_TYPE,
+                    ui_state="STOPPED",
+                    message="Trading window closed for the day.",
+                    progress_text=None,
+                    is_loading=False,
+                )
+                return
+
+            ltt_utc = datetime.utcnow()
+            latest_price = None
+
+            for tick in ticks:
+                if tick.get("instrument_token") != self.token:
+                    continue
+
+                price = tick.get("last_price")
+                if price is None or price <= 0:
+                    continue
+
+                latest_price = float(price)
+                self._prepare_1min_df(ltt_utc, latest_price, rider)
+
+            current_time = time.time()
+            if latest_price is not None and current_time - self.last_tick_log_time >= 5:
+                ema5 = None
+                ema55 = None
+
+                if len(self.onemin_bars) > 0:
+                    latest_bar = self.onemin_bars.iloc[-1]
+                    ema5 = latest_bar.get("EMA5", None)
+                    ema55 = latest_bar.get("EMA55", None)
+
+                log_and_print(
+                    f"LIVE NIFTY TICK | Price={latest_price:.2f} | "
+                    f"EMA5={round(float(ema5), 2) if pd.notna(ema5) else 'NA'} | "
+                    f"EMA55={round(float(ema55), 2) if pd.notna(ema55) else 'NA'}"
+                )
+                self.last_tick_log_time = current_time
+
+        def on_connect(ws, response):
+            if self._stop_flag:
+                return
+            log_and_print("Connected & subscribed to NIFTY EMA stream.")
+            ws.subscribe(tokens)
+            ws.set_mode(ws.MODE_LTP, tokens)
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Connected to live NIFTY feed. Monitoring for bullish trigger...",
+                progress_text="Live feed active",
+                is_loading=True,
+            )
+
+        def on_close(ws, code, reason):
+            log_and_print(f"NIFTY EMA WS closed: {code} - {reason}", "warning")
+
+        def on_error(ws, code, reason):
+            log_and_print(f"NIFTY EMA WS error: {code} - {reason}", "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"NIFTY websocket error: {reason}",
+                progress_text="Check websocket connection",
+                is_loading=False,
+            )
+
+        kws.on_ticks = on_ticks
+        kws.on_connect = on_connect
+        kws.on_close = on_close
+        kws.on_error = on_error
+
+        log_and_print("Starting NIFTY EMA WebSocket…")
+        kws.connect(threaded=True)
 
 
 def main():
-    get_zerodha_inst_file()
-    cred = _read_cred()
+    log_and_print("✅ Strategy main() entered")
+    log_and_print(f"MAIN STARTED | Current IST={current_ist()}")
 
-    i_inst_name_nifty, i_stock_code_nifty, i_exchange_code_nifty, i_expiry_date_nifty = get_instrument_details_nifty()
-    i_inst_name_banknifty, i_stock_code_banknifty, i_exchange_code_banknifty, i_expiry_date_banknifty = get_instrument_details_banknifty()
-    i_inst_name_sensex, i_stock_code_sensex, i_exchange_code_sensex, i_expiry_date_sensex = get_instrument_details_sensex()
-    i_inst_name_crude_oil, i_stock_code_crude_oil, i_exchange_code_crude_oil, i_expiry_date_crude_oil = get_instrument_details_crude_oil()
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        index_name=INDEX_NAME,
+        spread_type=SPREAD_TYPE,
+        ui_state="BOOTING",
+        message="Strategy process started.",
+        progress_text="Initializing",
+        is_loading=True,
+    )
 
-    insert_data_rec(cred, "i_expiry_date_nifty", i_expiry_date_nifty)
-    insert_data_rec(cred, "i_expiry_date_banknifty", i_expiry_date_banknifty)
-    insert_data_rec(cred, "i_expiry_date_sensex", i_expiry_date_sensex)
-    insert_data_rec(cred, "i_expiry_date_crude_oil", i_expiry_date_crude_oil)
+    now_ist = current_ist()
+    log_and_print(f"WEEKDAY CHECK | now_ist={now_ist} | weekday={now_ist.weekday()}")
 
-    insert_data_rec(cred, "i_inst_name_nifty", i_inst_name_nifty)
-    insert_data_rec(cred, "i_inst_name_banknifty", i_inst_name_banknifty)
-    insert_data_rec(cred, "i_inst_name_sensex", i_inst_name_sensex)
-    insert_data_rec(cred, "i_inst_name_crude_oil", i_inst_name_crude_oil)
+    if not is_weekday_ist(now_ist):
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy is inactive outside working days.",
+            progress_text=None,
+            is_loading=False,
+        )
+        log_and_print("Today is not a working day. Strategy will not run.")
+        return
 
-    insert_data_rec(cred, "i_stock_code_nifty", i_stock_code_nifty)
-    insert_data_rec(cred, "i_stock_code_banknifty", i_stock_code_banknifty)
-    insert_data_rec(cred, "i_stock_code_sensex", i_stock_code_sensex)
-    insert_data_rec(cred, "i_stock_code_crude_oil", i_stock_code_crude_oil)
+    wait_until_market_open()
 
-    insert_data_rec(cred, "i_exchange_code_nifty", i_exchange_code_nifty)
-    insert_data_rec(cred, "i_exchange_code_banknifty", i_exchange_code_banknifty)
-    insert_data_rec(cred, "i_exchange_code_sensex", i_exchange_code_sensex)
-    insert_data_rec(cred, "i_exchange_code_crude_oil", i_exchange_code_crude_oil)
+    try:
+        cred = load_creds()
 
-    _write_cred(cred)
+        kite = KiteConnect(api_key=cred["z_api_key"])
+        kite.set_access_token(cred["z_access_token"])
+        log_and_print("Kite API authenticated.")
+        log_and_print(f"Resolved NIFTY weekly expiry: {cred['i_expiry_date_nifty']}")
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="BOOTING",
+            message="Kite API authenticated successfully.",
+            progress_text="Preparing strategy objects",
+            is_loading=True,
+        )
+
+        paper_book = PaperOrderBook()
+
+        nifty_ema = EMACrossover1Min(
+            kite=kite,
+            cred=cred,
+            instrument_token=NIFTY_SPOT_TOKEN,
+            preload_days=PRELOAD_DAYS,
+        )
+
+        alpha_bull = AlphaBullCall(
+            kite=kite,
+            cred=cred,
+            paper_book=paper_book,
+            stop_loss_amount=STOP_LOSS_AMOUNT,
+            target_amount=TARGET_AMOUNT,
+        )
+
+        log_and_print("Starting NIFTY EMA bullish-entry logic...")
+        nifty_ema.start(alpha_bull)
+
+        log_and_print("Main finished.")
+
+    except SystemExit:
+        log_and_print("Exited after execution.")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy stopped manually.",
+            progress_text=None,
+            is_loading=False,
+        )
+    except Exception as e:
+        log_and_print(f"An error occurred in main execution: {e}", "error")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ERROR",
+            message=f"Strategy failed: {str(e)}",
+            progress_text="Check logs",
+            is_loading=False,
+        )
+
+
+if __name__ == "__main__":
+    main()
