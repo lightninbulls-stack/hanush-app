@@ -185,7 +185,9 @@ const WaitingSpreadCard: React.FC<{
                   color: "#facc15",
                   fontSize: "14px",
                   fontWeight: 700,
-                  animation: isAnimated ? "lb-live-pulse 1.5s ease-in-out infinite" : "none",
+                  animation: isAnimated
+                    ? "lb-live-pulse 1.5s ease-in-out infinite"
+                    : "none",
                 }}
               >
                 {spread.progress_text}
@@ -252,7 +254,10 @@ const WaitingSpreadCard: React.FC<{
               fontWeight: 600,
             }}
           >
-            State: <span style={{ fontWeight: 800 }}>{spread.ui_state || spread.status}</span>
+            State:{" "}
+            <span style={{ fontWeight: 800 }}>
+              {spread.ui_state || spread.status}
+            </span>
           </div>
 
           <div
@@ -265,7 +270,10 @@ const WaitingSpreadCard: React.FC<{
               fontWeight: 600,
             }}
           >
-            Stop Loss: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.stop_loss)}</span>
+            Stop Loss:{" "}
+            <span style={{ fontWeight: 800 }}>
+              {formatCurrency(spread.stop_loss)}
+            </span>
           </div>
 
           <div
@@ -278,7 +286,10 @@ const WaitingSpreadCard: React.FC<{
               fontWeight: 600,
             }}
           >
-            Target: <span style={{ fontWeight: 800 }}>{formatCurrency(spread.target)}</span>
+            Target:{" "}
+            <span style={{ fontWeight: 800 }}>
+              {formatCurrency(spread.target)}
+            </span>
           </div>
         </div>
       </div>
@@ -301,9 +312,9 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
 
         if (!isMounted) return;
 
-        const allSpreads = Object.values(data || {});
-        const filtered = allSpreads
-          .filter((item) => item?.spread_type === spreadType)
+        const allSpreads: IntradaySpread[] = Object.values(data ?? {});
+        const filtered: IntradaySpread[] = allSpreads
+          .filter((item) => item.spread_type === spreadType)
           .sort((a, b) => a.index.localeCompare(b.index));
 
         setSpreads(filtered);
