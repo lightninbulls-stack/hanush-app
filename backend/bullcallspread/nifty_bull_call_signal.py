@@ -937,8 +937,9 @@ class EMACrossover1Min:
             self.onemin_bars["signal"] = 0
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
+        if latest["EMA5"] > latest["EMA55"]:
 
-        if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
+        # if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
             self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
 
             log_and_print(
