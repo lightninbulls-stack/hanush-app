@@ -1,3 +1,4 @@
+cat > src/components/PnlCurveChart.tsx <<'EOF'
 import React from "react";
 import {
   Area,
@@ -223,3 +224,4 @@ const PnlCurveChart: React.FC<Props> = ({ data, entryMarkerTime }) => {
 };
 
 export default PnlCurveChart;
+EOF
