@@ -672,7 +672,7 @@ class AlphaBullCall:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-    ensure_cred_yml(self.cred)
+        ensure_cred_yml(self.cred)
 
     from option_spreads import nfo_util
 
