@@ -234,45 +234,135 @@ def get_nfo_file_data_crude_oil(inst_name):
     if inst_name == "GP":
         nfo_data = a[a["name"] == "GOLDPETAL"]
 
-
 def get_nfo_file_data_sensex(inst_name):
     global nfo_data
+
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_sensex"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
 
+    print("DEBUG SENSEX LOAD 1 | entered get_nfo_file_data_sensex()")
+    print(f"DEBUG SENSEX LOAD 2 | raw inst_name = {inst_name}")
+    print(f"DEBUG SENSEX LOAD 3 | raw expiry from cred = {cred.get('i_expiry_date_sensex')}")
+    print(f"DEBUG SENSEX LOAD 4 | total rows in CSV = {len(df_inst)}")
+
+    # --- SAFE CSV EXPIRY PARSING ---
+    df_inst["InsertedDates"] = pd.to_datetime(
+        df_inst["expiry"].astype(str).str.strip(),
+        dayfirst=True,
+        errors="coerce"
+    )
+
+    # --- SAFE TARGET EXPIRY PARSING ---
+    expiry_value = cred.get("i_expiry_date_sensex")
+
+    if isinstance(expiry_value, str):
+        expiry_value = expiry_value.strip()
+        if len(expiry_value) == 8 and expiry_value.isdigit():
+            expiry_value = pd.to_datetime(expiry_value, format="%Y%m%d", errors="coerce")
+        else:
+            expiry_value = pd.to_datetime(expiry_value, errors="coerce")
+    elif isinstance(expiry_value, (int, np.integer)):
+        expiry_value = pd.to_datetime(str(int(expiry_value)), format="%Y%m%d", errors="coerce")
+    else:
+        expiry_value = pd.to_datetime(expiry_value, errors="coerce")
+
+    if pd.isna(expiry_value):
+        print("DEBUG SENSEX LOAD 5 | expiry parsing failed")
+        nfo_data = pd.DataFrame()
+        return
+
+    expiry_value = pd.Timestamp(expiry_value).date()
+    print(f"DEBUG SENSEX LOAD 6 | parsed expiry_value = {expiry_value}")
+
+    valid_rows = df_inst[df_inst["InsertedDates"].notna()].copy()
+    print(f"DEBUG SENSEX LOAD 7 | valid expiry rows = {len(valid_rows)}")
+
+    if len(valid_rows) > 0:
+        expiries = sorted(valid_rows["InsertedDates"].dt.date.drop_duplicates().tolist())
+        print(f"DEBUG SENSEX LOAD 8 | available expiries sample = {expiries[:10]}")
+
+    a = valid_rows[valid_rows["InsertedDates"].dt.date == expiry_value].copy()
+    print(f"DEBUG SENSEX LOAD 9 | rows after expiry filter = {len(a)}")
+
+    inst_name = str(inst_name).strip().upper()
+
+    if inst_name in {"S", "SENSEX"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "SENSEX"].copy()
+    else:
+        nfo_data = pd.DataFrame()
+
+    print(f"DEBUG SENSEX LOAD 10 | rows after name filter = {len(nfo_data)}")
+
+    if len(nfo_data) > 0:
+        print("DEBUG SENSEX LOAD 11 | sample:")
+        print(nfo_data.head(10).to_string(index=False))
+    else:
+        print("DEBUG SENSEX LOAD 11 | dataframe empty")
 
 def get_nfo_file_data_banknifty(inst_name):
     global nfo_data
+
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_banknifty"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
+
+    print("DEBUG BANKNIFTY LOAD 1 | entered get_nfo_file_data_banknifty()")
+    print(f"DEBUG BANKNIFTY LOAD 2 | raw inst_name = {inst_name}")
+    print(f"DEBUG BANKNIFTY LOAD 3 | raw expiry from cred = {cred.get('i_expiry_date_banknifty')}")
+    print(f"DEBUG BANKNIFTY LOAD 4 | total rows in CSV = {len(df_inst)}")
+
+    # --- SAFE CSV EXPIRY PARSING ---
+    df_inst["InsertedDates"] = pd.to_datetime(
+        df_inst["expiry"].astype(str).str.strip(),
+        dayfirst=True,
+        errors="coerce"
+    )
+
+    # --- SAFE TARGET EXPIRY PARSING ---
+    expiry_value = cred.get("i_expiry_date_banknifty")
+
+    if isinstance(expiry_value, str):
+        expiry_value = expiry_value.strip()
+        if len(expiry_value) == 8 and expiry_value.isdigit():
+            expiry_value = pd.to_datetime(expiry_value, format="%Y%m%d", errors="coerce")
+        else:
+            expiry_value = pd.to_datetime(expiry_value, errors="coerce")
+    elif isinstance(expiry_value, (int, np.integer)):
+        expiry_value = pd.to_datetime(str(int(expiry_value)), format="%Y%m%d", errors="coerce")
+    else:
+        expiry_value = pd.to_datetime(expiry_value, errors="coerce")
+
+    if pd.isna(expiry_value):
+        print("DEBUG BANKNIFTY LOAD 5 | expiry parsing failed")
+        nfo_data = pd.DataFrame()
+        return
+
+    expiry_value = pd.Timestamp(expiry_value).date()
+    print(f"DEBUG BANKNIFTY LOAD 6 | parsed expiry_value = {expiry_value}")
+
+    valid_rows = df_inst[df_inst["InsertedDates"].notna()].copy()
+    print(f"DEBUG BANKNIFTY LOAD 7 | valid expiry rows = {len(valid_rows)}")
+
+    if len(valid_rows) > 0:
+        expiries = sorted(valid_rows["InsertedDates"].dt.date.drop_duplicates().tolist())
+        print(f"DEBUG BANKNIFTY LOAD 8 | available expiries sample = {expiries[:10]}")
+
+    a = valid_rows[valid_rows["InsertedDates"].dt.date == expiry_value].copy()
+    print(f"DEBUG BANKNIFTY LOAD 9 | rows after expiry filter = {len(a)}")
+
+    inst_name = str(inst_name).strip().upper()
+
+    if inst_name in {"BN", "BANKNIFTY"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "BANKNIFTY"].copy()
+    else:
+        nfo_data = pd.DataFrame()
+
+    print(f"DEBUG BANKNIFTY LOAD 10 | rows after name filter = {len(nfo_data)}")
+
+    if len(nfo_data) > 0:
+        print("DEBUG BANKNIFTY LOAD 11 | sample:")
+        print(nfo_data.head(10).to_string(index=False))
+    else:
+        print("DEBUG BANKNIFTY LOAD 11 | dataframe empty")
 
 
 def get_instrument_tokens():
