@@ -1,6 +1,6 @@
 import React from "react";
 import BullCallSpreadDashboard from "./BullCallSpreadDashboard";
-import { PnlPoint } from "./SnakePnlChart";
+import type { PnlPoint } from "./SnakePnlChart";
 
 type TradeLeg = {
   side: "BUY" | "SELL";
@@ -24,32 +24,8 @@ type Props = {
   entryTime: string;
 };
 
-const BullCallSpreadPage: React.FC<Props> = ({
-  pnlSeries,
-  legs,
-  strategyName,
-  algoName,
-  status,
-  netPnl,
-  stopLoss,
-  target,
-  updatedAt,
-  entryTime,
-}) => {
-  return (
-    <BullCallSpreadDashboard
-      strategyName={strategyName}
-      algoName={algoName}
-      status={status}
-      netPnl={netPnl}
-      stopLoss={stopLoss}
-      target={target}
-      updatedAt={updatedAt}
-      entryTime={entryTime}
-      legs={legs}
-      pnlSeries={pnlSeries}
-    />
-  );
+const BullCallSpreadPage: React.FC<Props> = (props) => {
+  return <BullCallSpreadDashboard {...props} />;
 };
 
 export default BullCallSpreadPage;
