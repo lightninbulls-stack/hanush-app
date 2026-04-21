@@ -98,8 +98,11 @@ export default function SnakePnlChart({
   zeroLine = 0,
   height = 420,
 }: Props) {
+  const safeData = data ?? [];
+
   const { points, yTicks, zeroY, targetY, stopLossY, pathD } = useMemo(() => {
-    const values = data.map((d) => d.value);
+    const values =
+      safeData.length > 0 ? safeData.map((d) => d.value) : [0, target, stopLoss];
 
     const minVal = Math.min(...values, stopLoss, zeroLine, 0);
     const maxVal = Math.max(...values, target, zeroLine, 0);
@@ -112,12 +115,12 @@ export default function SnakePnlChart({
     const innerHeight = height - PADDING.top - PADDING.bottom;
 
     const mapX = (index: number) =>
-      PADDING.left + (index / Math.max(1, data.length - 1)) * innerWidth;
+      PADDING.left + (index / Math.max(1, safeData.length - 1 || 1)) * innerWidth;
 
     const mapY = (value: number) =>
       PADDING.top + (1 - (value - paddedMin) / (paddedMax - paddedMin)) * innerHeight;
 
-    const points = data.map((d, i) => ({
+    const points = safeData.map((d, i) => ({
       x: mapX(i),
       y: mapY(d.value),
     }));
@@ -138,11 +141,11 @@ export default function SnakePnlChart({
       stopLossY: mapY(stopLoss),
       pathD: buildSmoothPath(points),
     };
-  }, [data, target, stopLoss, zeroLine, height]);
+  }, [safeData, target, stopLoss, zeroLine, height]);
 
   const scales = useMemo(() => makeSnakeScales(points), [points]);
   const lastPoint = points[points.length - 1];
-  const lastValue = data[data.length - 1]?.value ?? 0;
+  const lastValue = safeData[safeData.length - 1]?.value ?? 0;
 
   return (
     <svg
@@ -206,12 +209,7 @@ export default function SnakePnlChart({
             stroke="rgba(212, 167, 61, 0.09)"
             strokeWidth="1"
           />
-          <text
-            x={10}
-            y={tick.y + 4}
-            fill="rgba(255,255,255,0.45)"
-            fontSize="12"
-          >
+          <text x={10} y={tick.y + 4} fill="rgba(255,255,255,0.45)" fontSize="12">
             {tick.value.toFixed(0)}
           </text>
         </g>
@@ -322,14 +320,14 @@ export default function SnakePnlChart({
         </>
       )}
 
-      {data.map((point, index) => {
+      {safeData.map((point, index) => {
         const p = points[index];
         if (!p) return null;
 
         const shouldShow =
           index === 0 ||
-          index === data.length - 1 ||
-          index % Math.max(1, Math.floor(data.length / 6)) === 0;
+          index === safeData.length - 1 ||
+          index % Math.max(1, Math.floor(safeData.length / 6)) === 0;
 
         if (!shouldShow) return null;
 
