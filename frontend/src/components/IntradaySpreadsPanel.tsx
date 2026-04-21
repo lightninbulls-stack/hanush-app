@@ -15,8 +15,8 @@ const emptyMessageMap: Record<Props["spreadType"], string> = {
 };
 
 const titleMap: Record<Props["spreadType"], string> = {
-  bull_call: "Call debit Spreads",
-  bear_put: "Put debit Spreads",
+  bull_call: "Call Debit Spreads",
+  bear_put: "Put Debit Spreads",
 };
 
 const subtitleMap: Record<Props["spreadType"], string> = {
@@ -331,7 +331,7 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
     };
 
     load();
-    intervalId = window.setInterval(load, 1500);
+    intervalId = window.setInterval(load, 5000);
 
     return () => {
       isMounted = false;
