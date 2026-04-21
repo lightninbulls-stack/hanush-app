@@ -395,19 +395,6 @@ def get_instrument_tokens():
         c = b[b["exchange"] == "MCX"]
         return np.int64(c["instrument_token"]).tolist()
 
-
-def get_instrument_tokens_pe_sensex():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
 def get_instrument_tokens_pe_crude_oil():
     if nfo_data is not None and len(nfo_data) > 0:
         pass
@@ -417,43 +404,6 @@ def get_instrument_tokens_pe_crude_oil():
     df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
     if len(df2) > 0:
         return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_pe_nifty():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_pe_banknifty(inst_token_pe=None):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df2 = nfo_data[nfo_data["instrument_type"] == "PE"]
-    if len(df2) > 0:
-        return df2["instrument_token"].tolist()
-    return None
-
-
-def get_instrument_tokens_ce_sensex():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
     return None
 
 
@@ -491,19 +441,159 @@ def get_instrument_tokens_ce_nifty():
     return []
 
 
+def get_instrument_tokens_pe_nifty():
+    global nfo_data
+
+    print("DEBUG PE TOKENS NIFTY 1 | entered get_instrument_tokens_pe_nifty()")
+
+    if nfo_data is None or len(nfo_data) == 0:
+        cred = _read_cred()
+        print(f"DEBUG PE TOKENS NIFTY 2 | i_inst_name_nifty = {cred.get('i_inst_name_nifty')}")
+        print(f"DEBUG PE TOKENS NIFTY 3 | i_expiry_date_nifty = {cred.get('i_expiry_date_nifty')}")
+        get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
+
+    if nfo_data is None:
+        print("DEBUG PE TOKENS NIFTY 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG PE TOKENS NIFTY 5 | nfo_data rows = {len(nfo_data)}")
+
+    df2 = nfo_data[
+        nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "PE"
+    ].copy()
+
+    print(f"DEBUG PE TOKENS NIFTY 6 | PE rows after filter = {len(df2)}")
+
+    if len(df2) > 0:
+        tokens = df2["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG PE TOKENS NIFTY 7 | token count = {len(tokens)}")
+        return tokens
+
+    return []
+
+
+def get_instrument_tokens_ce_sensex():
+    global nfo_data
+
+    print("DEBUG CE TOKENS SENSEX 1 | entered get_instrument_tokens_ce_sensex()")
+
+    if nfo_data is None or len(nfo_data) == 0:
+        cred = _read_cred()
+        print(f"DEBUG CE TOKENS SENSEX 2 | i_inst_name_sensex = {cred.get('i_inst_name_sensex')}")
+        print(f"DEBUG CE TOKENS SENSEX 3 | i_expiry_date_sensex = {cred.get('i_expiry_date_sensex')}")
+        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
+
+    if nfo_data is None:
+        print("DEBUG CE TOKENS SENSEX 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG CE TOKENS SENSEX 5 | nfo_data rows = {len(nfo_data)}")
+
+    df1 = nfo_data[
+        nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "CE"
+    ].copy()
+
+    print(f"DEBUG CE TOKENS SENSEX 6 | CE rows after filter = {len(df1)}")
+
+    if len(df1) > 0:
+        tokens = df1["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG CE TOKENS SENSEX 7 | token count = {len(tokens)}")
+        return tokens
+
+    return []
+
+
+def get_instrument_tokens_pe_sensex():
+    global nfo_data
+
+    print("DEBUG PE TOKENS SENSEX 1 | entered get_instrument_tokens_pe_sensex()")
+
+    if nfo_data is None or len(nfo_data) == 0:
+        cred = _read_cred()
+        print(f"DEBUG PE TOKENS SENSEX 2 | i_inst_name_sensex = {cred.get('i_inst_name_sensex')}")
+        print(f"DEBUG PE TOKENS SENSEX 3 | i_expiry_date_sensex = {cred.get('i_expiry_date_sensex')}")
+        get_nfo_file_data_sensex(cred["i_inst_name_sensex"])
+
+    if nfo_data is None:
+        print("DEBUG PE TOKENS SENSEX 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG PE TOKENS SENSEX 5 | nfo_data rows = {len(nfo_data)}")
+
+    df2 = nfo_data[
+        nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "PE"
+    ].copy()
+
+    print(f"DEBUG PE TOKENS SENSEX 6 | PE rows after filter = {len(df2)}")
+
+    if len(df2) > 0:
+        tokens = df2["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG PE TOKENS SENSEX 7 | token count = {len(tokens)}")
+        return tokens
+
+    return []
+
 
 def get_instrument_tokens_ce_banknifty(inst_token_ce=None):
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
-        cred = _read_cred()
-        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
-    if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
+    global nfo_data
 
+    print("DEBUG CE TOKENS BANKNIFTY 1 | entered get_instrument_tokens_ce_banknifty()")
+
+    if nfo_data is None or len(nfo_data) == 0:
+        cred = _read_cred()
+        print(f"DEBUG CE TOKENS BANKNIFTY 2 | i_inst_name_banknifty = {cred.get('i_inst_name_banknifty')}")
+        print(f"DEBUG CE TOKENS BANKNIFTY 3 | i_expiry_date_banknifty = {cred.get('i_expiry_date_banknifty')}")
+        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
+
+    if nfo_data is None:
+        print("DEBUG CE TOKENS BANKNIFTY 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG CE TOKENS BANKNIFTY 5 | nfo_data rows = {len(nfo_data)}")
+
+    df1 = nfo_data[
+        nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "CE"
+    ].copy()
+
+    print(f"DEBUG CE TOKENS BANKNIFTY 6 | CE rows after filter = {len(df1)}")
+
+    if len(df1) > 0:
+        tokens = df1["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG CE TOKENS BANKNIFTY 7 | token count = {len(tokens)}")
+        return tokens
+
+    return []
+
+
+def get_instrument_tokens_pe_banknifty(inst_token_pe=None):
+    global nfo_data
+
+    print("DEBUG PE TOKENS BANKNIFTY 1 | entered get_instrument_tokens_pe_banknifty()")
+
+    if nfo_data is None or len(nfo_data) == 0:
+        cred = _read_cred()
+        print(f"DEBUG PE TOKENS BANKNIFTY 2 | i_inst_name_banknifty = {cred.get('i_inst_name_banknifty')}")
+        print(f"DEBUG PE TOKENS BANKNIFTY 3 | i_expiry_date_banknifty = {cred.get('i_expiry_date_banknifty')}")
+        get_nfo_file_data_banknifty(cred["i_inst_name_banknifty"])
+
+    if nfo_data is None:
+        print("DEBUG PE TOKENS BANKNIFTY 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG PE TOKENS BANKNIFTY 5 | nfo_data rows = {len(nfo_data)}")
+
+    df2 = nfo_data[
+        nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "PE"
+    ].copy()
+
+    print(f"DEBUG PE TOKENS BANKNIFTY 6 | PE rows after filter = {len(df2)}")
+
+    if len(df2) > 0:
+        tokens = df2["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG PE TOKENS BANKNIFTY 7 | token count = {len(tokens)}")
+        return tokens
+
+    return []
 
 def get_instrument_tokens_ce_crude_oil():
     if nfo_data is not None and len(nfo_data) > 0:
