@@ -114,13 +114,13 @@ def latest_vol_6m(
 
 
 def latest_mom_6_1(monthly: pd.DataFrame) -> pd.Series:
-    if len(monthly) < 8:
+    if len(monthly) < 7:
         raise RuntimeError(
-            "Not enough monthly history for 6-1 momentum. "
-            "Need at least 8 month-end observations."
+            "Not enough monthly history for 6-month momentum with 0 lag. "
+            "Need at least 7 month-end observations."
         )
 
-    mom = (monthly.shift(1) / monthly.shift(7)) - 1.0
+    mom = (monthly / monthly.shift(6)) - 1.0
     return mom.iloc[-1].dropna()
 
 
