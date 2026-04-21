@@ -1,11 +1,14 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-20,1,INDUSTOWER,Telecommunication,100,-7.32,-4.99,-5.16,15.98,28.53,High Vol,EMA Ensemble Downside
-2026-04-20,2,SUNPHARMA,Healthcare,100,0.83,-6.43,-3.48,0.01,18.81,Medium Vol,EMA Ensemble Downside
-2026-04-20,3,PATANJALI,Fast Moving Consumer Goods,100,-1.65,-4.99,-15.48,-22.07,23.14,Medium Vol,EMA Ensemble Downside
-2026-04-20,4,SUPREMEIND,Capital Goods,100,-2.38,-5.49,7.13,-12.95,27.82,High Vol,EMA Ensemble Downside
-2026-04-20,5,COALINDIA,Oil Gas & Consumable Fuels,100,1.76,-4.03,3.0,15.78,26.73,High Vol,EMA Ensemble Downside
-2026-04-20,6,OIL,Oil Gas & Consumable Fuels,100,0.08,2.52,5.31,13.27,31.71,High Vol,EMA Ensemble Downside
-2026-04-20,7,BIOCON,Healthcare,75,3.0,-4.77,-4.84,2.76,26.27,High Vol,EMA Ensemble Downside
-2026-04-20,8,DRREDDY,Healthcare,75,0.03,-3.47,3.47,-2.36,22.12,Medium Vol,EMA Ensemble Downside
-2026-04-20,9,CIPLA,Healthcare,75,0.0,-5.42,-15.11,-21.37,18.96,Medium Vol,EMA Ensemble Downside
-2026-04-20,10,RELIANCE,Oil Gas & Consumable Fuels,75,0.97,-2.28,-6.16,-0.85,21.98,Medium Vol,EMA Ensemble Downside
+2026-04-21,1,INDUSTOWER,Telecommunication,100,-5.41,-4.91,-5.39,22.51,28.27,High Vol,EMA Ensemble Downside
+2026-04-21,2,SUNPHARMA,Healthcare,100,0.79,-7.2,-2.09,0.65,18.77,Medium Vol,EMA Ensemble Downside
+2026-04-21,3,SUPREMEIND,Capital Goods,100,-3.46,-6.56,5.2,-12.03,27.7,High Vol,EMA Ensemble Downside
+2026-04-21,4,DRREDDY,Healthcare,100,-1.24,-4.92,2.87,-1.35,21.99,Medium Vol,EMA Ensemble Downside
+2026-04-21,5,COALINDIA,Oil Gas & Consumable Fuels,100,1.85,-4.13,2.53,16.33,26.72,High Vol,EMA Ensemble Downside
+2026-04-21,6,OIL,Oil Gas & Consumable Fuels,100,-2.51,-1.82,1.56,12.33,31.77,High Vol,EMA Ensemble Downside
+2026-04-21,7,ASTRAL,Capital Goods,100,-2.62,-4.21,8.2,11.55,31.46,High Vol,EMA Ensemble Downside
+2026-04-21,8,PATANJALI,Fast Moving Consumer Goods,75,1.74,-3.77,-13.88,-19.79,23.28,Medium Vol,EMA Ensemble Downside
+2026-04-21,9,BIOCON,Healthcare,75,4.78,-4.25,-4.62,2.74,26.27,High Vol,EMA Ensemble Downside
+2026-04-21,10,CIPLA,Healthcare,75,1.77,-3.85,-14.08,-20.6,18.95,Medium Vol,EMA Ensemble Downside
+2026-04-21,11,SRF,Chemicals,75,1.14,-1.08,-18.5,-18.82,32.09,High Vol,EMA Ensemble Downside
+2026-04-21,12,TORNTPHARM,Healthcare,75,-1.08,-3.94,3.3,17.42,20.72,Medium Vol,EMA Ensemble Downside
+2026-04-21,13,RELIANCE,Oil Gas & Consumable Fuels,75,2.9,-3.17,-7.23,-1.64,22.01,Medium Vol,EMA Ensemble Downside
