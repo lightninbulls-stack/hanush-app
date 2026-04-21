@@ -115,27 +115,74 @@ def nearest_strike(x):
 def round_to_multiple(number, multiple=100):
     return multiple * round(number / multiple)
 
-
 def get_nfo_file_data_nifty(inst_name):
     global nfo_data
+
     cred = _read_cred()
     df_inst = _read_inst_csv()
-    df_inst["InsertedDates"] = pd.to_datetime(df_inst["expiry"], format="%d/%m/%y", errors="coerce")
-    a = df_inst[df_inst["InsertedDates"].dt.date == cred["i_expiry_date_nifty"]]
-    if inst_name == "BN":
-        nfo_data = a[a["name"] == "BANKNIFTY"]
-    if inst_name == "FN":
-        nfo_data = a[a["name"] == "FINNIFTY"]
-    if inst_name == "N":
-        nfo_data = a[a["name"] == "NIFTY"]
-    if inst_name == "BX":
-        nfo_data = a[a["name"] == "BANKEX"]
-    if inst_name == "S":
-        nfo_data = a[a["name"] == "SENSEX"]
-    if inst_name == "C":
-        nfo_data = a[a["name"] == "CRUDEOIL"]
-    if inst_name == "GP":
-        nfo_data = a[a["name"] == "GOLDPETAL"]
+
+    print("DEBUG NIFTY LOAD 1 | entered get_nfo_file_data_nifty()")
+    print(f"DEBUG NIFTY LOAD 2 | raw inst_name = {inst_name}")
+    print(f"DEBUG NIFTY LOAD 3 | raw expiry from cred = {cred.get('i_expiry_date_nifty')}")
+    print(f"DEBUG NIFTY LOAD 4 | total rows in CSV = {len(df_inst)}")
+    print(f"DEBUG NIFTY LOAD 5 | columns = {list(df_inst.columns)}")
+
+    df_inst["InsertedDates"] = pd.to_datetime(
+        df_inst["expiry"].astype(str).str.strip(),
+        format="%d/%m/%y",
+        errors="coerce"
+    )
+
+    expiry_value = cred["i_expiry_date_nifty"]
+
+    if isinstance(expiry_value, str):
+        expiry_value = pd.to_datetime(expiry_value, format="%Y%m%d", errors="coerce")
+
+    if pd.isna(expiry_value):
+        print("DEBUG NIFTY LOAD 6 | expiry_value could not be parsed")
+        nfo_data = pd.DataFrame()
+        return
+
+    expiry_value = pd.Timestamp(expiry_value).date()
+
+    print(f"DEBUG NIFTY LOAD 7 | parsed expiry_value = {expiry_value}")
+
+    valid_expiry_rows = df_inst[df_inst["InsertedDates"].notna()].copy()
+    print(f"DEBUG NIFTY LOAD 8 | rows with valid parsed expiry = {len(valid_expiry_rows)}")
+
+    if len(valid_expiry_rows) > 0:
+        print("DEBUG NIFTY LOAD 9 | unique parsed expiries sample:")
+        print(valid_expiry_rows["InsertedDates"].dt.date.drop_duplicates().sort_values().head(20).tolist())
+
+    a = df_inst[df_inst["InsertedDates"].dt.date == expiry_value].copy()
+    print(f"DEBUG NIFTY LOAD 10 | rows after expiry filter = {len(a)}")
+
+    inst_name = str(inst_name).strip().upper()
+
+    if inst_name in {"BN", "BANKNIFTY"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "BANKNIFTY"].copy()
+    elif inst_name in {"FN", "FINNIFTY"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "FINNIFTY"].copy()
+    elif inst_name in {"N", "NIFTY"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "NIFTY"].copy()
+    elif inst_name in {"BX", "BANKEX"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "BANKEX"].copy()
+    elif inst_name in {"S", "SENSEX"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "SENSEX"].copy()
+    elif inst_name in {"C", "CRUDEOIL"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "CRUDEOIL"].copy()
+    elif inst_name in {"GP", "GOLDPETAL"}:
+        nfo_data = a[a["name"].astype(str).str.strip().str.upper() == "GOLDPETAL"].copy()
+    else:
+        nfo_data = pd.DataFrame()
+
+    print(f"DEBUG NIFTY LOAD 11 | rows after name filter = {len(nfo_data)}")
+
+    if len(nfo_data) > 0:
+        print("DEBUG NIFTY LOAD 12 | filtered sample:")
+        print(nfo_data.head(10).to_string(index=False))
+    else:
+        print("DEBUG NIFTY LOAD 12 | filtered dataframe is empty")
 
 
 def get_nfo_file_data_crude_oil(inst_name):
@@ -292,17 +339,39 @@ def get_instrument_tokens_ce_sensex():
     return None
 
 
+
 def get_instrument_tokens_ce_nifty():
-    if nfo_data is not None and len(nfo_data) > 0:
-        pass
-    else:
+    global nfo_data
+
+    print("DEBUG CE TOKENS 1 | entered get_instrument_tokens_ce_nifty()")
+
+    if nfo_data is None or len(nfo_data) == 0:
         cred = _read_cred()
+        print(f"DEBUG CE TOKENS 2 | i_inst_name_nifty = {cred.get('i_inst_name_nifty')}")
+        print(f"DEBUG CE TOKENS 3 | i_expiry_date_nifty = {cred.get('i_expiry_date_nifty')}")
         get_nfo_file_data_nifty(cred["i_inst_name_nifty"])
-    df1 = nfo_data[nfo_data["instrument_type"] == "CE"]
-    df1.loc[:, "expiry"] = pd.to_datetime(df1["expiry"].astype(str).str.strip(), errors="coerce")
+
+    if nfo_data is None:
+        print("DEBUG CE TOKENS 4 | nfo_data is still None")
+        return []
+
+    print(f"DEBUG CE TOKENS 5 | nfo_data rows = {len(nfo_data)}")
+    print(f"DEBUG CE TOKENS 6 | nfo_data columns = {list(nfo_data.columns)}")
+
+    if len(nfo_data) > 0:
+        print("DEBUG CE TOKENS 7 | nfo_data sample:")
+        print(nfo_data.head(10).to_string(index=False))
+
+    df1 = nfo_data[nfo_data["instrument_type"].astype(str).str.strip().str.upper() == "CE"].copy()
+
+    print(f"DEBUG CE TOKENS 8 | CE rows after filter = {len(df1)}")
+
     if len(df1) > 0:
-        return df1["instrument_token"].tolist()
-    return None
+        tokens = df1["instrument_token"].dropna().astype(int).tolist()
+        print(f"DEBUG CE TOKENS 9 | token count = {len(tokens)}")
+        return tokens
+
+    return []
 
 
 def get_instrument_tokens_ce_banknifty(inst_token_ce=None):
