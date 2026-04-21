@@ -199,6 +199,7 @@ export default function SnakePnlChart({
         </filter>
       </defs>
 
+      {/* Grid Lines */}
       {yTicks.map((tick, idx) => (
         <g key={idx}>
           <line
@@ -215,34 +216,28 @@ export default function SnakePnlChart({
         </g>
       ))}
 
+      {/* Zero, Target, StopLoss Lines */}
       <line
-        x1={PADDING.left}
-        x2={CHART_WIDTH - PADDING.right}
-        y1={zeroY}
-        y2={zeroY}
+        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
+        y1={zeroY} y2={zeroY}
         stroke="rgba(255, 125, 125, 0.7)"
         strokeWidth="1.2"
         strokeDasharray="5 5"
       />
-
       <line
-        x1={PADDING.left}
-        x2={CHART_WIDTH - PADDING.right}
-        y1={targetY}
-        y2={targetY}
+        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
+        y1={targetY} y2={targetY}
         stroke="rgba(54, 214, 130, 0.8)"
         strokeWidth="1.2"
       />
-
       <line
-        x1={PADDING.left}
-        x2={CHART_WIDTH - PADDING.right}
-        y1={stopLossY}
-        y2={stopLossY}
+        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
+        y1={stopLossY} y2={stopLossY}
         stroke="rgba(255, 106, 106, 0.8)"
         strokeWidth="1.2"
       />
 
+      {/* 1. Base Glow Path */}
       <path
         d={pathD}
         fill="none"
@@ -253,6 +248,7 @@ export default function SnakePnlChart({
         filter="url(#goldGlow)"
       />
 
+      {/* 2. Main Body Path */}
       <path
         d={pathD}
         fill="none"
@@ -263,6 +259,7 @@ export default function SnakePnlChart({
         filter="url(#snakeShadow)"
       />
 
+      {/* 3. Scale Rendering */}
       {scales.map((scale, idx) => (
         <g
           key={idx}
@@ -271,24 +268,21 @@ export default function SnakePnlChart({
           filter="url(#snakeTexture)"
         >
           <ellipse
-            cx="0"
-            cy="0"
-            rx={scale.rx}
-            ry={scale.ry}
+            cx="0" cy="0"
+            rx={scale.rx} ry={scale.ry}
             fill="url(#snakeGoldGradient)"
             stroke="rgba(255,230,155,0.35)"
             strokeWidth="0.7"
           />
           <ellipse
-            cx="-1.2"
-            cy="-1.2"
-            rx={scale.rx * 0.5}
-            ry={scale.ry * 0.28}
+            cx="-1.2" cy="-1.2"
+            rx={scale.rx * 0.5} ry={scale.ry * 0.28}
             fill="rgba(255,245,210,0.45)"
           />
         </g>
       ))}
 
+      {/* 4. Top Highlight/Shine */}
       <path
         d={pathD}
         fill="none"
@@ -299,27 +293,62 @@ export default function SnakePnlChart({
         opacity="0.9"
       />
 
-      {lastPoint && (
-        <>
-          <circle
-            cx={lastPoint.x}
-            cy={lastPoint.y}
-            r={8}
-            fill="#f3cf69"
-            filter="url(#goldGlow)"
-          />
-          <text
-            x={lastPoint.x + 12}
-            y={lastPoint.y - 10}
-            fill="#f6d36f"
-            fontSize="14"
-            fontWeight="700"
-          >
-            ₹{lastValue.toFixed(2)}
-          </text>
-        </>
-      )}
+      {/* 5. THE SNAKE HEAD (Dynamic Cobra Style) */}
+      {lastPoint && (() => {
+        const prevPoint = points[points.length - 2] || points[0];
+        const angle = Math.atan2(lastPoint.y - prevPoint.y, lastPoint.x - prevPoint.x) * (180 / Math.PI);
 
+        return (
+          <g transform={`translate(${lastPoint.x}, ${lastPoint.y}) rotate(${angle})`}>
+            {/* Outer Head Aura */}
+            <circle r="22" fill="rgba(243, 207, 105, 0.15)" filter="blur(8px)" />
+
+            {/* Flickering Tongue */}
+            <path 
+              d="M 12 0 L 22 -3 M 12 0 L 22 3" 
+              stroke="#ff4d4d" 
+              strokeWidth="1.5" 
+              fill="none"
+              opacity="0.8"
+            >
+              <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite" />
+              <animate attributeName="d" values="M 12 0 L 22 -3 M 12 0 L 22 3; M 12 0 L 25 -1 M 12 0 L 25 1; M 12 0 L 22 -3 M 12 0 L 22 3" dur="0.5s" repeatCount="indefinite" />
+            </path>
+
+            {/* Cobra Head Shape */}
+            <path
+              d="M -5 -11 C 5 -13, 16 -9, 20 0 C 16 9, 5 13, -5 11 Z"
+              fill="url(#snakeGoldGradient)"
+              stroke="#d4a73d"
+              strokeWidth="1.5"
+              filter="url(#snakeShadow)"
+            />
+
+            {/* Glowing Eyes */}
+            <circle cx="12" cy="-4.5" r="2" fill="#5eead4" filter="blur(0.5px)" />
+            <circle cx="12" cy="4.5" r="2" fill="#5eead4" filter="blur(0.5px)" />
+            
+            {/* Top Shine */}
+            <ellipse cx="4" cy="0" rx="9" ry="4" fill="rgba(255,255,255,0.25)" />
+
+            {/* PnL Text - Locked to stay upright */}
+            <g transform={`rotate(${-angle})`}>
+              <text
+                x="28"
+                y="-18"
+                fill="#f6d36f"
+                fontSize="16"
+                fontWeight="800"
+                style={{ textShadow: '2px 2px 4px rgba(0,0,0,1)' }}
+              >
+                ₹{lastValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </text>
+            </g>
+          </g>
+        );
+      })()}
+
+      {/* X-Axis Time Labels */}
       {safeData.map((point, index) => {
         const p = points[index];
         if (!p) return null;
