@@ -30,6 +30,43 @@ def _write_cred(cred: dict):
 def _read_inst_csv():
     return pd.read_csv(CSV_PATH)
 
+def _parse_csv_expiry_series(series: pd.Series) -> pd.Series:
+    """
+    Parse expiry values from instrument CSV safely.
+    Handles values like 21/04/26.
+    """
+    s = series.astype(str).str.strip()
+    parsed = pd.to_datetime(s, dayfirst=True, errors="coerce")
+    return parsed
+
+
+def _parse_target_expiry(expiry_value):
+    """
+    Parse target expiry from cred safely.
+    Handles:
+    - 20260421
+    - "20260421"
+    - datetime/date objects
+    """
+    if expiry_value is None:
+        return None
+
+    if isinstance(expiry_value, str):
+        expiry_value = expiry_value.strip()
+        if len(expiry_value) == 8 and expiry_value.isdigit():
+            parsed = pd.to_datetime(expiry_value, format="%Y%m%d", errors="coerce")
+        else:
+            parsed = pd.to_datetime(expiry_value, errors="coerce")
+    elif isinstance(expiry_value, (int, np.integer)):
+        parsed = pd.to_datetime(str(int(expiry_value)), format="%Y%m%d", errors="coerce")
+    else:
+        parsed = pd.to_datetime(expiry_value, errors="coerce")
+
+    if pd.isna(parsed):
+        return None
+
+    return pd.Timestamp(parsed).date()
+
 
 def _get_kite():
     cred = _read_cred()
@@ -115,6 +152,7 @@ def nearest_strike(x):
 def round_to_multiple(number, multiple=100):
     return multiple * round(number / multiple)
 
+
 def get_nfo_file_data_nifty(inst_name):
     global nfo_data
 
@@ -127,34 +165,24 @@ def get_nfo_file_data_nifty(inst_name):
     print(f"DEBUG NIFTY LOAD 4 | total rows in CSV = {len(df_inst)}")
     print(f"DEBUG NIFTY LOAD 5 | columns = {list(df_inst.columns)}")
 
-    df_inst["InsertedDates"] = pd.to_datetime(
-        df_inst["expiry"].astype(str).str.strip(),
-        format="%d/%m/%y",
-        errors="coerce"
-    )
+    df_inst["InsertedDates"] = _parse_csv_expiry_series(df_inst["expiry"])
 
-    expiry_value = cred["i_expiry_date_nifty"]
-
-    if isinstance(expiry_value, str):
-        expiry_value = pd.to_datetime(expiry_value, format="%Y%m%d", errors="coerce")
-
-    if pd.isna(expiry_value):
-        print("DEBUG NIFTY LOAD 6 | expiry_value could not be parsed")
-        nfo_data = pd.DataFrame()
-        return
-
-    expiry_value = pd.Timestamp(expiry_value).date()
-
+    expiry_value = _parse_target_expiry(cred.get("i_expiry_date_nifty"))
     print(f"DEBUG NIFTY LOAD 7 | parsed expiry_value = {expiry_value}")
 
     valid_expiry_rows = df_inst[df_inst["InsertedDates"].notna()].copy()
     print(f"DEBUG NIFTY LOAD 8 | rows with valid parsed expiry = {len(valid_expiry_rows)}")
 
     if len(valid_expiry_rows) > 0:
-        print("DEBUG NIFTY LOAD 9 | unique parsed expiries sample:")
-        print(valid_expiry_rows["InsertedDates"].dt.date.drop_duplicates().sort_values().head(20).tolist())
+        unique_expiries = sorted(valid_expiry_rows["InsertedDates"].dt.date.drop_duplicates().tolist())
+        print(f"DEBUG NIFTY LOAD 9 | unique parsed expiries sample = {unique_expiries[:20]}")
 
-    a = df_inst[df_inst["InsertedDates"].dt.date == expiry_value].copy()
+    if expiry_value is None:
+        print("DEBUG NIFTY LOAD 10 | target expiry could not be parsed")
+        nfo_data = pd.DataFrame()
+        return
+
+    a = valid_expiry_rows[valid_expiry_rows["InsertedDates"].dt.date == expiry_value].copy()
     print(f"DEBUG NIFTY LOAD 10 | rows after expiry filter = {len(a)}")
 
     inst_name = str(inst_name).strip().upper()
@@ -179,7 +207,7 @@ def get_nfo_file_data_nifty(inst_name):
     print(f"DEBUG NIFTY LOAD 11 | rows after name filter = {len(nfo_data)}")
 
     if len(nfo_data) > 0:
-        print("DEBUG NIFTY LOAD 12 | filtered sample:")
+        print("DEBUG NIFTY LOAD 12 | filtered dataframe sample:")
         print(nfo_data.head(10).to_string(index=False))
     else:
         print("DEBUG NIFTY LOAD 12 | filtered dataframe is empty")
@@ -339,7 +367,6 @@ def get_instrument_tokens_ce_sensex():
     return None
 
 
-
 def get_instrument_tokens_ce_nifty():
     global nfo_data
 
@@ -372,6 +399,7 @@ def get_instrument_tokens_ce_nifty():
         return tokens
 
     return []
+
 
 
 def get_instrument_tokens_ce_banknifty(inst_token_ce=None):
