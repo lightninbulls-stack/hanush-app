@@ -20,10 +20,9 @@ EMA_PAIRS: List[Tuple[int, int]] = [
     (5, 15),
     (5, 20),
     (8, 21),
-    (10, 30),
 ]
 
-MIN_SIGNAL_RATIO = 0.60  # 3 out of 5
+MIN_SIGNAL_RATIO = 0.60  # 3 out of 4
 
 
 def load_universe_metadata(
