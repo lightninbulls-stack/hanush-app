@@ -105,7 +105,6 @@ const BullCallSpreadDashboard: React.FC<Props> = ({
               data={pnlSeries}
               target={target}
               stopLoss={stopLoss}
-              zeroLine={0}
               height={430}
             />
           </div>
