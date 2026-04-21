@@ -11,9 +11,6 @@ type Props = {
   stopLoss?: number;
   zeroLine?: number;
   height?: number;
-  scaleSize?: number;
-  animationSpeed?: number;
-  liveMode?: boolean;
 };
 
 type Pt = {
@@ -129,7 +126,6 @@ function drawGrid(
   zeroLine: number
 ) {
   const right = width - padRight;
-  const bottom = height - padBottom;
 
   ctx.save();
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
@@ -185,18 +181,8 @@ function drawGrid(
   ctx.fillText(`SL ₹${stopLoss.toFixed(0)}`, right - 90, stopY - 8);
 
   ctx.fillStyle = "rgba(96,165,250,0.85)";
-  ctx.fillText(`Zero ₹${zeroLine.toFixed(0)}`, right - 100, zeroY - 8);
+  ctx.fillText(`Zero ₹${zeroLine.toFixed(0)}`, right - 95, zeroY - 8);
 
-  ctx.restore();
-
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,215,100,0.045)";
-  for (let x = padLeft; x <= right; x += 70) {
-    ctx.beginPath();
-    ctx.moveTo(x, padTop);
-    ctx.lineTo(x, bottom);
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
@@ -329,25 +315,6 @@ function drawSnakeHead(
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  for (let i = 0; i < 6; i++) {
-    const x = lerp(-headLen * 0.12, headLen * 0.62, i / 5);
-    const y = (i % 2 === 0 ? -1 : 1) * headH * 0.16;
-    ctx.beginPath();
-    ctx.ellipse(x, y, scale * 0.22, scale * 0.11, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,220,120,0.22)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-  }
-
-  const jaw = ctx.createLinearGradient(0, -headH, 0, headH);
-  jaw.addColorStop(0, "#a05f0d");
-  jaw.addColorStop(1, "#3d1c00");
-
-  ctx.beginPath();
-  ctx.ellipse(headLen * 0.36, headH * 0.42, headLen * 0.48, headH * 0.34, 0, 0, Math.PI * 2);
-  ctx.fillStyle = jaw;
-  ctx.fill();
-
   const eyeX = headLen * 0.14;
   const eyeY = -headH * 0.32;
 
@@ -374,15 +341,6 @@ function drawSnakeHead(
   ctx.beginPath();
   ctx.arc(eyeX - scale * 0.04, eyeY - scale * 0.04, scale * 0.025, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(255,255,230,0.9)";
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(headLen * 0.84, -headH * 0.1, scale * 0.06, scale * 0.045, 0, 0, Math.PI * 2);
-  ctx.fillStyle = "#120500";
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(headLen * 0.84, headH * 0.12, scale * 0.06, scale * 0.045, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const flick = Math.sin(time * 0.018) * scale * 0.16;
