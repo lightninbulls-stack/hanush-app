@@ -212,7 +212,10 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
             background: "rgba(255,255,255,0.04)",
           }}
         >
-          Updated: {spread.updated_at ? new Date(spread.updated_at).toLocaleTimeString() : "--"}
+          Updated:{" "}
+          {spread.updated_at
+            ? new Date(spread.updated_at).toLocaleTimeString()
+            : "--"}
         </div>
       </div>
 
