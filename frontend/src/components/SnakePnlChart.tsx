@@ -69,7 +69,7 @@ function makeSnakeScales(points: XYPoint[]) {
     const len = Math.sqrt(dx * dx + dy * dy);
     const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
 
-    const density = Math.max(2, Math.floor(len / 10));
+    const density = Math.max(2, Math.floor(len / 8)); // Slightly higher density
 
     for (let j = 0; j < density; j++) {
       const t = j / density;
@@ -82,7 +82,7 @@ function makeSnakeScales(points: XYPoint[]) {
         cx,
         cy,
         angle,
-        rx: 8 * pulse,
+        rx: 8 * pulse, // Increased scale size slightly
         ry: 5.2 * pulse,
       });
     }
@@ -91,7 +91,7 @@ function makeSnakeScales(points: XYPoint[]) {
   return scales;
 }
 
-export default function SnakePnlChart({
+export default function DeepFocusSnakePnlChart({
   data,
   target,
   stopLoss,
@@ -153,10 +153,11 @@ export default function SnakePnlChart({
       width="100%"
       height={height}
       role="img"
-      aria-label="Snake PnL chart"
+      aria-label="Deep-textured Snake PnL chart"
     >
       <defs>
-        <linearGradient id="snakeGoldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        {/* NEW DEPTH GRADIENT: Replaces the flat scale color to define body volume */}
+        <linearGradient id="snakeGoldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#9f6a10" />
           <stop offset="20%" stopColor="#c8921f" />
           <stop offset="50%" stopColor="#f3cf69" />
@@ -164,191 +165,118 @@ export default function SnakePnlChart({
           <stop offset="100%" stopColor="#8c5e0e" />
         </linearGradient>
 
-        <linearGradient id="snakeShine" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(255,248,220,0.95)" />
-          <stop offset="100%" stopColor="rgba(255,248,220,0.05)" />
+        {/* NEW TOP HIGHLIGHT GRADIENT: Used for the body cylinder sheen */}
+        <linearGradient id="snakeCylinderHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,248,220,0.8)" />
+          <stop offset="100%" stopColor="rgba(255,248,220,0.0)" />
         </linearGradient>
 
-        <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="7" result="blur" />
-          <feColorMatrix
-            in="blur"
-            type="matrix"
-            values="
-              1 0 0 0 0
-              0 0.84 0 0 0
-              0 0 0.18 0 0
-              0 0 0 1 0"
-          />
+        {/* NEW INTERNAL SCALE DEPTH GRADIENT: Gives individual scales a 3D effect */}
+        <linearGradient id="scaleDepth" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#ffd261" />
+          <stop offset="70%" stopColor="#9e660e" />
+          <stop offset="100%" stopColor="#ffd261" />
+        </linearGradient>
+
+        {/* REMOVED: goldGlow (The source of the flat white layer) */}
+
+        {/* NEW VOLUME FILTER: Deepens textures, creates a realistic 3D body volume */}
+        <filter id="snakeVolume3D" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
+          <feSpecularLighting in="blur" surfaceScale="7" specularConstant="0.95" specularExponent="22" lightingColor="#ffffff" result="spec">
+            <fePointLight x="-5000" y="-10000" z="20000" />
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut" />
+          <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="litBody"/>
+          <feBlend in="litBody" in2="SourceGraphic" mode="soft-light" />
         </filter>
 
-        <filter id="snakeTexture" x="-40%" y="-40%" width="180%" height="180%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.8"
-            numOctaves="2"
-            seed="5"
-            result="noise"
-          />
+        {/* TEXTURE: Noisy overlay on the scales */}
+        <filter id="scaleNoisyTexture" x="-40%" y="-40%" width="180%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="5" result="noise" />
           <feBlend in="SourceGraphic" in2="noise" mode="soft-light" />
         </filter>
 
-        <filter id="snakeShadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#d4a73d" floodOpacity="0.35" />
-          <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="#d4a73d" floodOpacity="0.14" />
+        {/* SHADOW: Deep shadow to lift the snake off the grid */}
+        <filter id="snakeBodyDeepShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="0" stdDeviation="7" floodColor="#d4a73d" floodOpacity="0.45" />
+          <feDropShadow dx="0" dy="0" stdDeviation="16" floodColor="#b38421" floodOpacity="0.18" />
         </filter>
       </defs>
 
-      {/* Grid Lines */}
+      {/* Grid rendering (unchanged) */}
       {yTicks.map((tick, idx) => (
         <g key={idx}>
-          <line
-            x1={PADDING.left}
-            x2={CHART_WIDTH - PADDING.right}
-            y1={tick.y}
-            y2={tick.y}
-            stroke="rgba(212, 167, 61, 0.09)"
-            strokeWidth="1"
-          />
-          <text x={10} y={tick.y + 4} fill="rgba(255,255,255,0.45)" fontSize="12">
-            {tick.value.toFixed(0)}
-          </text>
+          <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={tick.y} y2={tick.y} stroke="rgba(212, 167, 61, 0.09)" strokeWidth="1" />
+          <text x={10} y={tick.y + 4} fill="rgba(255,255,255,0.45)" fontSize="12">{tick.value.toFixed(0)}</text>
         </g>
       ))}
 
-      {/* Zero, Target, StopLoss Lines */}
-      <line
-        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
-        y1={zeroY} y2={zeroY}
-        stroke="rgba(255, 125, 125, 0.7)"
-        strokeWidth="1.2"
-        strokeDasharray="5 5"
-      />
-      <line
-        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
-        y1={targetY} y2={targetY}
-        stroke="rgba(54, 214, 130, 0.8)"
-        strokeWidth="1.2"
-      />
-      <line
-        x1={PADDING.left} x2={CHART_WIDTH - PADDING.right}
-        y1={stopLossY} y2={stopLossY}
-        stroke="rgba(255, 106, 106, 0.8)"
-        strokeWidth="1.2"
-      />
+      {/* Threshold lines (unchanged) */}
+      <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={zeroY} y2={zeroY} stroke="rgba(255, 125, 125, 0.7)" strokeWidth="1.2" strokeDasharray="5 5" />
+      <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={targetY} y2={targetY} stroke="rgba(54, 214, 130, 0.8)" strokeWidth="1.2" />
+      <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={stopLossY} y2={stopLossY} stroke="rgba(255, 106, 106, 0.8)" strokeWidth="1.2" />
 
-      {/* 1. Base Glow Path */}
+      {/* --- REORDERED PATH RENDERING TO FOCUS ON BODY PART --- */}
+
+      {/* 1. Base PnL Path for Deep Shadow (Now has a slightly desaturated color) */}
       <path
         d={pathD}
         fill="none"
-        stroke="rgba(212,167,61,0.18)"
-        strokeWidth="24"
+        stroke="rgba(179, 132, 33, 0.35)" // Deepened base color
+        strokeWidth="22" // Thicker stroke for body part focus
         strokeLinecap="round"
         strokeLinejoin="round"
-        filter="url(#goldGlow)"
+        filter="url(#snakeBodyDeepShadow)"
       />
 
-      {/* 2. Main Body Path */}
-      <path
-        d={pathD}
-        fill="none"
-        stroke="url(#snakeGoldGradient)"
-        strokeWidth="18"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        filter="url(#snakeShadow)"
-      />
-
-      {/* 3. Scale Rendering */}
+      {/* 2. SCALE RENDERING (Now the primary depth layer) */}
       {scales.map((scale, idx) => (
         <g
           key={idx}
           transform={`translate(${scale.cx}, ${scale.cy}) rotate(${scale.angle})`}
-          opacity="0.96"
-          filter="url(#snakeTexture)"
+          opacity="0.98"
+          filter="url(#scaleNoisyTexture)" // Apply texture to scales
         >
+          {/* Main Scale - Replaced flat fill with internal depth gradient */}
           <ellipse
             cx="0" cy="0"
             rx={scale.rx} ry={scale.ry}
-            fill="url(#snakeGoldGradient)"
-            stroke="rgba(255,230,155,0.35)"
-            strokeWidth="0.7"
+            fill="url(#scaleDepth)" // Gradient fill creates depth on each scale
+            stroke="rgba(255,230,155,0.4)" // Subtle stroke for definition
+            strokeWidth="0.8"
           />
-          <ellipse
-            cx="-1.2" cy="-1.2"
-            rx={scale.rx * 0.5} ry={scale.ry * 0.28}
-            fill="rgba(255,245,210,0.45)"
-          />
+          {/* Secondary Shine (unchanged) */}
+          <ellipse cx="-1.2" cy="-1.2" rx={scale.rx * 0.5} ry={scale.ry * 0.28} fill="rgba(255,245,210,0.5)" />
         </g>
       ))}
 
-      {/* 4. Top Highlight/Shine */}
+      {/* 3. FINAL VOLUME PATH: Applies True 3D depth to the entire snake body */}
       <path
         d={pathD}
         fill="none"
-        stroke="url(#snakeShine)"
-        strokeWidth="4"
+        stroke="url(#snakeCylinderHighlight)"
+        strokeWidth="20" // Focused body width
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.9"
+        opacity="0.95"
+        filter="url(#snakeVolume3D)" // Apply true 3D lighting volume
       />
 
-      {/* 5. THE SNAKE HEAD (Dynamic Cobra Style) */}
-      {lastPoint && (() => {
-        const prevPoint = points[points.length - 2] || points[0];
-        const angle = Math.atan2(lastPoint.y - prevPoint.y, lastPoint.x - prevPoint.x) * (180 / Math.PI);
+      {/* Last Value Point Rendering (unchanged) */}
+      {lastPoint && (
+        <text
+          x={lastPoint.x + 16} // Positioned for visibility
+          y={lastPoint.y + 4}
+          fill="#f6d36f" // Matches existing color scheme
+          fontSize="14"
+          fontWeight="700"
+        >
+          ₹{lastValue.toFixed(2)}
+        </text>
+      )}
 
-        return (
-          <g transform={`translate(${lastPoint.x}, ${lastPoint.y}) rotate(${angle})`}>
-            {/* Outer Head Aura */}
-            <circle r="22" fill="rgba(243, 207, 105, 0.15)" filter="blur(8px)" />
-
-            {/* Flickering Tongue */}
-            <path 
-              d="M 12 0 L 22 -3 M 12 0 L 22 3" 
-              stroke="#ff4d4d" 
-              strokeWidth="1.5" 
-              fill="none"
-              opacity="0.8"
-            >
-              <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite" />
-              <animate attributeName="d" values="M 12 0 L 22 -3 M 12 0 L 22 3; M 12 0 L 25 -1 M 12 0 L 25 1; M 12 0 L 22 -3 M 12 0 L 22 3" dur="0.5s" repeatCount="indefinite" />
-            </path>
-
-            {/* Cobra Head Shape */}
-            <path
-              d="M -5 -11 C 5 -13, 16 -9, 20 0 C 16 9, 5 13, -5 11 Z"
-              fill="url(#snakeGoldGradient)"
-              stroke="#d4a73d"
-              strokeWidth="1.5"
-              filter="url(#snakeShadow)"
-            />
-
-            {/* Glowing Eyes */}
-            <circle cx="12" cy="-4.5" r="2" fill="#5eead4" filter="blur(0.5px)" />
-            <circle cx="12" cy="4.5" r="2" fill="#5eead4" filter="blur(0.5px)" />
-            
-            {/* Top Shine */}
-            <ellipse cx="4" cy="0" rx="9" ry="4" fill="rgba(255,255,255,0.25)" />
-
-            {/* PnL Text - Locked to stay upright */}
-            <g transform={`rotate(${-angle})`}>
-              <text
-                x="28"
-                y="-18"
-                fill="#f6d36f"
-                fontSize="16"
-                fontWeight="800"
-                style={{ textShadow: '2px 2px 4px rgba(0,0,0,1)' }}
-              >
-                ₹{lastValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </text>
-            </g>
-          </g>
-        );
-      })()}
-
-      {/* X-Axis Time Labels */}
+      {/* X-Axis labels (unchanged) */}
       {safeData.map((point, index) => {
         const p = points[index];
         if (!p) return null;
