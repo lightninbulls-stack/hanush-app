@@ -9,7 +9,11 @@ type Props = {
   data?: PnlPoint[];
   target?: number;
   stopLoss?: number;
+  zeroLine?: number;
   height?: number;
+  scaleSize?: number;
+  animationSpeed?: number;
+  liveMode?: boolean;
 };
 
 type Pt = {
@@ -76,14 +80,15 @@ function buildSnakePath(
   padLeft: number,
   padRight: number,
   padTop: number,
-  padBottom: number
+  padBottom: number,
+  zeroLine: number
 ) {
   const drawW = width - padLeft - padRight;
   const drawH = height - padTop - padBottom;
 
-  const values = pnlSeries.length ? pnlSeries : [0];
-  const minVal = Math.min(...values, 0);
-  const maxVal = Math.max(...values, 0);
+  const values = pnlSeries.length ? pnlSeries : [zeroLine];
+  const minVal = Math.min(...values, zeroLine);
+  const maxVal = Math.max(...values, zeroLine);
   const span = Math.max(1, maxVal - minVal);
 
   const yMin = minVal - span * 0.35 - 25;
@@ -120,7 +125,8 @@ function drawGrid(
   yMin: number,
   yMax: number,
   target: number,
-  stopLoss: number
+  stopLoss: number,
+  zeroLine: number
 ) {
   const right = width - padRight;
   const bottom = height - padBottom;
@@ -145,10 +151,10 @@ function drawGrid(
     ctx.fillText(Math.round(v).toString(), padLeft - 10, y + 4);
   }
 
-  const zeroY = mapY(0);
+  const zeroY = mapY(zeroLine);
 
   ctx.setLineDash([6, 6]);
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.strokeStyle = "rgba(96,165,250,0.55)";
   ctx.beginPath();
   ctx.moveTo(padLeft, zeroY);
   ctx.lineTo(right, zeroY);
@@ -177,6 +183,9 @@ function drawGrid(
 
   ctx.fillStyle = "rgba(239,68,68,0.85)";
   ctx.fillText(`SL ₹${stopLoss.toFixed(0)}`, right - 90, stopY - 8);
+
+  ctx.fillStyle = "rgba(96,165,250,0.85)";
+  ctx.fillText(`Zero ₹${zeroLine.toFixed(0)}`, right - 100, zeroY - 8);
 
   ctx.restore();
 
@@ -439,6 +448,7 @@ export default function SnakePnlChart({
   data = [],
   target = 3000,
   stopLoss = -1500,
+  zeroLine = 0,
   height = 420,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -507,7 +517,8 @@ export default function SnakePnlChart({
         padLeft,
         padRight,
         padTop,
-        padBottom
+        padBottom,
+        zeroLine
       );
 
       drawGrid(
@@ -522,7 +533,8 @@ export default function SnakePnlChart({
         chart.yMin,
         chart.yMax,
         target,
-        stopLoss
+        stopLoss,
+        zeroLine
       );
 
       if (chart.pts.length >= 2) {
@@ -558,7 +570,7 @@ export default function SnakePnlChart({
       if (animRef.current) cancelAnimationFrame(animRef.current);
       ro.disconnect();
     };
-  }, [data, height, target, stopLoss]);
+  }, [data, height, target, stopLoss, zeroLine]);
 
   return (
     <div
