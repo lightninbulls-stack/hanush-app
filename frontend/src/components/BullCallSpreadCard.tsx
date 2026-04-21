@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useMemo } from "react";
+import BullCallSpreadDashboard from "./BullCallSpreadDashboard";
+import type { PnlPoint } from "./SnakePnlChart";
 
 type Leg = {
   side?: string | null;
@@ -11,29 +13,48 @@ type Leg = {
   expiry?: string | null;
   right?: string | null;
   status?: string | null;
+  entry_time?: string | null;
+};
+
+type PnlHistoryItem = {
+  time?: string | null;
+  timestamp?: string | null;
+  pnl?: number | null;
+  value?: number | null;
 };
 
 type SpreadState = {
-  index: string;
-  spread_type: string;
-  strategy_name: string;
-  status: string;
+  index?: string;
+  spread_type?: string;
+  strategy_name?: string;
+  status?: string;
   ui_state?: string;
   message?: string;
   progress_text?: string | null;
   is_loading?: boolean;
-  net_pnl?: number;
-  stop_loss?: number;
-  target?: number;
-  updated_at?: string;
+  net_pnl?: number | null;
+  stop_loss?: number | null;
+  target?: number | null;
+  updated_at?: string | null;
+  entry_time?: string | null;
   legs?: Leg[];
+  pnl_series?: PnlHistoryItem[];
+  pnl_history?: PnlHistoryItem[];
 };
 
-function formatNumber(value?: number | null): string {
+function formatStatus(status?: string | null): "OPEN" | "CLOSED" {
+  return status === "OPEN" ? "OPEN" : "CLOSED";
+}
+
+function formatNumber(value?: number | null, fallback = 0): number {
   if (value === null || value === undefined || Number.isNaN(value)) {
-    return "--";
+    return fallback;
   }
-  return value.toFixed(2);
+  return Number(value);
+}
+
+function formatText(value?: string | null, fallback = "--"): string {
+  return value && value.trim() ? value : fallback;
 }
 
 function isWaitingState(uiState?: string): boolean {
@@ -85,51 +106,6 @@ function LoaderCard({ data }: { data: SpreadState }) {
   );
 }
 
-function LiveSpreadCard({ data }: { data: SpreadState }) {
-  const buyLeg = data.legs?.find((leg) => leg.side === "BUY");
-  const sellLeg = data.legs?.find((leg) => leg.side === "SELL");
-
-  return (
-    <div className="glass-card" style={{ padding: "32px", margin: "32px" }}>
-      <h2 className="glow-text">Bull Call Spreads</h2>
-      <p style={{ color: "var(--text-dim)", marginTop: "10px" }}>
-        {data.message || "Live intraday index bull call spread trades."}
-      </p>
-
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "24px" }}>
-        <div className="metric-chip">Status: {data.status}</div>
-        <div className="metric-chip">Net PnL: ₹ {formatNumber(data.net_pnl)}</div>
-        <div className="metric-chip">SL: ₹ {formatNumber(data.stop_loss)}</div>
-        <div className="metric-chip">Target: ₹ {formatNumber(data.target)}</div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px", marginTop: "28px" }}>
-        <div className="leg-card">
-          <h3>BUY Leg</h3>
-          <p>Symbol: {buyLeg?.trading_symbol || "--"}</p>
-          <p>Strike: {buyLeg?.strike ?? "--"}</p>
-          <p>Expiry: {buyLeg?.expiry || "--"}</p>
-          <p>Avg Price: {formatNumber(buyLeg?.avg_price)}</p>
-          <p>LTP: {formatNumber(buyLeg?.ltp)}</p>
-          <p>PnL: {formatNumber(buyLeg?.pnl)}</p>
-          <p>Qty: {buyLeg?.quantity ?? "--"}</p>
-        </div>
-
-        <div className="leg-card">
-          <h3>SELL Leg</h3>
-          <p>Symbol: {sellLeg?.trading_symbol || "--"}</p>
-          <p>Strike: {sellLeg?.strike ?? "--"}</p>
-          <p>Expiry: {sellLeg?.expiry || "--"}</p>
-          <p>Avg Price: {formatNumber(sellLeg?.avg_price)}</p>
-          <p>LTP: {formatNumber(sellLeg?.ltp)}</p>
-          <p>PnL: {formatNumber(sellLeg?.pnl)}</p>
-          <p>Qty: {sellLeg?.quantity ?? "--"}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function EmptyCard() {
   return (
     <div className="glass-card" style={{ padding: "32px", margin: "32px" }}>
@@ -141,9 +117,54 @@ function EmptyCard() {
   );
 }
 
-export default function BullCallSpreadCard({ data }: { data?: SpreadState | null }) {
+export default function BullCallSpreadCard({
+  data,
+}: {
+  data?: SpreadState | null;
+}) {
+  const mappedLegs = useMemo(() => {
+    return (data?.legs ?? []).map((leg) => ({
+      side: leg.side === "BUY" ? "BUY" as const : "SELL" as const,
+      symbol: formatText(leg.trading_symbol),
+      entryTime: formatText(leg.entry_time ?? data?.entry_time ?? data?.updated_at),
+      avg: formatNumber(leg.avg_price),
+      ltp: formatNumber(leg.ltp),
+      pnl: formatNumber(leg.pnl),
+    }));
+  }, [data]);
+
+  const pnlSeries = useMemo<PnlPoint[]>(() => {
+    const rawSeries = data?.pnl_series ?? data?.pnl_history ?? [];
+
+    const mapped = rawSeries
+      .map((item) => ({
+        time: formatText(item.time ?? item.timestamp, ""),
+        value: formatNumber(
+          item.value !== null && item.value !== undefined ? item.value : item.pnl,
+          NaN
+        ),
+      }))
+      .filter((item) => item.time !== "" && !Number.isNaN(item.value));
+
+    return mapped.slice(-80);
+  }, [data]);
+
   if (!data) return <EmptyCard />;
   if (isWaitingState(data.ui_state)) return <LoaderCard data={data} />;
-  if (data.legs && data.legs.length > 0) return <LiveSpreadCard data={data} />;
-  return <EmptyCard />;
+  if (!data.legs || data.legs.length === 0) return <EmptyCard />;
+
+  return (
+    <BullCallSpreadDashboard
+      strategyName={formatText(data.strategy_name, "Bull Call Spreads")}
+      algoName={`${formatText(data.index, "INDEX")} • ${formatText(data.spread_type, "BULL_CALL_SPREAD")}`}
+      status={formatStatus(data.status)}
+      netPnl={formatNumber(data.net_pnl)}
+      stopLoss={formatNumber(data.stop_loss)}
+      target={formatNumber(data.target)}
+      updatedAt={formatText(data.updated_at)}
+      entryTime={formatText(data.entry_time ?? data.updated_at)}
+      legs={mappedLegs}
+      pnlSeries={pnlSeries}
+    />
+  );
 }
