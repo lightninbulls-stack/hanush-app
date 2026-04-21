@@ -1,503 +1,592 @@
-import React, { useEffect, useRef, useCallback, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
-export type PnlPoint = { time: string; value: number };
+export type PnlPoint = {
+  time: string;
+  value: number;
+};
 
 type Props = {
   data?: PnlPoint[];
   target?: number;
   stopLoss?: number;
-  scaleSize?: number;
   height?: number;
-  animationSpeed?: number;
-  liveMode?: boolean;
 };
 
-export default function MetalSnakePnlChart({
-  data,
-  target = 3000,
-  stopLoss = -1500,
-  scaleSize = 11,
-  height = 420,
-  animationSpeed = 600,
-  liveMode = false,
-}: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tongueRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stateRef = useRef({
-    pnlHistory: [] as number[],
-    currentPnl: 0,
-    tradeTime: 0,
-    tongueFlick: 0,
-    target,
-    stopLoss,
-    scaleSize,
-  });
-  const [stats, setStats] = useState({ pnl: 0, pct: 0, status: "—" });
+type Pt = {
+  x: number;
+  y: number;
+};
 
-  // ── helpers ──────────────────────────────────────────────────────────────────
-  function smoothPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) {
-    if (pts.length < 2) return;
+const DPR_CAP = 2;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function catmullRomToBezier(ctx: CanvasRenderingContext2D, points: Pt[]) {
+  if (points.length < 2) return;
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  }
+}
+
+function pointOnPath(points: Pt[], t: number): Pt {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+
+  const idx = clamp(t * (points.length - 1), 0, points.length - 1);
+  const i0 = Math.floor(idx);
+  const i1 = Math.min(points.length - 1, i0 + 1);
+  const frac = idx - i0;
+
+  return {
+    x: lerp(points[i0].x, points[i1].x, frac),
+    y: lerp(points[i0].y, points[i1].y, frac),
+  };
+}
+
+function angleOnPath(points: Pt[], t: number): number {
+  const a = pointOnPath(points, Math.max(0, t - 0.01));
+  const b = pointOnPath(points, Math.min(1, t + 0.01));
+  return Math.atan2(b.y - a.y, b.x - a.x);
+}
+
+function buildSnakePath(
+  pnlSeries: number[],
+  width: number,
+  height: number,
+  padLeft: number,
+  padRight: number,
+  padTop: number,
+  padBottom: number
+) {
+  const drawW = width - padLeft - padRight;
+  const drawH = height - padTop - padBottom;
+
+  const values = pnlSeries.length ? pnlSeries : [0];
+  const minVal = Math.min(...values, 0);
+  const maxVal = Math.max(...values, 0);
+  const span = Math.max(1, maxVal - minVal);
+
+  const yMin = minVal - span * 0.35 - 25;
+  const yMax = maxVal + span * 0.35 + 25;
+
+  const mapX = (i: number) =>
+    padLeft + (i / Math.max(1, values.length - 1)) * drawW;
+
+  const mapY = (v: number) =>
+    padTop + (1 - (v - yMin) / Math.max(1, yMax - yMin)) * drawH;
+
+  const pts: Pt[] = values.map((v, i) => ({
+    x: mapX(i),
+    y: mapY(v),
+  }));
+
+  return {
+    pts,
+    yMin,
+    yMax,
+    mapY,
+  };
+}
+
+function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  padLeft: number,
+  padRight: number,
+  padTop: number,
+  padBottom: number,
+  mapY: (v: number) => number,
+  yMin: number,
+  yMax: number,
+  target: number,
+  stopLoss: number
+) {
+  const right = width - padRight;
+  const bottom = height - padBottom;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.lineWidth = 1;
+
+  const ticks = 5;
+  for (let i = 0; i <= ticks; i++) {
+    const v = yMin + ((yMax - yMin) * i) / ticks;
+    const y = mapY(v);
+
     ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i];
-      const p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
-      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, p2.x, p2.y);
-    }
+    ctx.moveTo(padLeft, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = "12px Inter, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(Math.round(v).toString(), padLeft - 10, y + 4);
   }
 
-  // Convert PnL value → snake body points (length = PnL progress)
-  function buildSnakePoints(
-    pnl: number, tgt: number, sl: number,
-    W: number, H: number
-  ) {
-    const PL = 80, PR = 40, PT = 60, PB = 60;
-    const aW = W - PL - PR, aH = H - PT - PB;
-    const centerY = PT + aH / 2;
-    const totalRange = Math.abs(tgt) + Math.abs(sl);
-    const frac = Math.max(0.03, Math.min(0.97, (pnl - sl) / totalRange));
-    const snakeLen = aW * 0.12 + aW * 0.80 * frac;
-    const amplitude = aH * 0.23;
-    const numPts = Math.max(8, Math.floor(snakeLen / 16));
-    const pts: { x: number; y: number }[] = [];
-    for (let i = 0; i < numPts; i++) {
-      const t = i / (numPts - 1);
-      pts.push({
-        x: PL + snakeLen * t,
-        y: centerY + Math.sin(t * Math.PI * 2.5) * amplitude * (1 - t * 0.28),
-      });
-    }
-    return pts;
-  }
+  const zeroY = mapY(0);
 
-  // Draw a single gold scale
-  function drawScale(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, angle: number,
-    rx: number, ry: number
-  ) {
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.beginPath();
+  ctx.moveTo(padLeft, zeroY);
+  ctx.lineTo(right, zeroY);
+  ctx.stroke();
+
+  const targetY = mapY(target);
+  ctx.setLineDash([8, 4]);
+  ctx.strokeStyle = "rgba(34,197,94,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(padLeft, targetY);
+  ctx.lineTo(right, targetY);
+  ctx.stroke();
+
+  const stopY = mapY(stopLoss);
+  ctx.strokeStyle = "rgba(239,68,68,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(padLeft, stopY);
+  ctx.lineTo(right, stopY);
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = "rgba(34,197,94,0.85)";
+  ctx.textAlign = "left";
+  ctx.fillText(`Target ₹${target.toFixed(0)}`, right - 110, targetY - 8);
+
+  ctx.fillStyle = "rgba(239,68,68,0.85)";
+  ctx.fillText(`SL ₹${stopLoss.toFixed(0)}`, right - 90, stopY - 8);
+
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,215,100,0.045)";
+  for (let x = padLeft; x <= right; x += 70) {
+    ctx.beginPath();
+    ctx.moveTo(x, padTop);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSnakeBody(
+  ctx: CanvasRenderingContext2D,
+  points: Pt[],
+  widthBase: number
+) {
+  if (points.length < 2) return;
+
+  ctx.save();
+
+  catmullRomToBezier(ctx, points);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.lineWidth = widthBase * 1.35;
+  ctx.strokeStyle = "rgba(20,10,0,0.95)";
+  ctx.stroke();
+
+  catmullRomToBezier(ctx, points);
+  ctx.lineWidth = widthBase * 1.18;
+  const outer = ctx.createLinearGradient(0, 0, 0, 600);
+  outer.addColorStop(0, "#4d2b00");
+  outer.addColorStop(0.35, "#8e5a07");
+  outer.addColorStop(0.65, "#d4981a");
+  outer.addColorStop(1, "#3f2200");
+  ctx.strokeStyle = outer;
+  ctx.stroke();
+
+  catmullRomToBezier(ctx, points);
+  ctx.lineWidth = widthBase * 0.75;
+  const inner = ctx.createLinearGradient(0, 0, 0, 600);
+  inner.addColorStop(0, "#ffefb0");
+  inner.addColorStop(0.22, "#ffd76a");
+  inner.addColorStop(0.5, "#e3a820");
+  inner.addColorStop(0.82, "#8a4c05");
+  inner.addColorStop(1, "#3a1c00");
+  ctx.strokeStyle = inner;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawScales(
+  ctx: CanvasRenderingContext2D,
+  points: Pt[],
+  bodyWidth: number
+) {
+  if (points.length < 2) return;
+
+  ctx.save();
+
+  const count = Math.max(18, Math.floor(points.length * 2.3));
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    const p = pointOnPath(points, t);
+    const angle = angleOnPath(points, t);
+    const taper = 1 - t * 0.65;
+    const rx = bodyWidth * 0.28 * taper;
+    const ry = bodyWidth * 0.16 * taper;
+
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(p.x, p.y);
     ctx.rotate(angle);
 
-    const g = ctx.createRadialGradient(-rx * 0.1, -ry * 0.3, 0, 0, 0, rx * 1.1);
-    g.addColorStop(0,   "#fffacc");
-    g.addColorStop(0.22,"#f5d060");
-    g.addColorStop(0.48,"#d4920a");
-    g.addColorStop(0.78,"#8a5008");
-    g.addColorStop(1,   "#3a1e02");
+    const grad = ctx.createRadialGradient(-rx * 0.2, -ry * 0.2, 0, 0, 0, rx * 1.15);
+    grad.addColorStop(0, "rgba(255,245,195,0.92)");
+    grad.addColorStop(0.25, "rgba(247,201,88,0.96)");
+    grad.addColorStop(0.6, "rgba(188,120,15,0.92)");
+    grad.addColorStop(1, "rgba(70,35,0,0.95)");
 
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = g;
+    ctx.fillStyle = grad;
     ctx.fill();
-    ctx.strokeStyle = "rgba(15,8,0,0.7)";
-    ctx.lineWidth = 0.35;
+
+    ctx.strokeStyle = "rgba(35,15,0,0.45)";
+    ctx.lineWidth = 0.6;
     ctx.stroke();
 
-    const sh = ctx.createLinearGradient(0, -ry, 0, ry * 0.3);
-    sh.addColorStop(0, "rgba(255,250,200,0.38)");
-    sh.addColorStop(1, "rgba(255,250,200,0)");
     ctx.beginPath();
-    ctx.ellipse(0, -ry * 0.1, rx * 0.58, ry * 0.42, 0, 0, Math.PI * 2);
-    ctx.fillStyle = sh;
+    ctx.ellipse(-rx * 0.12, -ry * 0.15, rx * 0.45, ry * 0.22, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,250,210,0.18)";
     ctx.fill();
-    ctx.restore();
-  }
-
-  // Draw snake head with eye, nostril, jaw
-  function drawHead(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, angle: number, sc: number
-  ) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    const s2 = sc * 2.2;
-
-    // Jaw
-    const jawG = ctx.createRadialGradient(s2 * 0.5, sc * 0.3, 0, s2 * 0.5, 0, s2);
-    jawG.addColorStop(0, "#d4920a"); jawG.addColorStop(1, "#3a1e02");
-    ctx.beginPath();
-    ctx.ellipse(s2 * 0.6, sc * 0.55, s2 * 0.85, sc * 0.52, 0, 0, Math.PI * 2);
-    ctx.fillStyle = jawG; ctx.fill();
-    ctx.strokeStyle = "#1a0a00"; ctx.lineWidth = 0.7; ctx.stroke();
-
-    // Skull
-    const hG = ctx.createRadialGradient(s2 * 0.3, -sc * 0.2, 0, s2 * 0.5, 0, s2);
-    hG.addColorStop(0, "#fff8d0"); hG.addColorStop(0.28, "#f5c842");
-    hG.addColorStop(0.58, "#d4920a"); hG.addColorStop(1, "#4a2802");
-    ctx.beginPath();
-    ctx.ellipse(s2 * 0.5, 0, s2 * 0.9, sc * 0.72, 0, 0, Math.PI * 2);
-    ctx.fillStyle = hG; ctx.fill();
-    ctx.strokeStyle = "#1a0a00"; ctx.lineWidth = 0.8; ctx.stroke();
-
-    // Snout
-    const snG = ctx.createRadialGradient(s2 * 1.3, 0, 0, s2 * 1.3, 0, sc * 0.8);
-    snG.addColorStop(0, "#e8a820"); snG.addColorStop(1, "#6a3a05");
-    ctx.beginPath();
-    ctx.ellipse(s2 * 1.3, sc * 0.1, sc * 0.65, sc * 0.48, 0, 0, Math.PI * 2);
-    ctx.fillStyle = snG; ctx.fill();
-    ctx.strokeStyle = "#1a0a00"; ctx.lineWidth = 0.5; ctx.stroke();
-
-    // Nostrils
-    ctx.fillStyle = "#0a0300";
-    ctx.beginPath(); ctx.ellipse(s2*1.52, -sc*0.12, sc*0.1, sc*0.07, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(s2*1.52,  sc*0.18, sc*0.1, sc*0.07, 0, 0, Math.PI*2); ctx.fill();
-
-    // Crown scale marks
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.ellipse(s2*(0.1+i*0.28), sc*(i%2?0.15:-0.18), sc*0.22, sc*0.14, 0, 0, Math.PI*2);
-      ctx.strokeStyle = "rgba(255,210,60,0.2)"; ctx.lineWidth = 0.5; ctx.stroke();
-    }
-
-    // Eye socket
-    ctx.beginPath(); ctx.arc(s2*0.22, -sc*0.28, sc*0.28, 0, Math.PI*2);
-    ctx.fillStyle = "#050200"; ctx.fill();
-    ctx.strokeStyle = "#7a5008"; ctx.lineWidth = 0.8; ctx.stroke();
-
-    // Iris
-    const eyeG = ctx.createRadialGradient(s2*0.19, -sc*0.31, 0, s2*0.22, -sc*0.28, sc*0.19);
-    eyeG.addColorStop(0,    "#ffff88");
-    eyeG.addColorStop(0.4,  "#ff4400");
-    eyeG.addColorStop(0.75, "#880000");
-    eyeG.addColorStop(1,    "#000");
-    ctx.beginPath(); ctx.arc(s2*0.22, -sc*0.28, sc*0.19, 0, Math.PI*2);
-    ctx.fillStyle = eyeG; ctx.fill();
-
-    // Slit pupil
-    ctx.beginPath(); ctx.ellipse(s2*0.22, -sc*0.28, sc*0.06, sc*0.14, 0, 0, Math.PI*2);
-    ctx.fillStyle = "#000"; ctx.fill();
-
-    // Gleam
-    ctx.beginPath(); ctx.arc(s2*0.19, -sc*0.32, sc*0.05, 0, Math.PI*2);
-    ctx.fillStyle = "rgba(255,255,200,0.9)"; ctx.fill();
 
     ctx.restore();
   }
 
-  // Animated forked tongue
-  function drawTongue(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, angle: number, sc: number, flick: number
-  ) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    const s2 = sc * 2.2;
-    const hx = s2 * 1.95, hy = sc * 0.1;
-    const fl = sc * 1.15, fs = sc * 0.38;
-    const wave = Math.sin(flick * 0.9) * sc * 0.22;
-    const ex = hx + fl, ey = hy + wave;
+  ctx.restore();
+}
 
-    ctx.strokeStyle = "#cc1111"; ctx.lineCap = "round";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(hx, hy);
-    ctx.quadraticCurveTo(hx + fl*0.4, hy + wave*0.5, ex, ey);
-    ctx.stroke();
+function drawSnakeHead(
+  ctx: CanvasRenderingContext2D,
+  head: Pt,
+  angle: number,
+  scale: number,
+  time: number
+) {
+  ctx.save();
+  ctx.translate(head.x, head.y);
+  ctx.rotate(angle);
 
-    ctx.lineWidth = 1.1;
-    ctx.beginPath(); ctx.moveTo(ex, ey);
-    ctx.lineTo(ex + fs*0.8 - Math.sin(angle)*fs, ey - fs + wave*0.3);
-    ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(ex, ey);
-    ctx.lineTo(ex + fs*0.8 + Math.sin(angle)*fs, ey + fs + wave*0.3);
-    ctx.stroke();
-    ctx.restore();
-  }
+  const headLen = scale * 2.2;
+  const headH = scale * 1.4;
 
-  // Pointed tail tip
-  function drawTail(
-    ctx: CanvasRenderingContext2D,
-    pt: { x: number; y: number }, sc: number
-  ) {
+  const skull = ctx.createRadialGradient(
+    headLen * 0.1,
+    -headH * 0.25,
+    0,
+    headLen * 0.35,
+    0,
+    headLen * 1.15
+  );
+  skull.addColorStop(0, "#fff2b0");
+  skull.addColorStop(0.25, "#ffd86b");
+  skull.addColorStop(0.55, "#d19013");
+  skull.addColorStop(1, "#4a2600");
+
+  ctx.beginPath();
+  ctx.moveTo(-headLen * 0.35, -headH * 0.75);
+  ctx.quadraticCurveTo(headLen * 0.2, -headH * 1.1, headLen * 0.95, -headH * 0.1);
+  ctx.quadraticCurveTo(headLen * 1.12, 0, headLen * 0.95, headH * 0.1);
+  ctx.quadraticCurveTo(headLen * 0.2, headH * 1.1, -headLen * 0.35, headH * 0.75);
+  ctx.quadraticCurveTo(-headLen * 0.68, 0, -headLen * 0.35, -headH * 0.75);
+  ctx.closePath();
+  ctx.fillStyle = skull;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(30,10,0,0.9)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  for (let i = 0; i < 6; i++) {
+    const x = lerp(-headLen * 0.12, headLen * 0.62, i / 5);
+    const y = (i % 2 === 0 ? -1 : 1) * headH * 0.16;
     ctx.beginPath();
-    ctx.moveTo(pt.x, pt.y);
-    ctx.lineTo(pt.x - sc*1.6, pt.y - sc*0.18);
-    ctx.lineTo(pt.x - sc*2.4, pt.y + sc*0.38);
-    ctx.lineTo(pt.x - sc*1.3, pt.y + sc*0.5);
-    ctx.closePath();
-    const tG = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, sc*2.2);
-    tG.addColorStop(0, "#d4920a"); tG.addColorStop(1, "#2a1200");
-    ctx.fillStyle = tG; ctx.fill();
-    ctx.strokeStyle = "#1a0a00"; ctx.lineWidth = 0.6; ctx.stroke();
-  }
-
-  // Y-axis reference lines
-  function drawRefLines(
-    ctx: CanvasRenderingContext2D,
-    W: number, H: number, tgt: number, sl: number
-  ) {
-    const PL=80, PR=40, PT=60, PB=60;
-    const aH = H - PT - PB;
-    const totalRange = Math.abs(tgt) + Math.abs(sl);
-    const mY = (v: number) => PT + aH * (1 - (v - sl) / totalRange);
-
-    [[0,"rgba(70,70,70,0.5)","6,4"],[tgt,"rgba(74,222,128,0.5)","7,4"],[sl,"rgba(248,113,113,0.5)","7,4"]].forEach(([v,s,d])=>{
-      const y = mY(+v);
-      ctx.save();
-      ctx.strokeStyle = s as string; ctx.lineWidth = 1;
-      ctx.setLineDash((d as string).split(",").map(Number));
-      ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
-      ctx.restore();
-    });
-
-    ctx.font = "10px monospace";
-    ctx.fillStyle = "rgba(74,222,128,0.6)";  ctx.fillText(`₹${tgt}`, W-PR+4, mY(tgt)+4);
-    ctx.fillStyle = "rgba(248,113,113,0.6)"; ctx.fillText(`₹${sl}`,  W-PR+4, mY(sl)+4);
-    ctx.fillStyle = "rgba(100,100,100,0.5)"; ctx.fillText("₹0",      W-PR+4, mY(0)+4);
-
-    // Y axis ticks
-    for (let i = 0; i <= 6; i++) {
-      const v = sl + totalRange * (i/6);
-      const y = mY(v);
-      ctx.fillStyle = "rgba(255,255,255,0.18)";
-      ctx.font = "10px monospace";
-      ctx.textAlign = "right";
-      ctx.fillText(Math.round(v).toString(), PL - 8, y + 4);
-      ctx.strokeStyle = "rgba(255,255,255,0.03)"; ctx.lineWidth = 1;
-      ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
-    }
-    ctx.textAlign = "left";
-  }
-
-  // PnL trail sparkline (top-right)
-  function drawTrail(
-    ctx: CanvasRenderingContext2D,
-    history: number[], W: number, H: number, tgt: number, sl: number
-  ) {
-    if (history.length < 2) return;
-    const PL=80, PR=40, PT=60, PB=60;
-    const aH = H - PT - PB;
-    const totalRange = Math.abs(tgt) + Math.abs(sl);
-    const trailX = W - PR - 120, trailW = 110;
-    ctx.save();
-    ctx.strokeStyle = "rgba(238,183,65,0.35)"; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    history.forEach((v, i) => {
-      const x = trailX + (i / (history.length - 1)) * trailW;
-      const frac = Math.max(0, Math.min(1, (v - sl) / totalRange));
-      const y = PT + aH * (1 - frac);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
+    ctx.ellipse(x, y, scale * 0.22, scale * 0.11, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,220,120,0.22)";
+    ctx.lineWidth = 0.8;
     ctx.stroke();
-    ctx.fillStyle = "rgba(238,183,65,0.5)";
-    const last = history[history.length - 1];
-    const lFrac = Math.max(0, Math.min(1, (last - sl) / totalRange));
-    ctx.beginPath();
-    ctx.arc(trailX + trailW, PT + aH * (1 - lFrac), 3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
   }
 
-  // PnL progress bar (right edge)
-  function drawProgressBar(
-    ctx: CanvasRenderingContext2D,
-    pnl: number, W: number, H: number, tgt: number, sl: number
-  ) {
-    const PT=60, PB=60;
-    const bX = W - 28, bH = H - PT - PB, bY = PT;
-    const totalRange = Math.abs(tgt) + Math.abs(sl);
-    const frac = Math.max(0, Math.min(1, (pnl - sl) / totalRange));
-    const fillH = bH * frac;
+  const jaw = ctx.createLinearGradient(0, -headH, 0, headH);
+  jaw.addColorStop(0, "#a05f0d");
+  jaw.addColorStop(1, "#3d1c00");
 
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    ctx.fillRect(bX, bY, 10, bH);
+  ctx.beginPath();
+  ctx.ellipse(headLen * 0.36, headH * 0.42, headLen * 0.48, headH * 0.34, 0, 0, Math.PI * 2);
+  ctx.fillStyle = jaw;
+  ctx.fill();
 
-    const barG = ctx.createLinearGradient(0, bY + bH, 0, bY);
-    barG.addColorStop(0,   "#f87171");
-    barG.addColorStop(0.4, "#eeb741");
-    barG.addColorStop(1,   "#4ade80");
-    ctx.fillStyle = barG;
-    ctx.fillRect(bX, bY + bH - fillH, 10, fillH);
-    ctx.strokeStyle = "rgba(255,255,255,0.07)";
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(bX, bY, 10, bH);
-  }
+  const eyeX = headLen * 0.14;
+  const eyeY = -headH * 0.32;
 
-  // ── main draw ─────────────────────────────────────────────────────────────────
-  const draw = useCallback(() => {
+  ctx.beginPath();
+  ctx.ellipse(eyeX, eyeY, scale * 0.22, scale * 0.18, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#0c0300";
+  ctx.fill();
+
+  const iris = ctx.createRadialGradient(eyeX - 2, eyeY - 2, 0, eyeX, eyeY, scale * 0.18);
+  iris.addColorStop(0, "#fff890");
+  iris.addColorStop(0.35, "#ff9f1a");
+  iris.addColorStop(0.7, "#8b1600");
+  iris.addColorStop(1, "#100000");
+  ctx.beginPath();
+  ctx.ellipse(eyeX, eyeY, scale * 0.16, scale * 0.14, 0, 0, Math.PI * 2);
+  ctx.fillStyle = iris;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(eyeX, eyeY, scale * 0.035, scale * 0.12, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(eyeX - scale * 0.04, eyeY - scale * 0.04, scale * 0.025, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,230,0.9)";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(headLen * 0.84, -headH * 0.1, scale * 0.06, scale * 0.045, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#120500";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(headLen * 0.84, headH * 0.12, scale * 0.06, scale * 0.045, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const flick = Math.sin(time * 0.018) * scale * 0.16;
+  const tongueBaseX = headLen * 1.04;
+  const tongueBaseY = headH * 0.05;
+
+  ctx.strokeStyle = "#d91f1f";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+
+  ctx.beginPath();
+  ctx.moveTo(tongueBaseX, tongueBaseY);
+  ctx.quadraticCurveTo(
+    tongueBaseX + scale * 0.4,
+    tongueBaseY + flick * 0.4,
+    tongueBaseX + scale * 0.88,
+    tongueBaseY + flick
+  );
+  ctx.stroke();
+
+  const tongueTipX = tongueBaseX + scale * 0.88;
+  const tongueTipY = tongueBaseY + flick;
+
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(tongueTipX, tongueTipY);
+  ctx.lineTo(tongueTipX + scale * 0.25, tongueTipY - scale * 0.16);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tongueTipX, tongueTipY);
+  ctx.lineTo(tongueTipX + scale * 0.25, tongueTipY + scale * 0.16);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawTail(ctx: CanvasRenderingContext2D, tail: Pt, angle: number, scale: number) {
+  ctx.save();
+  ctx.translate(tail.x, tail.y);
+  ctx.rotate(angle);
+
+  const grad = ctx.createLinearGradient(0, -scale, 0, scale);
+  grad.addColorStop(0, "#d19013");
+  grad.addColorStop(1, "#351600");
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-scale * 1.55, -scale * 0.22);
+  ctx.lineTo(-scale * 2.15, scale * 0.16);
+  ctx.lineTo(-scale * 1.1, scale * 0.38);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(35,10,0,0.8)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+export default function SnakePnlChart({
+  data = [],
+  target = 3000,
+  stopLoss = -1500,
+  height = 420,
+}: Props) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animRef = useRef<number | null>(null);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const W = canvas.width, H = canvas.height;
-    const { pnlHistory, currentPnl, tongueFlick, target: tgt, stopLoss: sl, scaleSize: sc } = stateRef.current;
 
-    ctx.fillStyle = "#0a0b0d"; ctx.fillRect(0, 0, W, H);
-    drawRefLines(ctx, W, H, tgt, sl);
-    drawTrail(ctx, pnlHistory, W, H, tgt, sl);
+    const parent = canvas.parentElement;
+    if (!parent) return;
 
-    const pts = buildSnakePoints(currentPnl, tgt, sl, W, H);
-    if (pts.length < 2) return;
+    const resize = () => {
+      const cssWidth = parent.clientWidth || 1000;
+      const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${height}px`;
 
-    // Body shadow layers
-    ctx.save();
-    smoothPath(ctx, pts); ctx.lineWidth = sc*2.7; ctx.strokeStyle = "#180900"; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
-    smoothPath(ctx, pts); ctx.lineWidth = sc*2.1; ctx.strokeStyle = "#3a2005"; ctx.stroke();
-    ctx.restore();
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
 
-    // Scales
-    for (let i = 1; i < pts.length; i++) {
-      const prev = pts[i-1], curr = pts[i];
-      const dx = curr.x - prev.x, dy = curr.y - prev.y;
-      const len = Math.sqrt(dx*dx + dy*dy);
-      const ang = Math.atan2(dy, dx);
-      const den = Math.max(2, Math.floor(len / 7));
-      for (let j = 0; j < den; j++) {
-        const t = j / den;
-        const ph = (i + j) * 0.75;
-        const pl = 1 + 0.13 * Math.sin(ph);
-        drawScale(ctx, prev.x + dx*t, prev.y + dy*t, ang, sc*pl, sc*0.65*pl);
+    resize();
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(parent);
+
+    let frame = 0;
+
+    const render = () => {
+      frame += 1;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const width = canvas.clientWidth;
+      const h = height;
+
+      ctx.clearRect(0, 0, width, h);
+
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, "#0a0f1b");
+      bg.addColorStop(1, "#080d18");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, h);
+
+      const glow = ctx.createRadialGradient(width * 0.72, h * 0.28, 0, width * 0.72, h * 0.28, width * 0.55);
+      glow.addColorStop(0, "rgba(255,180,0,0.08)");
+      glow.addColorStop(1, "rgba(255,180,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, h);
+
+      const padLeft = 70;
+      const padRight = 30;
+      const padTop = 30;
+      const padBottom = 50;
+
+      const pnlSeries = data.map((d) => d.value);
+      const chart = buildSnakePath(
+        pnlSeries,
+        width,
+        h,
+        padLeft,
+        padRight,
+        padTop,
+        padBottom
+      );
+
+      drawGrid(
+        ctx,
+        width,
+        h,
+        padLeft,
+        padRight,
+        padTop,
+        padBottom,
+        chart.mapY,
+        chart.yMin,
+        chart.yMax,
+        target,
+        stopLoss
+      );
+
+      if (chart.pts.length >= 2) {
+        const bodyWidth = clamp(Math.min(28, Math.max(18, width * 0.022)), 18, 28);
+
+        drawSnakeBody(ctx, chart.pts, bodyWidth);
+        drawScales(ctx, chart.pts, bodyWidth);
+
+        const tail = chart.pts[0];
+        const tailAngle = angleOnPath(chart.pts, 0.03);
+        drawTail(ctx, tail, tailAngle, bodyWidth * 0.52);
+
+        const head = chart.pts[chart.pts.length - 1];
+        const headAngle = angleOnPath(chart.pts, 0.98);
+        drawSnakeHead(ctx, head, headAngle, bodyWidth * 0.78, frame);
+
+        const last = data[data.length - 1];
+        if (last) {
+          ctx.save();
+          ctx.fillStyle = "#f7cf65";
+          ctx.font = "bold 13px Inter, sans-serif";
+          ctx.fillText(`₹${last.value.toFixed(2)}`, head.x + 14, head.y - 12);
+          ctx.restore();
+        }
       }
-    }
 
-    // Top shine
-    ctx.save();
-    smoothPath(ctx, pts); ctx.lineWidth = 1.8; ctx.strokeStyle = "rgba(255,255,220,0.18)"; ctx.lineCap = "round"; ctx.stroke();
-    ctx.restore();
+      animRef.current = window.requestAnimationFrame(render);
+    };
 
-    // Tail
-    drawTail(ctx, pts[0], sc);
-
-    // Head + tongue
-    const lp = pts[pts.length - 1], l2 = pts[pts.length - 2];
-    const headAng = Math.atan2(lp.y - l2.y, lp.x - l2.x);
-    drawHead(ctx, lp.x, lp.y, headAng, sc);
-    drawTongue(ctx, lp.x, lp.y, headAng, sc, tongueFlick);
-
-    // Tip glow
-    ctx.beginPath(); ctx.arc(lp.x, lp.y, sc*1.3, 0, Math.PI*2);
-    ctx.strokeStyle = "rgba(238,183,65,0.2)"; ctx.lineWidth = 1.5; ctx.stroke();
-
-    drawProgressBar(ctx, currentPnl, W, H, tgt, sl);
-
-    // Update React stats
-    const totalRange = Math.abs(tgt) + Math.abs(sl);
-    const pct = Math.max(0, Math.min(100, (currentPnl - sl) / totalRange * 100));
-    const status = currentPnl >= tgt*0.9 ? "Near Target"
-      : currentPnl <= sl*0.9 ? "Near SL"
-      : currentPnl > 0 ? "Profitable" : "In Loss";
-    setStats({ pnl: currentPnl, pct, status });
-  }, []);
-
-  // ── demo data generator ───────────────────────────────────────────────────────
-  const genNext = useCallback(() => {
-    const s = stateRef.current;
-    const prog = Math.min(1, s.tradeTime / 60);
-    const trend = s.target * 0.55 * prog * prog;
-    const wave = Math.sin(s.tradeTime * 0.45) * Math.abs(s.target) * 0.12;
-    const noise = (Math.random() - 0.38) * Math.abs(s.target) * 0.16;
-    s.currentPnl = s.currentPnl * 0.84 + (trend + wave + noise) * 0.16 + noise * 0.45;
-    s.currentPnl = Math.max(s.stopLoss*1.05, Math.min(s.target*1.05, s.currentPnl));
-    s.currentPnl = Math.round(s.currentPnl * 100) / 100;
-    s.tradeTime++;
-    s.pnlHistory.push(s.currentPnl);
-    if (s.pnlHistory.length > 60) s.pnlHistory.shift();
-  }, []);
-
-  // ── sync props ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    stateRef.current.target = target;
-    stateRef.current.stopLoss = stopLoss;
-    stateRef.current.scaleSize = scaleSize;
-  }, [target, stopLoss, scaleSize]);
-
-  // ── external data mode ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (data && data.length > 0) {
-      stateRef.current.currentPnl = data[data.length - 1].value;
-      stateRef.current.pnlHistory = data.map(d => d.value);
-      draw();
-    }
-  }, [data, draw]);
-
-  // ── live / demo animation ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (data && data.length > 0) return;
-
-    animRef.current = setInterval(() => {
-      genNext();
-      draw();
-    }, animationSpeed);
-
-    tongueRef.current = setInterval(() => {
-      stateRef.current.tongueFlick++;
-      draw();
-    }, 110);
+    animRef.current = window.requestAnimationFrame(render);
 
     return () => {
-      clearInterval(animRef.current!);
-      clearInterval(tongueRef.current!);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      ro.disconnect();
     };
-  }, [data, animationSpeed, genNext, draw]);
-
-  // ── canvas resize ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ro = new ResizeObserver(() => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = height;
-      draw();
-    });
-    ro.observe(canvas.parentElement!);
-    canvas.width = canvas.offsetWidth || 900;
-    canvas.height = height;
-    draw();
-    return () => ro.disconnect();
-  }, [height, draw]);
-
-  const isPos = stats.pnl >= 0;
-  const statusColor = stats.status === "Near Target" || stats.status === "Profitable" ? "#4ade80" : "#f87171";
+  }, [data, height, target, stopLoss]);
 
   return (
-    <div style={{ background: "#0a0b0d", width: "100%", fontFamily: "monospace" }}>
-      {/* Stats bar */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px", background:"#0d0e11", borderBottom:"1px solid #1a1a1a", flexWrap:"wrap", gap:12 }}>
-        <div style={{ display:"flex", gap:22, flexWrap:"wrap" }}>
-          {[
-            { label:"Net PnL",     val:`₹${stats.pnl.toFixed(2)}`,   color: isPos?"#4ade80":"#f87171" },
-            { label:"Target",      val:`₹${target}`,                  color:"#4ade80" },
-            { label:"Stop Loss",   val:`₹${stopLoss}`,                color:"#f87171" },
-            { label:"Progress",    val:`${stats.pct.toFixed(1)}%`,    color:"#eeb741" },
-            { label:"Status",      val:stats.status,                  color:statusColor },
-          ].map(s => (
-            <div key={s.label} style={{ display:"flex", flexDirection:"column", gap:2 }}>
-              <span style={{ fontSize:9, color:"#3a3a3a", letterSpacing:1.5, textTransform:"uppercase" }}>{s.label}</span>
-              <span style={{ fontSize:14, fontWeight:700, color:s.color }}>{s.val}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div
+      style={{
+        width: "100%",
+        background: "linear-gradient(180deg, rgba(8,12,18,0.98), rgba(10,15,24,0.98))",
+        borderRadius: 18,
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      <canvas ref={canvasRef} />
 
-      {/* Canvas */}
-      <div style={{ position:"relative", width:"100%" }}>
-        <canvas ref={canvasRef} style={{ display:"block", width:"100%" }} />
-      </div>
-
-      {/* Legend */}
-      <div style={{ display:"flex", gap:18, padding:"8px 20px", background:"#0a0b0d", borderTop:"1px solid #111", flexWrap:"wrap" }}>
-        {[
-          { type:"dot", color:"#eeb741", label:"snake (grows with profit)" },
-          { type:"line", color:"#4ade80", label:"target" },
-          { type:"line", color:"#f87171", label:"stop loss" },
-          { type:"line", color:"#444",   label:"zero" },
-          { type:"line", color:"rgba(238,183,65,0.4)", label:"pnl trail" },
-        ].map(l => (
-          <div key={l.label} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#444" }}>
-            {l.type === "dot"
-              ? <div style={{ width:8, height:8, borderRadius:"50%", background:l.color }} />
-              : <div style={{ width:18, height:2, background:l.color }} />
-            }
-            {l.label}
-          </div>
-        ))}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 18,
+          flexWrap: "wrap",
+          padding: "8px 14px 14px",
+          fontSize: 13,
+          color: "rgba(255,255,255,0.72)",
+        }}
+      >
+        <span style={{ color: "#f0c75e" }}>● pnl snake</span>
+        <span style={{ color: "#22c55e" }}>● target</span>
+        <span style={{ color: "#ef4444" }}>● stop loss</span>
+        <span style={{ color: "#60a5fa" }}>● zero</span>
       </div>
     </div>
   );
