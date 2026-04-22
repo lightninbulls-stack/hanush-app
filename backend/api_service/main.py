@@ -360,23 +360,6 @@ def bear_put_sensex_strategy_status():
     }
 
 
-@app.get("/debug/users")
-def list_users(db: Session = Depends(get_db)):
-    from models.user import User
-
-    users = db.query(User).all()
-    return [
-        {
-            "id": u.id,
-            "name": u.name,
-            "email": u.email,
-            "phone": getattr(u, "phone", None),
-            "created_at": getattr(u, "created_at", None),
-        }
-        for u in users
-    ]
-
-
 @app.get("/debug/migrations")
 def check_migrations():
     from sqlalchemy import text
