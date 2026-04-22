@@ -5,16 +5,16 @@ import os
 import threading
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
-from bullcallspread.nifty_bull_call_signal import main as bull_call_main
-from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
+from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
 from bearputspread.nifty_bear_put_signal import main as bear_put_main
 from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
+from bullcallspread.nifty_bull_call_signal import main as bull_call_main
+from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
@@ -249,6 +249,15 @@ def get_db():
         db.close()
 
 
+def verify_admin_secret(secret: str) -> None:
+    admin_secret = os.getenv(
+        "ADMIN_SECRET",
+        "hanush_app_prod_2026_super_long_random_secret_key_9384747",
+    )
+    if secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Global error: %s", exc, exc_info=True)
@@ -278,6 +287,33 @@ def health():
         "bear_put_strategy_running": is_bear_put_strategy_running(),
         "bear_put_sensex_strategy_running": is_bear_put_sensex_strategy_running(),
     }
+
+
+@app.get("/admin/users")
+def admin_users(
+    secret: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    verify_admin_secret(secret)
+
+    from models.user import User
+
+    users = db.query(User).order_by(User.created_at.desc()).all()
+
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "phone": u.phone,
+            "created_at": (
+                u.created_at.isoformat()
+                if getattr(u, "created_at", None)
+                else None
+            ),
+        }
+        for u in users
+    ]
 
 
 @app.post("/api/strategy/start")
