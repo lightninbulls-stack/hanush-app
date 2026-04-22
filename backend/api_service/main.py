@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 from bearputspread.nifty_bear_put_signal import main as bear_put_main
+from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
@@ -38,6 +39,9 @@ _bull_call_strategy_lock = threading.Lock()
 
 _bear_put_strategy_thread: threading.Thread | None = None
 _bear_put_strategy_lock = threading.Lock()
+
+_bear_put_sensex_strategy_thread: threading.Thread | None = None
+_bear_put_sensex_strategy_lock = threading.Lock()
 
 
 def start_bull_call_strategy() -> bool:
@@ -98,6 +102,35 @@ def start_bear_put_strategy() -> bool:
         return True
 
 
+def start_bear_put_sensex_strategy() -> bool:
+    global _bear_put_sensex_strategy_thread
+
+    with _bear_put_sensex_strategy_lock:
+        if (
+            _bear_put_sensex_strategy_thread is not None
+            and _bear_put_sensex_strategy_thread.is_alive()
+        ):
+            logger.info("⚠️ Bear Put SENSEX strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Bear Put SENSEX strategy thread started.")
+                bear_put_sensex_main()
+            except Exception as exc:
+                logger.error("❌ Bear Put SENSEX strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Bear Put SENSEX strategy thread finished.")
+
+        _bear_put_sensex_strategy_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="bear-put-sensex-strategy-thread",
+        )
+        _bear_put_sensex_strategy_thread.start()
+        return True
+
+
 def is_strategy_running() -> bool:
     global _bull_call_strategy_thread
     return (
@@ -111,6 +144,14 @@ def is_bear_put_strategy_running() -> bool:
     return (
         _bear_put_strategy_thread is not None
         and _bear_put_strategy_thread.is_alive()
+    )
+
+
+def is_bear_put_sensex_strategy_running() -> bool:
+    global _bear_put_sensex_strategy_thread
+    return (
+        _bear_put_sensex_strategy_thread is not None
+        and _bear_put_sensex_strategy_thread.is_alive()
     )
 
 
@@ -129,6 +170,12 @@ def startup_event() -> None:
         logger.info("✅ Bear Put strategy launched from startup.")
     else:
         logger.info("⚠️ Bear Put strategy was already running.")
+
+    bear_sensex_started = start_bear_put_sensex_strategy()
+    if bear_sensex_started:
+        logger.info("✅ Bear Put SENSEX strategy launched from startup.")
+    else:
+        logger.info("⚠️ Bear Put SENSEX strategy was already running.")
 
 
 app.add_middleware(
@@ -179,6 +226,7 @@ def health():
         "strategy_running": is_strategy_running(),
         "bull_call_strategy_running": is_strategy_running(),
         "bear_put_strategy_running": is_bear_put_strategy_running(),
+        "bear_put_sensex_strategy_running": is_bear_put_sensex_strategy_running(),
     }
 
 
@@ -217,6 +265,27 @@ def start_bear_put():
 def bear_put_strategy_status():
     return {
         "strategy_running": is_bear_put_strategy_running(),
+    }
+
+
+@app.post("/api/bear-put-sensex-strategy/start")
+def start_bear_put_sensex():
+    started = start_bear_put_sensex_strategy()
+    return {
+        "started": started,
+        "strategy_running": is_bear_put_sensex_strategy_running(),
+        "message": (
+            "Bear put SENSEX strategy started."
+            if started
+            else "Bear put SENSEX strategy already running."
+        ),
+    }
+
+
+@app.get("/api/bear-put-sensex-strategy/status")
+def bear_put_sensex_strategy_status():
+    return {
+        "strategy_running": is_bear_put_sensex_strategy_running(),
     }
 
 
