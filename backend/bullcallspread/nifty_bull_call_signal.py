@@ -393,6 +393,7 @@ class PaperSpreadMTMTracker:
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_print_time = 0.0
+        self.pnl_history = []
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
@@ -403,6 +404,29 @@ class PaperSpreadMTMTracker:
             stop_loss_amount=STOP_LOSS_AMOUNT,
             target_amount=TARGET_AMOUNT,
         )
+
+        current_time = datetime.now(IST).strftime("%H:%M:%S")
+        current_pnl = float(payload["net_pnl"])
+        self.pnl_history.append({"time": current_time, "pnl": current_pnl})
+        self.pnl_history = self.pnl_history[-200:]
+
+        running_peak = None
+        pnl_curve = []
+        for point in self.pnl_history:
+            pnl_val = float(point["pnl"])
+            running_peak = pnl_val if running_peak is None else max(running_peak, pnl_val)
+            drawdown = pnl_val - running_peak
+            pnl_curve.append(
+                {
+                    "time": point["time"],
+                    "pnl": pnl_val,
+                    "stop_loss": STOP_LOSS_AMOUNT,
+                    "target": TARGET_AMOUNT,
+                    "drawdown": drawdown,
+                }
+            )
+
+        payload["pnl_curve"] = pnl_curve
         publish_spread_update(payload)
 
     def _log_live_mtm(self) -> None:
@@ -521,6 +545,10 @@ class AlphaBullCall:
             self.sell_leg_symbol = str(sell_row["tradingsymbol"])
             self.buy_entry_price = float(buy_row["last_price_y"])
             self.sell_entry_price = float(sell_row["last_price_y"])
+
+            log_and_print(
+                f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+            )
 
             if not self.trade_initialized:
                 self.paper_book.place_order(
@@ -646,20 +674,17 @@ class EMACrossover1Min:
 
         log_and_print(
             f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
-            f"Close={latest['close']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+            f"Close={latest['close']:.2f} | EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
         )
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # signal_condition = latest["EMA5"] >= latest["EMA55"]
         signal_condition = True
+        log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
 
         log_and_print(
-            f"CHECKING SIGNAL | "
-            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
-            f"Condition={signal_condition}"
+            f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | Condition={signal_condition}"
         )
 
         if signal_condition and self.last_trade_signal != 1:
@@ -684,22 +709,6 @@ class EMACrossover1Min:
                     )
 
             threading.Thread(target=_launch_rider, daemon=True).start()
-
-        else:
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Watching live market",
-                is_loading=True,
-                extra={
-                    "last_price": float(latest["close"]),
-                    "ema5": round(float(latest["EMA5"]), 2),
-                    "ema55": round(float(latest["EMA55"]), 2),
-                },
-            )
 
     def start(self, rider: AlphaBullCall) -> None:
         tokens = [self.token]
@@ -734,6 +743,33 @@ class EMACrossover1Min:
                 progress_text="Live feed active",
                 is_loading=True,
             )
+
+            def _inject_test_signal():
+                time.sleep(3)
+                if self._stop_flag:
+                    return
+                try:
+                    log_and_print("⚠️ TEST MODE: Injecting fake candle to trigger bull call spread entry...")
+                    now_ist = current_ist()
+                    fake_close = 24364.85
+
+                    fake_bar1 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
+                    )
+                    fake_bar2 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
+                    )
+
+                    self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
+                    log_and_print("⚠️ TEST MODE: Fake bars injected. Firing _update_ema_crossover...")
+                    self._update_ema_crossover(rider)
+                except Exception as e:
+                    log_and_print(f"TEST SIGNAL injection failed: {e}", "error")
+                    log_and_print(traceback.format_exc(), "error")
+
+            threading.Thread(target=_inject_test_signal, daemon=True).start()
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
