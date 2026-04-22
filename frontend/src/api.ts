@@ -54,6 +54,16 @@ export interface RegisterResponse {
   [key: string]: unknown;
 }
 
+export interface RegisteredUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  created_at: string | null;
+  last_login_at?: string | null;
+  login_count?: number;
+}
+
 type CachedCategoryPayload = {
   expiresAt: number;
   data: StockCategoryResponse;
@@ -228,6 +238,21 @@ function normalizeCsvResponse(
   };
 }
 
+async function parseErrorResponse(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+    if (typeof data?.detail === "string") {
+      return data.detail;
+    }
+    if (typeof data?.message === "string") {
+      return data.message;
+    }
+    return "Request failed";
+  } catch {
+    return "Request failed";
+  }
+}
+
 export function getCachedStocksByCategory(
   category: string
 ): StockCategoryResponse | null {
@@ -350,15 +375,13 @@ export async function loginUser(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      username: cleanPhone,
       phone: cleanPhone,
       password,
     }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Login failed");
+    throw new Error(await parseErrorResponse(response));
   }
 
   return response.json();
@@ -367,28 +390,46 @@ export async function loginUser(
 export async function registerUser(
   payload: RegisterPayload
 ): Promise<RegisterResponse> {
-  const cleanPhone = payload.phone.trim();
-
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      name: payload.name,
-      email: payload.email,
-      phone: cleanPhone,
-      username: cleanPhone,
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      phone: payload.phone.trim(),
       password: payload.password,
     }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "Registration failed");
+    throw new Error(await parseErrorResponse(response));
   }
 
   return response.json();
+}
+
+export async function fetchRegisteredUsers(): Promise<RegisteredUser[]> {
+  const token = getAuthToken();
+
+  const response = await fetch(`${API_BASE_URL}/auth/users`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorResponse(response));
+  }
+
+  return response.json();
+}
+
+export function getRegisteredUsersCsvUrl(): string {
+  return `${API_BASE_URL}/auth/users/export.csv`;
 }
 
 export function saveAuthToken(token: string): void {
