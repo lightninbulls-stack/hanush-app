@@ -32,9 +32,6 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Trading Bible API")
 data_service = DataService()
 
-# =========================================================
-# ================= Strategy Threads ======================
-# =========================================================
 _bull_call_strategy_thread: threading.Thread | None = None
 _bull_call_strategy_lock = threading.Lock()
 
@@ -165,7 +162,6 @@ def start_bear_put_sensex_strategy() -> bool:
 
 
 def is_strategy_running() -> bool:
-    global _bull_call_strategy_thread
     return (
         _bull_call_strategy_thread is not None
         and _bull_call_strategy_thread.is_alive()
@@ -173,7 +169,6 @@ def is_strategy_running() -> bool:
 
 
 def is_bull_call_sensex_strategy_running() -> bool:
-    global _bull_call_sensex_strategy_thread
     return (
         _bull_call_sensex_strategy_thread is not None
         and _bull_call_sensex_strategy_thread.is_alive()
@@ -181,7 +176,6 @@ def is_bull_call_sensex_strategy_running() -> bool:
 
 
 def is_bear_put_strategy_running() -> bool:
-    global _bear_put_strategy_thread
     return (
         _bear_put_strategy_thread is not None
         and _bear_put_strategy_thread.is_alive()
@@ -189,7 +183,6 @@ def is_bear_put_strategy_running() -> bool:
 
 
 def is_bear_put_sensex_strategy_running() -> bool:
-    global _bear_put_sensex_strategy_thread
     return (
         _bear_put_sensex_strategy_thread is not None
         and _bear_put_sensex_strategy_thread.is_alive()
@@ -206,23 +199,32 @@ def startup_event() -> None:
     else:
         logger.info("⚠️ Bull Call strategy was already running.")
 
-    bull_sensex_started = start_bull_call_sensex_strategy()
-    if bull_sensex_started:
-        logger.info("✅ Bull Call SENSEX strategy launched from startup.")
-    else:
-        logger.info("⚠️ Bull Call SENSEX strategy was already running.")
+    def delayed_start_bear_put() -> None:
+        bear_started = start_bear_put_strategy()
+        if bear_started:
+            logger.info("✅ Bear Put strategy launched from delayed startup.")
+        else:
+            logger.info("⚠️ Bear Put strategy was already running.")
 
-    bear_started = start_bear_put_strategy()
-    if bear_started:
-        logger.info("✅ Bear Put strategy launched from startup.")
-    else:
-        logger.info("⚠️ Bear Put strategy was already running.")
+    def delayed_start_bull_call_sensex() -> None:
+        bull_sensex_started = start_bull_call_sensex_strategy()
+        if bull_sensex_started:
+            logger.info("✅ Bull Call SENSEX strategy launched from delayed startup.")
+        else:
+            logger.info("⚠️ Bull Call SENSEX strategy was already running.")
 
-    bear_sensex_started = start_bear_put_sensex_strategy()
-    if bear_sensex_started:
-        logger.info("✅ Bear Put SENSEX strategy launched from startup.")
-    else:
-        logger.info("⚠️ Bear Put SENSEX strategy was already running.")
+    def delayed_start_bear_put_sensex() -> None:
+        bear_sensex_started = start_bear_put_sensex_strategy()
+        if bear_sensex_started:
+            logger.info("✅ Bear Put SENSEX strategy launched from delayed startup.")
+        else:
+            logger.info("⚠️ Bear Put SENSEX strategy was already running.")
+
+    threading.Timer(10.0, delayed_start_bear_put).start()
+    threading.Timer(20.0, delayed_start_bull_call_sensex).start()
+    threading.Timer(30.0, delayed_start_bear_put_sensex).start()
+
+    logger.info("⏳ Delayed startup scheduling completed.")
 
 
 app.add_middleware(
