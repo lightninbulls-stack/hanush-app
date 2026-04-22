@@ -60,6 +60,7 @@ const buildWatchlistStocks = (
 
     for (const stock of categoryStocks) {
       const normalized = normalizeSymbol(stock.symbol);
+
       if (!stockMap.has(normalized)) {
         stockMap.set(normalized, {
           ...stock,
@@ -274,6 +275,7 @@ const Dashboard: React.FC = () => {
 
   const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
+
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
@@ -282,6 +284,7 @@ const Dashboard: React.FC = () => {
   const handleBackToDashboard = () => {
     if (selectedStock) {
       setSelectedStock(null);
+
       if (isMobile) {
         setMobileSidebarOpen(true);
       }
@@ -464,9 +467,7 @@ const Dashboard: React.FC = () => {
             )}
 
             <div style={{ marginBottom: 18, color: "#fff" }}>
-              <h2 style={{ marginBottom: 6 }}>
-                {activeTab} Screener
-              </h2>
+              <h2 style={{ marginBottom: 6 }}>{activeTab} Screener</h2>
               <p style={{ color: "#cbd5e1" }}>
                 Live insights and professional quantitative metrics for {activeTab}
               </p>
@@ -478,6 +479,7 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <StockTable
+                category={activeTab}
                 stocks={stocks}
                 starredSymbols={starredSymbols}
                 onStarClick={handleStarClick}
