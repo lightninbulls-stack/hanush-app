@@ -6,27 +6,27 @@ import {
 } from "../services/intradaySpreads";
 
 type Props = {
-  spreadType: "bull_call" | "bear_put";
+  spreadType: "bull_call" | "put_debit";
 };
 
 const emptyMessageMap: Record<Props["spreadType"], string> = {
   bull_call: "No live call debit spreads available.",
-  bear_put: "No live put debit spreads available.",
+  put_debit: "No live put debit spreads available.",
 };
 
 const titleMap: Record<Props["spreadType"], string> = {
   bull_call: "Call Debit Spreads",
-  bear_put: "Put Debit Spreads",
+  put_debit: "Put Debit Spreads",
 };
 
 const subtitleMap: Record<Props["spreadType"], string> = {
   bull_call: "Live intraday index call debit spread trades with MTM.",
-  bear_put: "Live intraday index put debit spread trades with MTM.",
+  put_debit: "Live intraday index put debit spread trades with MTM.",
 };
 
 const waitingTitleMap: Record<Props["spreadType"], string> = {
   bull_call: "Bull Call Spreads",
-  bear_put: "Bear Put Spreads",
+  put_debit: "Bear Put Spreads",
 };
 
 const waitingStates = new Set([
@@ -314,7 +314,10 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
 
         const allSpreads: IntradaySpread[] = Object.values(data ?? {});
         const filtered: IntradaySpread[] = allSpreads
-          .filter((item) => item.spread_type === spreadType)
+          .filter((item) => {
+            const itemSpreadType = String(item.spread_type || "").toLowerCase();
+            return itemSpreadType === spreadType;
+          })
           .sort((a, b) => a.index.localeCompare(b.index));
 
         setSpreads(filtered);
