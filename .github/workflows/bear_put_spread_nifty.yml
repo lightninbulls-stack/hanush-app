@@ -2,8 +2,7 @@ name: Bear Put Spread Scheduler
 
 on:
   schedule:
-    - cron: '15 9 * * 1-5'
-      timezone: 'Asia/Kolkata'
+    - cron: '50 3 * * 1-5'   # 09:20 AM IST
   workflow_dispatch:
 
 jobs:
@@ -28,5 +27,7 @@ jobs:
         working-directory: backend
         env:
           TZ: Asia/Kolkata
+          PYTHONUNBUFFERED: "1"
         run: |
-          python -m bearputspread.nifty_bear_put_signal
+          echo "Starting Bear Put Strategy at $(date)"
+          python -u -m bearputspread.nifty_bear_put_signal
