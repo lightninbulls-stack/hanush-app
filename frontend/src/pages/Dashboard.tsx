@@ -432,7 +432,7 @@ const Dashboard: React.FC = () => {
         ) : activeTab === "Bull Call Spreads" ? (
           <IntradaySpreadsPanel spreadType="bull_call" />
         ) : activeTab === "Bear Put Spreads" ? (
-          <IntradaySpreadsPanel spreadType="bear_put" />
+          <IntradaySpreadsPanel spreadType="put_debit" />
         ) : activeTab === "Upside Trend Stocks" ? (
           <IntradayStockSignalsPanel
             strategyName={UPSIDE_STOCK_SIGNAL_KEY}
