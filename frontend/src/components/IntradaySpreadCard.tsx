@@ -1,6 +1,5 @@
 import React from "react";
 import type { IntradaySpread, SpreadLeg } from "../services/intradaySpreads";
-import PnlCurveChart from "./PnlCurveChart";
 
 type Props = {
   spread: IntradaySpread;
@@ -18,17 +17,17 @@ function getPnlColor(value: number | null | undefined): string {
     return "#94a3b8";
   }
   if (value > 0) {
-    return "#16a34a";
+    return "#22c55e";
   }
   if (value < 0) {
-    return "#dc2626";
+    return "#ef4444";
   }
   return "#e5e7eb";
 }
 
 function getStatusColor(status: string): string {
-  if (status === "OPEN") return "#16a34a";
-  if (status === "CLOSED") return "#dc2626";
+  if (status === "OPEN") return "#22c55e";
+  if (status === "CLOSED") return "#ef4444";
   if (status === "STOPPED") return "#94a3b8";
   return "#94a3b8";
 }
@@ -53,8 +52,8 @@ function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
         gridTemplateColumns: "120px 1.8fr 1fr 1fr 1fr",
         gap: "12px",
         alignItems: "center",
-        padding: "12px 14px",
-        borderRadius: "12px",
+        padding: "14px 16px",
+        borderRadius: "14px",
         background: "rgba(255,255,255,0.04)",
         border: "1px solid rgba(255,255,255,0.08)",
         fontSize: "14px",
@@ -63,7 +62,7 @@ function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
       <div
         style={{
           fontWeight: 700,
-          color: leg.side === "BUY" ? "#22c55e" : "#f59e0b",
+          color: leg.side === "BUY" ? "#22c55e" : "#ef4444",
         }}
       >
         {leg.side || "--"}
@@ -102,12 +101,11 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
   return (
     <div
       style={{
-        borderRadius: "18px",
-        padding: "18px",
-        background:
-          "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(30,41,59,0.92))",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        borderRadius: "20px",
+        padding: "20px",
+        background: "#000000",
+        border: "1px solid rgba(255,215,0,0.10)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
       }}
     >
       <div
@@ -116,7 +114,7 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: "16px",
-          marginBottom: "16px",
+          marginBottom: "18px",
         }}
       >
         <div>
@@ -159,7 +157,7 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: "10px" }}>
+      <div style={{ display: "grid", gap: "12px" }}>
         {spread.legs?.map((leg, idx) => (
           <SpreadLegRow key={`${spread.strategy_name}-${idx}`} leg={leg} />
         ))}
@@ -167,7 +165,7 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
 
       <div
         style={{
-          marginTop: "16px",
+          marginTop: "18px",
           display: "flex",
           flexWrap: "wrap",
           gap: "12px",
@@ -177,9 +175,10 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
       >
         <div
           style={{
-            padding: "8px 10px",
-            borderRadius: "10px",
+            padding: "10px 12px",
+            borderRadius: "12px",
             background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           Stop Loss: {formatNumber(spread.stop_loss)}
@@ -187,9 +186,10 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
 
         <div
           style={{
-            padding: "8px 10px",
-            borderRadius: "10px",
+            padding: "10px 12px",
+            borderRadius: "12px",
             background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           Target: {formatNumber(spread.target)}
@@ -197,9 +197,10 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
 
         <div
           style={{
-            padding: "8px 10px",
-            borderRadius: "10px",
+            padding: "10px 12px",
+            borderRadius: "12px",
             background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           Entry Time: {spread.entry_time ?? "--"}
@@ -207,9 +208,10 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
 
         <div
           style={{
-            padding: "8px 10px",
-            borderRadius: "10px",
+            padding: "10px 12px",
+            borderRadius: "12px",
             background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           Updated:{" "}
@@ -218,11 +220,6 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
             : "--"}
         </div>
       </div>
-
-      <PnlCurveChart
-        data={spread.pnl_curve || []}
-        entryMarkerTime={spread.entry_marker_time ?? null}
-      />
     </div>
   );
 };
