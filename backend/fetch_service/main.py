@@ -13,11 +13,40 @@ from fetch_service.main_quality import fetch_from_quality_csv
 from fetch_service.main_range_bound import fetch_from_range_bound_csv
 
 
+CATEGORY_ALIASES = {
+    # New UI names -> old backend source names
+    "Consistent Trending": "Momentum",
+    "Slow Movement": "Low Vol",
+    "Cheap Value": "Value",
+    "Best Quality": "Quality",
+
+    # keep old names working too
+    "Momentum": "Momentum",
+    "Low Vol": "Low Vol",
+    "Value": "Value",
+    "Quality": "Quality",
+
+    "Regime Upside": "Regime Upside",
+    "Regime Downside": "Regime Downside",
+    "Range Bound Upside": "Range Bound Upside",
+    "Range Bound Downside": "Range Bound Downside",
+    "Aggressive Call Option Stocks": "Aggressive Call Option Stocks",
+    "Aggressive Put Option Stocks": "Aggressive Put Option Stocks",
+    "Trending Upside": "Trending Upside",
+    "Trending Downside": "Trending Downside",
+}
+
+
+def canonical_category(category: str) -> str:
+    return CATEGORY_ALIASES.get(category, category)
+
+
 def fetch_from_excel(category: str) -> List[Dict]:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_PATH = os.path.join(BASE_DIR, "..", "data", "trading_bull.xlsx")
 
     excel_path = os.getenv("EXCEL_PATH", DATA_PATH)
+    normalized_category = canonical_category(category)
 
     sheet_map = {
         "Trending Upside": "Technical_analysis_upside",
@@ -26,7 +55,7 @@ def fetch_from_excel(category: str) -> List[Dict]:
         "Aggressive Put Option Stocks": "Derivartives_trading_pe",
     }
 
-    sheet_name = sheet_map.get(category, category)
+    sheet_name = sheet_map.get(normalized_category, normalized_category)
 
     try:
         if not os.path.exists(excel_path):
@@ -133,27 +162,28 @@ def fetch_from_low_vol_csv() -> List[Dict]:
         return []
 
 
-
 def fetch_from_google_sheets(category: str) -> List[Dict]:
-    if category == "Momentum":
+    normalized_category = canonical_category(category)
+
+    if normalized_category == "Momentum":
         return fetch_from_momentum_csv()
 
-    if category == "Low Vol":
+    if normalized_category == "Low Vol":
         return fetch_from_low_vol_csv()
 
-    if category == "Value":
+    if normalized_category == "Value":
         return fetch_from_value_csv()
 
-    if category == "Quality":
+    if normalized_category == "Quality":
         return fetch_from_quality_csv()
 
-    if category in {"Regime Upside", "Regime Downside"}:
-        return fetch_from_regime_csv(category)
+    if normalized_category in {"Regime Upside", "Regime Downside"}:
+        return fetch_from_regime_csv(normalized_category)
 
-    if category in {"Range Bound Upside", "Range Bound Downside"}:
-        return fetch_from_range_bound_csv(category)
+    if normalized_category in {"Range Bound Upside", "Range Bound Downside"}:
+        return fetch_from_range_bound_csv(normalized_category)
 
-    return fetch_from_excel(category)
+    return fetch_from_excel(normalized_category)
 
 
 def fetch_historical_data(symbol: str, interval: str = "1d"):
@@ -275,16 +305,29 @@ class DataService:
             self.redis_client = None
 
     def cache_stock_list(self, category: str, data: List[Dict]):
-        if category in {"Momentum", "Low Vol", "Value", "Quality", "Regime Upside", "Regime Downside"}:
+        normalized_category = canonical_category(category)
+
+        if normalized_category in {
+            "Momentum",
+            "Low Vol",
+            "Value",
+            "Quality",
+            "Regime Upside",
+            "Regime Downside",
+        }:
             return
 
         if self.redis_client:
-            self.redis_client.set(f"stocks:{category}", json.dumps(data), ex=86400)
-
-    
+            self.redis_client.set(
+                f"stocks:{normalized_category}",
+                json.dumps(data),
+                ex=86400,
+            )
 
     def get_cached_stock_list(self, category: str):
-        if category in {
+        normalized_category = canonical_category(category)
+
+        if normalized_category in {
             "Momentum",
             "Low Vol",
             "Value",
@@ -295,17 +338,15 @@ class DataService:
             "Range Bound Downside",
         }:
             return None
-    
+
         if self.redis_client:
             try:
-                data = self.redis_client.get(f"stocks:{category}")
+                data = self.redis_client.get(f"stocks:{normalized_category}")
                 return json.loads(data) if data else None
             except Exception:
                 return None
-    
-        return None
 
-    
+        return None
 
     def cache_historical_data(self, symbol: str, interval: str, data: List[Dict]):
         if self.redis_client:
