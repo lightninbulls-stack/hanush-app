@@ -64,10 +64,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     {
       title: "Home",
       items: [
-        { name: "Momentum", icon: "⚡" },
-        { name: "Low Vol", icon: "📉" },
-        { name: "Value", icon: "💰" },
-        { name: "Quality", icon: "💎" },
+        { name: "Consistent Trending", icon: "⚡" },
+        { name: "Slow Movement", icon: "📉" },
+        { name: "Cheap Value", icon: "💰" },
+        { name: "Best Quality", icon: "💎" },
       ],
     },
     {
@@ -85,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: "Derivative Demand",
+      title: "Derivative Strikes Demand",
       items: [
         { name: "Aggressive Call Option Stocks", icon: "🟢" },
         { name: "Aggressive Put Option Stocks", icon: "🔴" },
