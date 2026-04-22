@@ -5,6 +5,7 @@ import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
 import PortfolioBacktestPanel from "../components/PortfolioBacktestPanel";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
+import IntradayStockSignalsPanel from "../components/IntradayStockSignalsPanel";
 import {
   fetchStocksByCategory,
   getCachedStocksByCategory,
@@ -17,6 +18,9 @@ import {
   removeWatchlistSymbol,
 } from "../services/watchlistApi";
 
+const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
+const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
+
 const NON_FEATURE_TABS = [
   "Watchlist",
   "Guide",
@@ -24,6 +28,8 @@ const NON_FEATURE_TABS = [
   "Portfolio Backtest",
   "Bull Call Spreads",
   "Bear Put Spreads",
+  "Upside Trend Stocks",
+  "Downside Trend Stocks",
 ];
 
 const WATCHLIST_SOURCE_CATEGORIES = [
@@ -51,6 +57,7 @@ const buildWatchlistStocks = (
 
   for (const result of results) {
     const categoryStocks: Stock[] = result?.stocks || [];
+
     for (const stock of categoryStocks) {
       const normalized = normalizeSymbol(stock.symbol);
       if (!stockMap.has(normalized)) {
@@ -94,10 +101,10 @@ const Dashboard: React.FC = () => {
   const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isMobile, setIsMobile] = useState<boolean>(
+  const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
   );
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -111,6 +118,7 @@ const Dashboard: React.FC = () => {
 
     handleResize();
     window.addEventListener("resize", handleResize);
+
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
@@ -148,9 +156,7 @@ const Dashboard: React.FC = () => {
 
           const cachedResults = WATCHLIST_SOURCE_CATEGORIES.map((category) =>
             getCachedStocksByCategory(category)
-          ).filter(
-            (result): result is StockCategoryResponse => Boolean(result)
-          );
+          ).filter((result): result is StockCategoryResponse => Boolean(result));
 
           if (cachedResults.length > 0) {
             setStocks(buildWatchlistStocks(starredSymbols, cachedResults));
@@ -184,6 +190,8 @@ const Dashboard: React.FC = () => {
           activeTab === "Portfolio Backtest" ||
           activeTab === "Bull Call Spreads" ||
           activeTab === "Bear Put Spreads" ||
+          activeTab === "Upside Trend Stocks" ||
+          activeTab === "Downside Trend Stocks" ||
           activeTab === "Guide" ||
           activeTab === "Profile / Settings"
         ) {
@@ -266,7 +274,6 @@ const Dashboard: React.FC = () => {
 
   const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
-
     if (isMobile) {
       setMobileSidebarOpen(false);
     }
@@ -275,7 +282,6 @@ const Dashboard: React.FC = () => {
   const handleBackToDashboard = () => {
     if (selectedStock) {
       setSelectedStock(null);
-
       if (isMobile) {
         setMobileSidebarOpen(true);
       }
@@ -299,47 +305,123 @@ const Dashboard: React.FC = () => {
     !selectedStock && !NON_FEATURE_TABS.includes(activeTab);
 
   return (
-    <div className="main-layout">
-      <Sidebar
-        activeCategory={activeTab}
-        setActiveCategory={handleCategoryChange}
-        starredCount={starredSymbols.length}
-        isMobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-      />
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        background: "#020617",
+        color: "#ffffff",
+      }}
+    >
+      {!isMobile && (
+        <div
+          style={{
+            width: 320,
+            minWidth: 320,
+            borderRight: "1px solid rgba(148,163,184,0.08)",
+          }}
+        >
+          <Sidebar
+            activeCategory={activeTab}
+            setActiveCategory={handleCategoryChange}
+            starredCount={starredSymbols.length}
+          />
+        </div>
+      )}
 
-      <div className="content-area">
-        {isMobile && (
-          <div className="mobile-topbar">
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setMobileSidebarOpen(true)}
-            >
-              ☰ Menu
-            </button>
+      {isMobile && mobileSidebarOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(2,6,23,0.72)",
+            display: "flex",
+          }}
+        >
+          <div
+            style={{
+              width: 320,
+              maxWidth: "86vw",
+              height: "100%",
+              background: "#020617",
+              borderRight: "1px solid rgba(148,163,184,0.08)",
+            }}
+          >
+            <Sidebar
+              activeCategory={activeTab}
+              setActiveCategory={handleCategoryChange}
+              starredCount={starredSymbols.length}
+              isMobileOpen={mobileSidebarOpen}
+              onCloseMobile={() => setMobileSidebarOpen(false)}
+            />
           </div>
+
+          <div
+            style={{ flex: 1 }}
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        </div>
+      )}
+
+      <main
+        style={{
+          flex: 1,
+          padding: isMobile ? "16px" : "24px",
+          overflowX: "hidden",
+        }}
+      >
+        {isMobile && (
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            style={{
+              marginBottom: 16,
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "1px solid rgba(148,163,184,0.2)",
+              background: "#0f172a",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            ☰ Menu
+          </button>
         )}
 
         {selectedStock ? (
-          <div className="detail-container">
-            <button className="back-btn" onClick={handleBackToDashboard}>
-              <span>←</span> Back to Dashboard
+          <>
+            <button
+              onClick={handleBackToDashboard}
+              style={{
+                marginBottom: 16,
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(148,163,184,0.2)",
+                background: "#0f172a",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              ← Back to Dashboard
             </button>
 
             <TradingViewChart symbol={selectedStock} />
-            <StockStats symbol={selectedStock} />
-          </div>
+
+            <div style={{ marginTop: 20 }}>
+              <StockStats symbol={selectedStock} />
+            </div>
+          </>
         ) : activeTab === "Guide" ? (
-          <div className="glass-card helper-card">
-            <h2 className="glow-text">User Guide</h2>
+          <div style={{ color: "#fff" }}>
+            <h2>User Guide</h2>
             <p>
               Welcome to Lightninbull Financial Analytics. This section helps you
               understand the metrics and strategies used in the platform.
             </p>
           </div>
         ) : activeTab === "Profile / Settings" ? (
-          <div className="glass-card helper-card">
-            <h2 className="glow-text">Profile & Settings</h2>
+          <div style={{ color: "#fff" }}>
+            <h2>Profile & Settings</h2>
             <p>Manage your account preferences and application settings here.</p>
           </div>
         ) : activeTab === "Portfolio Backtest" ? (
@@ -348,48 +430,63 @@ const Dashboard: React.FC = () => {
           <IntradaySpreadsPanel spreadType="bull_call" />
         ) : activeTab === "Bear Put Spreads" ? (
           <IntradaySpreadsPanel spreadType="bear_put" />
+        ) : activeTab === "Upside Trend Stocks" ? (
+          <IntradayStockSignalsPanel
+            strategyName={UPSIDE_STOCK_SIGNAL_KEY}
+            title="Upside Trend Stocks"
+            subtitle="Live intraday NSE cash-equity upside trend signals."
+            emptyMessage="No upside trend stock signals available yet."
+          />
+        ) : activeTab === "Downside Trend Stocks" ? (
+          <IntradayStockSignalsPanel
+            strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
+            title="Downside Trend Stocks"
+            subtitle="Live intraday NSE cash-equity downside trend signals."
+            emptyMessage="No downside trend stock signals available yet."
+          />
         ) : (
           <>
             {showFeatureBackButton && (
-              <div className="screener-toolbar">
-                <button
-                  className="back-btn screen-back-btn"
-                  onClick={handleBackToDashboard}
-                >
-                  <span>←</span> Back to Dashboard
-                </button>
-              </div>
+              <button
+                onClick={handleBackToDashboard}
+                style={{
+                  marginBottom: 16,
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(148,163,184,0.2)",
+                  background: "#0f172a",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                ← Back to Dashboard
+              </button>
             )}
 
-            <div className="screener-header compact-screener-header">
-              <h2 className="glow-text">
-                {activeTab}{" "}
-                <span style={{ color: "var(--primary-gold)" }}>Screener</span>
+            <div style={{ marginBottom: 18, color: "#fff" }}>
+              <h2 style={{ marginBottom: 6 }}>
+                {activeTab} Screener
               </h2>
-              <p className="screener-subtitle">
+              <p style={{ color: "#cbd5e1" }}>
                 Live insights and professional quantitative metrics for {activeTab}
               </p>
             </div>
 
-            <div className="table-view-container">
-              {loading ? (
-                <div className="loader-container">
-                  <div className="loader"></div>
-                  <p className="loader-text">Loading {activeTab} data...</p>
-                </div>
-              ) : (
-                <StockTable
-                  category={activeTab}
-                  stocks={stocks}
-                  starredSymbols={starredSymbols}
-                  onStockClick={handleStockClick}
-                  onStarClick={handleStarClick}
-                />
-              )}
-            </div>
+            {loading ? (
+              <div style={{ color: "#cbd5e1" }}>
+                Loading {activeTab} data...
+              </div>
+            ) : (
+              <StockTable
+                stocks={stocks}
+                starredSymbols={starredSymbols}
+                onStarClick={handleStarClick}
+                onStockClick={handleStockClick}
+              />
+            )}
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 };
