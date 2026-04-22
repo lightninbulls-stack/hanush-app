@@ -20,7 +20,6 @@ from kiteconnect import KiteConnect, KiteTicker
 print("✅ sensex_bear_put_signal.py imported")
 
 from shared.intraday_spreads_state import spread_state
-from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
 
 # =========================================================
 # ========== CONFIGURATION: CHANGE FROM HERE ==============
@@ -745,137 +744,136 @@ class AlphaBearPutSensex:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
-        with OPTION_CHAIN_BUILD_LOCK:
-            ensure_cred_yml(self.cred)
+        ensure_cred_yml(self.cred)
 
-            from option_spreads import nfo_util
+        from option_spreads import nfo_util
 
-            patch_nfo_util_config(nfo_util, self.cred)
+        patch_nfo_util_config(nfo_util, self.cred)
 
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ENTERING_SPREAD",
-                message="Entry conditions satisfied. Preparing Sensex bear put spread...",
-                progress_text="Selecting spread structure...",
-                is_loading=True,
-            )
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ENTERING_SPREAD",
+            message="Entry conditions satisfied. Preparing Sensex bear put spread...",
+            progress_text="Selecting spread structure...",
+            is_loading=True,
+        )
 
-            log_and_print("DEBUG STEP 1 | quote_details() entered")
-            log_and_print(f"DEBUG STEP 2 | expiry from cred = {self.cred.get('i_expiry_date_sensex')}")
+        log_and_print("DEBUG STEP 1 | quote_details() entered")
+        log_and_print(f"DEBUG STEP 2 | expiry from cred = {self.cred.get('i_expiry_date_sensex')}")
 
-            tokens = nfo_util.get_instrument_tokens_pe_sensex()
-            log_and_print(f"DEBUG STEP 3 | PE tokens fetched = {0 if tokens is None else len(tokens)}")
+        tokens = nfo_util.get_instrument_tokens_pe_sensex()
+        log_and_print(f"DEBUG STEP 3 | PE tokens fetched = {0 if tokens is None else len(tokens)}")
 
-            if not tokens:
-                raise ValueError("No SENSEX PE tokens returned from nfo_util.get_instrument_tokens_pe_sensex()")
+        if not tokens:
+            raise ValueError("No SENSEX PE tokens returned from nfo_util.get_instrument_tokens_pe_sensex()")
 
-            _ = self.kite.ltp(tokens)
+        _ = self.kite.ltp(tokens)
 
-            df_pe = nfo_util.build_sensex_pe_chain_100_strike_with_ltp()
-            log_and_print(f"DEBUG STEP 5 | df_pe built = {'None' if df_pe is None else f'{len(df_pe)} rows'}")
+        df_pe = nfo_util.build_sensex_pe_chain_100_strike_with_ltp()
+        log_and_print(f"DEBUG STEP 5 | df_pe built = {'None' if df_pe is None else f'{len(df_pe)} rows'}")
 
-            if df_pe is None or df_pe.empty:
-                raise ValueError("df_pe is empty. Could not build SENSEX PE option chain.")
+        if df_pe is None or df_pe.empty:
+            raise ValueError("df_pe is empty. Could not build SENSEX PE option chain.")
 
-            log_and_print(
-                "DEBUG STEP 6 | df_pe sample =\n"
-                + df_pe[["tradingsymbol", "strike", "instrument_token", "last_price_y"]]
-                .head(10)
-                .to_string(index=False)
-            )
+        log_and_print(
+            "DEBUG STEP 6 | df_pe sample =\n"
+            + df_pe[["tradingsymbol", "strike", "instrument_token", "last_price_y"]]
+            .head(10)
+            .to_string(index=False)
+        )
 
-            option_chain_pe = build_bear_put_candidates(
-                df_pe=df_pe,
-                strike_gaps=(100, 200),
-            )
+        option_chain_pe = build_bear_put_candidates(
+            df_pe=df_pe,
+            strike_gaps=(100, 200),
+        )
 
-            log_and_print(
-                f"DEBUG STEP 7 | option_chain_pe = "
-                f"{'None' if option_chain_pe is None else f'{len(option_chain_pe)} rows'}"
-            )
+        log_and_print(
+            f"DEBUG STEP 7 | option_chain_pe = "
+            f"{'None' if option_chain_pe is None else f'{len(option_chain_pe)} rows'}"
+        )
 
-            if option_chain_pe is None or option_chain_pe.empty:
-                raise ValueError("No valid Sensex bear put spread candidates found in option chain.")
+        if option_chain_pe is None or option_chain_pe.empty:
+            raise ValueError("No valid Sensex bear put spread candidates found in option chain.")
 
-            log_and_print(
-                "DEBUG STEP 8 | option_chain_pe sample =\n"
-                + option_chain_pe.head(10).to_string(index=False)
-            )
+        log_and_print(
+            "DEBUG STEP 8 | option_chain_pe sample =\n"
+            + option_chain_pe.head(10).to_string(index=False)
+        )
 
-            best = option_chain_pe.iloc[0]
-            log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
+        best = option_chain_pe.iloc[0]
+        log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
 
-            self.buy_strike = int(best["buy_strike"])
-            self.sell_strike = int(best["sell_strike"])
-            self.expiry = str(self.cred["i_expiry_date_sensex"])
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
+        self.expiry = str(self.cred["i_expiry_date_sensex"])
 
-            log_and_print(
-                f"✅ Selected Spread | Buy Strike = {self.buy_strike} | "
-                f"Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
-            )
+        log_and_print(
+            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | "
+            f"Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+        )
 
-            buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
-            sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
+        buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
+        sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
 
-            log_and_print(f"DEBUG STEP 10 | buy_match rows = {len(buy_match)} | sell_match rows = {len(sell_match)}")
+        log_and_print(f"DEBUG STEP 10 | buy_match rows = {len(buy_match)} | sell_match rows = {len(sell_match)}")
 
-            if buy_match.empty:
-                raise ValueError(f"Buy strike {self.buy_strike} not found in df_pe.")
-            if sell_match.empty:
-                raise ValueError(f"Sell strike {self.sell_strike} not found in df_pe.")
+        if buy_match.empty:
+            raise ValueError(f"Buy strike {self.buy_strike} not found in df_pe.")
+        if sell_match.empty:
+            raise ValueError(f"Sell strike {self.sell_strike} not found in df_pe.")
 
-            buy_row = buy_match.iloc[0]
-            sell_row = sell_match.iloc[0]
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
 
-            self.buy_leg_token = int(buy_row["instrument_token"])
-            self.sell_leg_token = int(sell_row["instrument_token"])
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
 
-            self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-            self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
 
-            self.buy_entry_price = float(buy_row["last_price_y"])
-            self.sell_entry_price = float(sell_row["last_price_y"])
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
 
-            log_and_print(
-                f"DEBUG STEP 11 | BUY leg = {self.buy_leg_symbol} | "
-                f"token={self.buy_leg_token} | price={self.buy_entry_price}"
-            )
-            log_and_print(
-                f"DEBUG STEP 12 | SELL leg = {self.sell_leg_symbol} | "
-                f"token={self.sell_leg_token} | price={self.sell_entry_price}"
-            )
+        log_and_print(
+            f"DEBUG STEP 11 | BUY leg = {self.buy_leg_symbol} | "
+            f"token={self.buy_leg_token} | price={self.buy_entry_price}"
+        )
+        log_and_print(
+            f"DEBUG STEP 12 | SELL leg = {self.sell_leg_symbol} | "
+            f"token={self.sell_leg_token} | price={self.sell_entry_price}"
+        )
 
-            buy_expiry_dt = pd.to_datetime(buy_row["expiry"])
-            sell_expiry_dt = pd.to_datetime(sell_row["expiry"])
+        buy_expiry_dt = pd.to_datetime(buy_row["expiry"])
+        sell_expiry_dt = pd.to_datetime(sell_row["expiry"])
 
-            log_and_print(
-                f"✅ BUY LEG SELECTED | Symbol: SENSEX, Year: {buy_expiry_dt.year}, "
-                f"Month: {buy_expiry_dt.month}, Day: {buy_expiry_dt.day}, "
-                f"Strike: {self.buy_strike}, Type: PE, Expiry: {buy_expiry_dt.strftime('%Y%m%d')}"
-            )
+        log_and_print(
+            f"✅ BUY LEG SELECTED | Symbol: SENSEX, Year: {buy_expiry_dt.year}, "
+            f"Month: {buy_expiry_dt.month}, Day: {buy_expiry_dt.day}, "
+            f"Strike: {self.buy_strike}, Type: PE, Expiry: {buy_expiry_dt.strftime('%Y%m%d')}"
+        )
 
-            log_and_print(
-                f"✅ SELL LEG SELECTED | Symbol: SENSEX, Year: {sell_expiry_dt.year}, "
-                f"Month: {sell_expiry_dt.month}, Day: {sell_expiry_dt.day}, "
-                f"Strike: {self.sell_strike}, Type: PE, Expiry: {sell_expiry_dt.strftime('%Y%m%d')}"
-            )
+        log_and_print(
+            f"✅ SELL LEG SELECTED | Symbol: SENSEX, Year: {sell_expiry_dt.year}, "
+            f"Month: {sell_expiry_dt.month}, Day: {sell_expiry_dt.day}, "
+            f"Strike: {self.sell_strike}, Type: PE, Expiry: {sell_expiry_dt.strftime('%Y%m%d')}"
+        )
 
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ENTERING_SPREAD",
-                message="Spread legs selected successfully.",
-                progress_text=f"BUY {self.buy_strike} PE | SELL {self.sell_strike} PE",
-                is_loading=True,
-            )
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ENTERING_SPREAD",
+            message="Spread legs selected successfully.",
+            progress_text=f"BUY {self.buy_strike} PE | SELL {self.sell_strike} PE",
+            is_loading=True,
+        )
 
-            if not self.trade_initialized:
-                self.place_pe_order_buy()
-                self.place_pe_order_sell()
-                self.trade_initialized = True
+        if not self.trade_initialized:
+            self.place_pe_order_buy()
+            self.place_pe_order_sell()
+            self.trade_initialized = True
 
     def place_pe_order_buy(self) -> str:
         return self.paper_book.place_order(
