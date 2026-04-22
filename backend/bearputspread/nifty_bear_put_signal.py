@@ -206,13 +206,10 @@ def wait_until_market_open() -> None:
 
     if now_ist > market_close:
         raise SystemExit
-
     if now_ist >= market_open:
         return
 
-    sleep_seconds = int((market_open - now_ist).total_seconds())
-    for _ in range(sleep_seconds):
-        time.sleep(1)
+    time.sleep(int((market_open - now_ist).total_seconds()))
 
 
 def resolve_nifty_weekly_expiry() -> str:
@@ -482,75 +479,84 @@ class AlphaBearPut:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        with OPTION_CHAIN_BUILD_LOCK:
-            ensure_cred_yml(self.cred)
-            from option_spreads import nfo_util
-            patch_nfo_util_config(nfo_util, self.cred)
+        ensure_cred_yml(self.cred)
+        from option_spreads import nfo_util
+        patch_nfo_util_config(nfo_util, self.cred)
 
-            tokens = nfo_util.get_instrument_tokens_pe_nifty()
-            if not tokens:
-                raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
+        tokens = nfo_util.get_instrument_tokens_pe_nifty()
+        if not tokens:
+            raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
 
-            _ = self.kite.ltp(tokens)
-            df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
+        _ = self.kite.ltp(tokens)
+        df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
 
-            if df_pe is None or df_pe.empty:
-                raise ValueError("df_pe is empty. Could not build NIFTY PE option chain.")
+        if df_pe is None or df_pe.empty:
+            raise ValueError("df_pe is empty. Could not build NIFTY PE option chain.")
 
-            option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(150, 200))
-            if option_chain_pe is None or option_chain_pe.empty:
-                raise ValueError("No valid bear put spread candidates found in option chain.")
+        option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(150, 200))
+        if option_chain_pe is None or option_chain_pe.empty:
+            raise ValueError("No valid bear put spread candidates found in option chain.")
 
-            best = option_chain_pe.iloc[0]
-            self.buy_strike = int(best["buy_strike"])
-            self.sell_strike = int(best["sell_strike"])
-            self.expiry = str(self.cred["i_expiry_date_nifty"])
+        best = option_chain_pe.iloc[0]
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-            buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
-            sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
+        buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
+        sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
 
-            if buy_match.empty or sell_match.empty:
-                raise ValueError("Selected NIFTY PE strikes not found in option chain.")
+        if buy_match.empty or sell_match.empty:
+            raise ValueError("Selected NIFTY PE strikes not found in option chain.")
 
-            buy_row = buy_match.iloc[0]
-            sell_row = sell_match.iloc[0]
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
 
-            self.buy_leg_token = int(buy_row["instrument_token"])
-            self.sell_leg_token = int(sell_row["instrument_token"])
-            self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-            self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-            self.buy_entry_price = float(buy_row["last_price_y"])
-            self.sell_entry_price = float(sell_row["last_price_y"])
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
 
-            if not self.trade_initialized:
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_pe,
-                    strike=self.buy_strike,
-                    expiry=self.expiry,
-                    side="BUY",
-                    quantity=self.quantity,
-                    right="PE",
-                    entry_price=self.buy_entry_price,
-                    instrument_token=self.buy_leg_token,
-                    trading_symbol=self.buy_leg_symbol,
-                )
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_pe,
-                    strike=self.sell_strike,
-                    expiry=self.expiry,
-                    side="SELL",
-                    quantity=self.quantity,
-                    right="PE",
-                    entry_price=self.sell_entry_price,
-                    instrument_token=self.sell_leg_token,
-                    trading_symbol=self.sell_leg_symbol,
-                )
-                self.trade_initialized = True
+        log_and_print(
+            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+        )
+
+    def place_orders(self) -> None:
+        if self.trade_initialized:
+            return
+
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_pe,
+            strike=self.buy_strike,
+            expiry=self.expiry,
+            side="BUY",
+            quantity=self.quantity,
+            right="PE",
+            entry_price=self.buy_entry_price,
+            instrument_token=self.buy_leg_token,
+            trading_symbol=self.buy_leg_symbol,
+        )
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_pe,
+            strike=self.sell_strike,
+            expiry=self.expiry,
+            side="SELL",
+            quantity=self.quantity,
+            right="PE",
+            entry_price=self.sell_entry_price,
+            instrument_token=self.sell_leg_token,
+            trading_symbol=self.sell_leg_symbol,
+        )
+        self.trade_initialized = True
 
     def start(self) -> None:
-        self.quote_details()
+        with OPTION_CHAIN_BUILD_LOCK:
+            self.quote_details()
+            self.place_orders()
+
         payload = build_spread_payload(
             paper_book=self.paper_book,
             index_name=INDEX_NAME,
@@ -560,6 +566,7 @@ class AlphaBearPut:
             target_amount=TARGET_AMOUNT,
         )
         publish_spread_update(payload)
+
         self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
 
@@ -646,21 +653,17 @@ class EMACrossover1Min:
 
         log_and_print(
             f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
-            f"Close={latest['close']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+            f"Close={latest['close']:.2f} | EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
         )
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # signal_condition = latest["EMA5"] <= latest["EMA55"]
         signal_condition = True
-        
+        log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
 
         log_and_print(
-            f"CHECKING SIGNAL | "
-            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
-            f"Condition={signal_condition}"
+            f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | Condition={signal_condition}"
         )
 
         if signal_condition and self.last_trade_signal != 1:
@@ -685,22 +688,6 @@ class EMACrossover1Min:
                     )
 
             threading.Thread(target=_launch_rider, daemon=True).start()
-
-        else:
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bearish entry trigger...",
-                progress_text="Watching live market",
-                is_loading=True,
-                extra={
-                    "last_price": float(latest["close"]),
-                    "ema5": round(float(latest["EMA5"]), 2),
-                    "ema55": round(float(latest["EMA55"]), 2),
-                },
-            )
 
     def start(self, rider: AlphaBearPut) -> None:
         tokens = [self.token]
@@ -735,6 +722,33 @@ class EMACrossover1Min:
                 progress_text="Live feed active",
                 is_loading=True,
             )
+
+            def _inject_test_signal():
+                time.sleep(3)
+                if self._stop_flag:
+                    return
+                try:
+                    log_and_print("⚠️ TEST MODE: Injecting fake candle to trigger bear put spread entry...")
+                    now_ist = current_ist()
+                    fake_close = 24364.85
+
+                    fake_bar1 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
+                    )
+                    fake_bar2 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
+                    )
+
+                    self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
+                    log_and_print("⚠️ TEST MODE: Fake bars injected. Firing _update_ema_crossover...")
+                    self._update_ema_crossover(rider)
+                except Exception as e:
+                    log_and_print(f"TEST SIGNAL injection failed: {e}", "error")
+                    log_and_print(traceback.format_exc(), "error")
+
+            threading.Thread(target=_inject_test_signal, daemon=True).start()
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
