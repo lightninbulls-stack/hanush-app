@@ -2,7 +2,8 @@ name: Bear Put Spread Scheduler
 
 on:
   schedule:
-    - cron: '50 3 * * 1-5'   # 09:20 AM IST
+    - cron: '25 9 * * 1-5'
+      timezone: 'Asia/Kolkata'
   workflow_dispatch:
 
 jobs:
