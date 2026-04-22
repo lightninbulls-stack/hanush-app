@@ -393,7 +393,6 @@ class PaperSpreadMTMTracker:
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_print_time = 0.0
-        self.pnl_history = []
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
@@ -404,29 +403,6 @@ class PaperSpreadMTMTracker:
             stop_loss_amount=STOP_LOSS_AMOUNT,
             target_amount=TARGET_AMOUNT,
         )
-
-        current_time = datetime.now(IST).strftime("%H:%M:%S")
-        current_pnl = float(payload["net_pnl"])
-        self.pnl_history.append({"time": current_time, "pnl": current_pnl})
-        self.pnl_history = self.pnl_history[-200:]
-
-        running_peak = None
-        pnl_curve = []
-        for point in self.pnl_history:
-            pnl_val = float(point["pnl"])
-            running_peak = pnl_val if running_peak is None else max(running_peak, pnl_val)
-            drawdown = pnl_val - running_peak
-            pnl_curve.append(
-                {
-                    "time": point["time"],
-                    "pnl": pnl_val,
-                    "stop_loss": STOP_LOSS_AMOUNT,
-                    "target": TARGET_AMOUNT,
-                    "drawdown": drawdown,
-                }
-            )
-
-        payload["pnl_curve"] = pnl_curve
         publish_spread_update(payload)
 
     def _log_live_mtm(self) -> None:
@@ -506,79 +482,84 @@ class AlphaBullCall:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        with OPTION_CHAIN_BUILD_LOCK:
-            ensure_cred_yml(self.cred)
-            from option_spreads import nfo_util
-            patch_nfo_util_config(nfo_util, self.cred)
+        ensure_cred_yml(self.cred)
+        from option_spreads import nfo_util
+        patch_nfo_util_config(nfo_util, self.cred)
 
-            tokens = nfo_util.get_instrument_tokens_ce_nifty()
-            if not tokens:
-                raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
+        tokens = nfo_util.get_instrument_tokens_ce_nifty()
+        if not tokens:
+            raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
 
-            _ = self.kite.ltp(tokens)
-            df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
+        _ = self.kite.ltp(tokens)
+        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
 
-            if df_ce is None or df_ce.empty:
-                raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
+        if df_ce is None or df_ce.empty:
+            raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
 
-            option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(150, 200))
-            if option_chain_ce is None or option_chain_ce.empty:
-                raise ValueError("No valid bull call spread candidates found in option chain.")
+        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(150, 200))
+        if option_chain_ce is None or option_chain_ce.empty:
+            raise ValueError("No valid bull call spread candidates found in option chain.")
 
-            best = option_chain_ce.iloc[0]
-            self.buy_strike = int(best["buy_strike"])
-            self.sell_strike = int(best["sell_strike"])
-            self.expiry = str(self.cred["i_expiry_date_nifty"])
+        best = option_chain_ce.iloc[0]
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-            buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
-            sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
+        buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
+        sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-            if buy_match.empty or sell_match.empty:
-                raise ValueError("Selected NIFTY CE strikes not found in option chain.")
+        if buy_match.empty or sell_match.empty:
+            raise ValueError("Selected NIFTY CE strikes not found in option chain.")
 
-            buy_row = buy_match.iloc[0]
-            sell_row = sell_match.iloc[0]
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
 
-            self.buy_leg_token = int(buy_row["instrument_token"])
-            self.sell_leg_token = int(sell_row["instrument_token"])
-            self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-            self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-            self.buy_entry_price = float(buy_row["last_price_y"])
-            self.sell_entry_price = float(sell_row["last_price_y"])
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
 
-            log_and_print(
-                f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
-            )
+        log_and_print(
+            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+        )
 
-            if not self.trade_initialized:
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_ce,
-                    strike=self.buy_strike,
-                    expiry=self.expiry,
-                    side="BUY",
-                    quantity=self.quantity,
-                    right="CE",
-                    entry_price=self.buy_entry_price,
-                    instrument_token=self.buy_leg_token,
-                    trading_symbol=self.buy_leg_symbol,
-                )
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_ce,
-                    strike=self.sell_strike,
-                    expiry=self.expiry,
-                    side="SELL",
-                    quantity=self.quantity,
-                    right="CE",
-                    entry_price=self.sell_entry_price,
-                    instrument_token=self.sell_leg_token,
-                    trading_symbol=self.sell_leg_symbol,
-                )
-                self.trade_initialized = True
+    def place_orders(self) -> None:
+        if self.trade_initialized:
+            return
+
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.buy_strike,
+            expiry=self.expiry,
+            side="BUY",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.buy_entry_price,
+            instrument_token=self.buy_leg_token,
+            trading_symbol=self.buy_leg_symbol,
+        )
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.sell_strike,
+            expiry=self.expiry,
+            side="SELL",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.sell_entry_price,
+            instrument_token=self.sell_leg_token,
+            trading_symbol=self.sell_leg_symbol,
+        )
+        self.trade_initialized = True
 
     def start(self) -> None:
-        self.quote_details()
+        with OPTION_CHAIN_BUILD_LOCK:
+            self.quote_details()
+            self.place_orders()
+
         payload = build_spread_payload(
             paper_book=self.paper_book,
             index_name=INDEX_NAME,
@@ -588,6 +569,7 @@ class AlphaBullCall:
             target_amount=TARGET_AMOUNT,
         )
         publish_spread_update(payload)
+
         self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
 
@@ -807,8 +789,8 @@ def main():
 
         paper_book = PaperOrderBook()
         nifty_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=NIFTY_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
-        alpha_bull = AlphaBullCall(kite=kite, cred=cred, paper_book=paper_book)
-        nifty_ema.start(alpha_bull)
+        alpha_bear = AlphaBearPut(kite=kite, cred=cred, paper_book=paper_book)
+        nifty_ema.start(alpha_bear)
 
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
