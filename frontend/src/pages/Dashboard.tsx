@@ -323,6 +323,7 @@ const Dashboard: React.FC = () => {
             minWidth: 320,
             background: "#000000",
             borderRight: "1px solid rgba(244, 208, 111, 0.25)",
+            flexShrink: 0,
           }}
         >
           <Sidebar
@@ -339,7 +340,7 @@ const Dashboard: React.FC = () => {
             position: "fixed",
             inset: 0,
             zIndex: 50,
-            background: "rgba(0,0,0,0.78)",
+            background: "rgba(0,0,0,0.82)",
             display: "flex",
           }}
         >
@@ -360,42 +361,32 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          <div
-            style={{ flex: 1 }}
-            onClick={() => setMobileSidebarOpen(false)}
-          />
+          <div style={{ flex: 1 }} onClick={() => setMobileSidebarOpen(false)} />
         </div>
       )}
 
       <main
         style={{
           flex: 1,
-          padding: isMobile ? "16px 16px 24px 16px" : "24px 24px 24px 0px",
-          overflowX: "hidden",
+          minHeight: "100vh",
           background: "#000000",
+          overflowX: "hidden",
+          padding: 0,
+          margin: 0,
         }}
       >
-        {isMobile && (
-          <button
-            onClick={() => setMobileSidebarOpen(true)}
-            style={{
-              marginBottom: 16,
-              padding: "10px 14px",
-              borderRadius: 12,
-              border: "1px solid rgba(148,163,184,0.2)",
-              background: "#0f172a",
-              color: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            ☰ Menu
-          </button>
-        )}
-
-        {selectedStock ? (
-          <>
+        <div
+          style={{
+            width: "100%",
+            minHeight: "100vh",
+            background: "#000000",
+            padding: isMobile ? "16px" : "24px",
+            boxSizing: "border-box",
+          }}
+        >
+          {isMobile && (
             <button
-              onClick={handleBackToDashboard}
+              onClick={() => setMobileSidebarOpen(true)}
               style={{
                 marginBottom: 16,
                 padding: "10px 14px",
@@ -406,51 +397,12 @@ const Dashboard: React.FC = () => {
                 cursor: "pointer",
               }}
             >
-              ← Back to Dashboard
+              ☰ Menu
             </button>
+          )}
 
-            <TradingViewChart symbol={selectedStock} />
-
-            <div style={{ marginTop: 20 }}>
-              <StockStats symbol={selectedStock} />
-            </div>
-          </>
-        ) : activeTab === "Guide" ? (
-          <div style={{ color: "#fff" }}>
-            <h2>User Guide</h2>
-            <p>
-              Welcome to Lightninbull Financial Analytics. This section helps you
-              understand the metrics and strategies used in the platform.
-            </p>
-          </div>
-        ) : activeTab === "Profile / Settings" ? (
-          <div style={{ color: "#fff" }}>
-            <h2>Profile & Settings</h2>
-            <p>Manage your account preferences and application settings here.</p>
-          </div>
-        ) : activeTab === "Portfolio Backtest" ? (
-          <PortfolioBacktestPanel />
-        ) : activeTab === "Bull Call Spreads" ? (
-          <IntradaySpreadsPanel spreadType="bull_call" />
-        ) : activeTab === "Bear Put Spreads" ? (
-          <IntradaySpreadsPanel spreadType="bear_put" />
-        ) : activeTab === "Upside Trend Stocks" ? (
-          <IntradayStockSignalsPanel
-            strategyName={UPSIDE_STOCK_SIGNAL_KEY}
-            title="Upside Trend Stocks"
-            subtitle="Live intraday NSE cash-equity upside trend signals."
-            emptyMessage="No upside trend stock signals available yet."
-          />
-        ) : activeTab === "Downside Trend Stocks" ? (
-          <IntradayStockSignalsPanel
-            strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
-            title="Downside Trend Stocks"
-            subtitle="Live intraday NSE cash-equity downside trend signals."
-            emptyMessage="No downside trend stock signals available yet."
-          />
-        ) : (
-          <>
-            {showFeatureBackButton && (
+          {selectedStock ? (
+            <>
               <button
                 onClick={handleBackToDashboard}
                 style={{
@@ -465,30 +417,88 @@ const Dashboard: React.FC = () => {
               >
                 ← Back to Dashboard
               </button>
-            )}
 
-            <div style={{ marginBottom: 18, color: "#fff" }}>
-              <h2 style={{ marginBottom: 6 }}>{activeTab} Screener</h2>
-              <p style={{ color: "#cbd5e1" }}>
-                Live insights and professional quantitative metrics for {activeTab}
+              <TradingViewChart symbol={selectedStock} />
+
+              <div style={{ marginTop: 20 }}>
+                <StockStats symbol={selectedStock} />
+              </div>
+            </>
+          ) : activeTab === "Guide" ? (
+            <div style={{ color: "#fff" }}>
+              <h2>User Guide</h2>
+              <p>
+                Welcome to Lightninbull Financial Analytics. This section helps you
+                understand the metrics and strategies used in the platform.
               </p>
             </div>
+          ) : activeTab === "Profile / Settings" ? (
+            <div style={{ color: "#fff" }}>
+              <h2>Profile & Settings</h2>
+              <p>Manage your account preferences and application settings here.</p>
+            </div>
+          ) : activeTab === "Portfolio Backtest" ? (
+            <PortfolioBacktestPanel />
+          ) : activeTab === "Bull Call Spreads" ? (
+            <IntradaySpreadsPanel spreadType="bull_call" />
+          ) : activeTab === "Bear Put Spreads" ? (
+            <IntradaySpreadsPanel spreadType="bear_put" />
+          ) : activeTab === "Upside Trend Stocks" ? (
+            <IntradayStockSignalsPanel
+              strategyName={UPSIDE_STOCK_SIGNAL_KEY}
+              title="Upside Trend Stocks"
+              subtitle="Live intraday NSE cash-equity upside trend signals."
+              emptyMessage="No upside trend stock signals available yet."
+            />
+          ) : activeTab === "Downside Trend Stocks" ? (
+            <IntradayStockSignalsPanel
+              strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
+              title="Downside Trend Stocks"
+              subtitle="Live intraday NSE cash-equity downside trend signals."
+              emptyMessage="No downside trend stock signals available yet."
+            />
+          ) : (
+            <>
+              {showFeatureBackButton && (
+                <button
+                  onClick={handleBackToDashboard}
+                  style={{
+                    marginBottom: 16,
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(148,163,184,0.2)",
+                    background: "#0f172a",
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Back to Dashboard
+                </button>
+              )}
 
-            {loading ? (
-              <div style={{ color: "#cbd5e1" }}>
-                Loading {activeTab} data...
+              <div style={{ marginBottom: 18, color: "#fff" }}>
+                <h2 style={{ marginBottom: 6 }}>{activeTab} Screener</h2>
+                <p style={{ color: "#cbd5e1" }}>
+                  Live insights and professional quantitative metrics for {activeTab}
+                </p>
               </div>
-            ) : (
-              <StockTable
-                category={activeTab}
-                stocks={stocks}
-                starredSymbols={starredSymbols}
-                onStarClick={handleStarClick}
-                onStockClick={handleStockClick}
-              />
-            )}
-          </>
-        )}
+
+              {loading ? (
+                <div style={{ color: "#cbd5e1" }}>
+                  Loading {activeTab} data...
+                </div>
+              ) : (
+                <StockTable
+                  category={activeTab}
+                  stocks={stocks}
+                  starredSymbols={starredSymbols}
+                  onStarClick={handleStarClick}
+                  onStockClick={handleStockClick}
+                />
+              )}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
