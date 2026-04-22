@@ -18,15 +18,19 @@ type XYPoint = {
   y: number;
 };
 
-const CHART_WIDTH = 1400;
-const CHART_HEIGHT = 360;
+const CHART_WIDTH = 1500;
+const CHART_HEIGHT = 430;
 
 const PADDING = {
-  top: 24,
-  right: 28,
-  bottom: 58,
-  left: 82,
+  top: 26,
+  right: 30,
+  bottom: 62,
+  left: 86,
 };
+
+const MARKET_START_MINUTES = 9 * 60 + 15;   // 09:15
+const MARKET_END_MINUTES = 15 * 60 + 30;    // 15:30
+const MARKET_TOTAL_MINUTES = MARKET_END_MINUTES - MARKET_START_MINUTES;
 
 const MARKET_LABELS = [
   "09:15 AM",
@@ -67,11 +71,53 @@ function buildSmoothPath(points: XYPoint[]): string {
   return d;
 }
 
+function parseTimeToMinutes(timeStr: string): number | null {
+  if (!timeStr) return null;
+
+  const clean = timeStr.trim();
+
+  // supports:
+  // 09:35
+  // 09:35:59
+  // 9:35 AM
+  // 09:35 AM
+  const ampmMatch = clean.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    let hour = Number(ampmMatch[1]);
+    const minute = Number(ampmMatch[2]);
+    const suffix = ampmMatch[4].toUpperCase();
+
+    if (suffix === "AM") {
+      if (hour === 12) hour = 0;
+    } else {
+      if (hour !== 12) hour += 12;
+    }
+
+    return hour * 60 + minute;
+  }
+
+  const plainMatch = clean.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (plainMatch) {
+    const hour = Number(plainMatch[1]);
+    const minute = Number(plainMatch[2]);
+    return hour * 60 + minute;
+  }
+
+  return null;
+}
+
+function marketMinuteToX(minutes: number, innerWidth: number): number {
+  const clamped = Math.max(
+    MARKET_START_MINUTES,
+    Math.min(MARKET_END_MINUTES, minutes)
+  );
+  const fraction = (clamped - MARKET_START_MINUTES) / MARKET_TOTAL_MINUTES;
+  return PADDING.left + fraction * innerWidth;
+}
+
 export default function PnlCurveChart({ data }: Props) {
   const safeData = data ?? [];
   if (safeData.length === 0) return null;
-
-  const pnlValues = safeData.map((d) => d.pnl ?? 0);
 
   const latestTarget =
     safeData[safeData.length - 1]?.target ??
@@ -83,7 +129,9 @@ export default function PnlCurveChart({ data }: Props) {
     safeData.find((d) => d.stop_loss !== undefined)?.stop_loss ??
     -1500;
 
+  const pnlValues = safeData.map((d) => d.pnl ?? 0);
   const allValues = [...pnlValues, latestTarget, latestStopLoss, 0];
+
   const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
   const span = Math.max(1, maxVal - minVal);
@@ -94,18 +142,22 @@ export default function PnlCurveChart({ data }: Props) {
   const innerWidth = CHART_WIDTH - PADDING.left - PADDING.right;
   const innerHeight = CHART_HEIGHT - PADDING.top - PADDING.bottom;
 
-  const mapX = (index: number) =>
-    PADDING.left +
-    (index / Math.max(1, safeData.length - 1 || 1)) * innerWidth;
-
   const mapY = (value: number) =>
     PADDING.top +
     (1 - (value - paddedMin) / (paddedMax - paddedMin || 1)) * innerHeight;
 
-  const points: XYPoint[] = safeData.map((d, i) => ({
-    x: mapX(i),
-    y: mapY(d.pnl ?? 0),
-  }));
+  const points: XYPoint[] = safeData.map((d, i) => {
+    const parsedMinutes = parseTimeToMinutes(d.time);
+    const x =
+      parsedMinutes !== null
+        ? marketMinuteToX(parsedMinutes, innerWidth)
+        : PADDING.left + (i / Math.max(1, safeData.length - 1)) * innerWidth;
+
+    return {
+      x,
+      y: mapY(d.pnl ?? 0),
+    };
+  });
 
   const yTicks = Array.from({ length: 6 }, (_, i) => {
     const value = paddedMin + ((paddedMax - paddedMin) * i) / 5;
@@ -127,10 +179,12 @@ export default function PnlCurveChart({ data }: Props) {
     <div
       style={{
         marginTop: "18px",
-        padding: "14px",
-        borderRadius: "16px",
-        background: "#050505",
-        border: "1px solid rgba(255,215,0,0.10)",
+        padding: "18px",
+        borderRadius: "20px",
+        background: "#000000",
+        border: "1px solid rgba(255,215,0,0.12)",
+        boxShadow:
+          "inset 0 0 40px rgba(255,215,0,0.03), 0 8px 24px rgba(0,0,0,0.35)",
       }}
     >
       <svg
@@ -141,18 +195,40 @@ export default function PnlCurveChart({ data }: Props) {
         aria-label="PnL line chart"
       >
         <defs>
-          <linearGradient id="pnlLineGradientGold" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#d4a017" />
-            <stop offset="50%" stopColor="#f5c542" />
-            <stop offset="100%" stopColor="#ffdf70" />
+          <linearGradient id="goldLine3D" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#8a6500" />
+            <stop offset="18%" stopColor="#c89718" />
+            <stop offset="45%" stopColor="#ffe08a" />
+            <stop offset="70%" stopColor="#d9a321" />
+            <stop offset="100%" stopColor="#8a6500" />
           </linearGradient>
 
-          <linearGradient id="pnlAreaGradientGold" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="rgba(245,197,66,0.16)" />
-            <stop offset="100%" stopColor="rgba(245,197,66,0.02)" />
+          <linearGradient id="goldArea3D" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255,215,70,0.20)" />
+            <stop offset="70%" stopColor="rgba(255,180,0,0.05)" />
+            <stop offset="100%" stopColor="rgba(255,180,0,0.01)" />
           </linearGradient>
+
+          <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
+        {/* black chart body */}
+        <rect
+          x={PADDING.left}
+          y={PADDING.top}
+          width={innerWidth}
+          height={innerHeight}
+          fill="#000000"
+          rx="10"
+        />
+
+        {/* horizontal grid */}
         {yTicks.map((tick, idx) => (
           <g key={idx}>
             <line
@@ -175,16 +251,18 @@ export default function PnlCurveChart({ data }: Props) {
           </g>
         ))}
 
+        {/* zero line */}
         <line
           x1={PADDING.left}
           x2={CHART_WIDTH - PADDING.right}
           y1={zeroY}
           y2={zeroY}
-          stroke="rgba(255,215,0,0.22)"
+          stroke="rgba(255,215,0,0.18)"
           strokeWidth="1.2"
           strokeDasharray="5 5"
         />
 
+        {/* fixed target line */}
         <line
           x1={PADDING.left}
           x2={CHART_WIDTH - PADDING.right}
@@ -194,6 +272,7 @@ export default function PnlCurveChart({ data }: Props) {
           strokeWidth="2"
         />
 
+        {/* fixed stoploss line */}
         <line
           x1={PADDING.left}
           x2={CHART_WIDTH - PADDING.right}
@@ -225,46 +304,63 @@ export default function PnlCurveChart({ data }: Props) {
           Stop Loss ₹{latestStopLoss.toFixed(2)}
         </text>
 
+        {/* gold pnl area */}
         {points.length > 1 && (
           <>
             <path
               d={`${pathD} L ${points[points.length - 1].x} ${CHART_HEIGHT - PADDING.bottom} L ${points[0].x} ${CHART_HEIGHT - PADDING.bottom} Z`}
-              fill="url(#pnlAreaGradientGold)"
+              fill="url(#goldArea3D)"
             />
 
+            {/* soft outer glow */}
             <path
               d={pathD}
               fill="none"
-              stroke="rgba(245,197,66,0.10)"
-              strokeWidth="8"
+              stroke="rgba(255,215,70,0.12)"
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#goldGlow)"
+            />
+
+            {/* actual 3d gold line */}
+            <path
+              d={pathD}
+              fill="none"
+              stroke="url(#goldLine3D)"
+              strokeWidth="4"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
 
+            {/* highlight line for 3d effect */}
             <path
               d={pathD}
               fill="none"
-              stroke="url(#pnlLineGradientGold)"
-              strokeWidth="3.2"
+              stroke="rgba(255,245,180,0.45)"
+              strokeWidth="1.2"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </>
         )}
 
+        {/* latest pnl marker */}
         {lastPoint && (
           <>
             <circle
               cx={lastPoint.x}
               cy={lastPoint.y}
-              r="5"
+              r="6"
               fill="#f5c542"
+              stroke="rgba(255,245,180,0.9)"
+              strokeWidth="2"
             />
             <text
-              x={lastPoint.x + 10}
+              x={lastPoint.x + 12}
               y={lastPoint.y - 10}
               fill="#f5c542"
-              fontSize="13"
+              fontSize="14"
               fontWeight="700"
             >
               ₹{lastValue.toFixed(2)}
@@ -272,6 +368,7 @@ export default function PnlCurveChart({ data }: Props) {
           </>
         )}
 
+        {/* fixed market time axis */}
         {MARKET_LABELS.map((label, index) => {
           const x =
             PADDING.left +
@@ -283,7 +380,7 @@ export default function PnlCurveChart({ data }: Props) {
               x={x}
               y={CHART_HEIGHT - 16}
               textAnchor="middle"
-              fill="rgba(255,215,0,0.55)"
+              fill="rgba(255,215,0,0.62)"
               fontSize="11"
             >
               {label}
