@@ -473,84 +473,121 @@ class AlphaBullCallSensex:
         self.sell_entry_price = None
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
+
+
     def quote_details(self) -> None:
-        ensure_cred_yml(self.cred)
-        from option_spreads import nfo_util
-        patch_nfo_util_config(nfo_util, self.cred)
+    log_and_print("QD 1: ensure_cred_yml")
+    ensure_cred_yml(self.cred)
 
-        tokens = nfo_util.get_instrument_tokens_ce_sensex()
-        if not tokens:
-            raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
+    log_and_print("QD 2: import nfo_util")
+    from option_spreads import nfo_util
 
-        _ = self.kite.ltp(tokens)
-        df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
+    log_and_print("QD 3: patch_nfo_util_config")
+    patch_nfo_util_config(nfo_util, self.cred)
 
-        if df_ce is None or df_ce.empty:
-            raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
+    log_and_print("QD 4: get_instrument_tokens_ce_sensex")
+    tokens = nfo_util.get_instrument_tokens_ce_sensex()
+    if not tokens:
+        raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
 
-        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
-        if option_chain_ce is None or option_chain_ce.empty:
-            raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
+    log_and_print(f"QD 5: token count={len(tokens)}")
+    _ = self.kite.ltp(tokens)
 
-        best = option_chain_ce.iloc[0]
-        self.buy_strike = int(best["buy_strike"])
-        self.sell_strike = int(best["sell_strike"])
-        self.expiry = str(self.cred["i_expiry_date_sensex"])
+    log_and_print("QD 6: build_sensex_ce_chain_100_strike_with_ltp")
+    df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
+    if df_ce is None or df_ce.empty:
+        raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
 
-        buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
-        sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
+    log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
+    option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
+    if option_chain_ce is None or option_chain_ce.empty:
+        raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
 
-        if buy_match.empty or sell_match.empty:
-            raise ValueError("Selected SENSEX CE strikes not found in option chain.")
+    log_and_print(f"QD 8: candidate rows={len(option_chain_ce)}")
+    best = option_chain_ce.iloc[0]
+    self.buy_strike = int(best["buy_strike"])
+    self.sell_strike = int(best["sell_strike"])
+    self.expiry = str(self.cred["i_expiry_date_sensex"])
 
-        buy_row = buy_match.iloc[0]
-        sell_row = sell_match.iloc[0]
+    log_and_print(
+        f"QD 9: selected buy_strike={self.buy_strike}, "
+        f"sell_strike={self.sell_strike}, expiry={self.expiry}"
+    )
 
-        self.buy_leg_token = int(buy_row["instrument_token"])
-        self.sell_leg_token = int(sell_row["instrument_token"])
-        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-        self.buy_entry_price = float(buy_row["last_price_y"])
-        self.sell_entry_price = float(sell_row["last_price_y"])
+    buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
+    sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-        log_and_print(
-            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
-        )
+    if buy_match.empty:
+        raise ValueError(f"Buy strike {self.buy_strike} not found in SENSEX CE chain.")
+    if sell_match.empty:
+        raise ValueError(f"Sell strike {self.sell_strike} not found in SENSEX CE chain.")
 
-    def place_orders(self) -> None:
-        if self.trade_initialized:
-            return
+    buy_row = buy_match.iloc[0]
+    sell_row = sell_match.iloc[0]
 
-        self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.buy_strike,
-            expiry=self.expiry,
-            side="BUY",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.buy_entry_price,
-            instrument_token=self.buy_leg_token,
-            trading_symbol=self.buy_leg_symbol,
-        )
-        self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.sell_strike,
-            expiry=self.expiry,
-            side="SELL",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.sell_entry_price,
-            instrument_token=self.sell_leg_token,
-            trading_symbol=self.sell_leg_symbol,
-        )
-        self.trade_initialized = True
+    self.buy_leg_token = int(buy_row["instrument_token"])
+    self.sell_leg_token = int(sell_row["instrument_token"])
+    self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+    self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+    self.buy_entry_price = float(buy_row["last_price_y"])
+    self.sell_entry_price = float(sell_row["last_price_y"])
 
-    def start(self) -> None:
+    log_and_print(
+        "QD 10: legs resolved | "
+        f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
+        f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
+    )
+
+
+def place_orders(self) -> None:
+    if self.trade_initialized:
+        log_and_print("PO 1: trade already initialized, skipping place_orders")
+        return
+
+    log_and_print("PO 2: placing BUY order")
+    self.paper_book.place_order(
+        strategy_name=STRATEGY_NAME,
+        symbol=self.symbol_ce,
+        strike=self.buy_strike,
+        expiry=self.expiry,
+        side="BUY",
+        quantity=self.quantity,
+        right="CE",
+        entry_price=self.buy_entry_price,
+        instrument_token=self.buy_leg_token,
+        trading_symbol=self.buy_leg_symbol,
+    )
+
+    log_and_print("PO 3: placing SELL order")
+    self.paper_book.place_order(
+        strategy_name=STRATEGY_NAME,
+        symbol=self.symbol_ce,
+        strike=self.sell_strike,
+        expiry=self.expiry,
+        side="SELL",
+        quantity=self.quantity,
+        right="CE",
+        entry_price=self.sell_entry_price,
+        instrument_token=self.sell_leg_token,
+        trading_symbol=self.sell_leg_symbol,
+    )
+
+    self.trade_initialized = True
+    log_and_print("PO 4: place_orders complete")
+
+
+def start(self) -> None:
+    try:
+        log_and_print("STEP 1: waiting for full selection lock")
         with OPTION_CHAIN_BUILD_LOCK:
+            log_and_print("STEP 2: acquired full selection lock")
+            log_and_print("STEP 3: entering quote_details()")
             self.quote_details()
+            log_and_print("STEP 4: quote_details() complete")
+            log_and_print("STEP 5: entering place_orders()")
             self.place_orders()
+            log_and_print("STEP 6: place_orders() complete")
+        log_and_print("STEP 7: released full selection lock")
 
         payload = build_spread_payload(
             paper_book=self.paper_book,
@@ -562,8 +599,24 @@ class AlphaBullCallSensex:
         )
         publish_spread_update(payload)
 
+        log_and_print("STEP 8: starting MTM tracker")
         self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
+        log_and_print("STEP 9: MTM tracker started")
+
+    except Exception as e:
+        log_and_print(f"START FAILED: {e}", "error")
+        log_and_print(traceback.format_exc(), "error")
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="ERROR",
+            message=f"Spread launch failed: {str(e)}",
+            progress_text="Check backend logs",
+            is_loading=False,
+        )
+
 
 
 class EMACrossover1Min:
