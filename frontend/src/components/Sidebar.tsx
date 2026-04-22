@@ -85,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: "Derivative Strikes Demand",
+      title: "Derivative Demand",
       items: [
         { name: "Aggressive Call Option Stocks", icon: "🟢" },
         { name: "Aggressive Put Option Stocks", icon: "🔴" },
@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key={logoBurst}
             type="button"
             className="logo-trigger lightning-active"
-            onClick={() => triggerCategory("Momentum")}
+            onClick={() => triggerCategory("Consistent Trending")}
             aria-label="Lightninbull Home"
             style={{
               background: "transparent",
