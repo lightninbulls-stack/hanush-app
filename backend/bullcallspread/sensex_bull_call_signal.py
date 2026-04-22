@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,37 +17,33 @@ import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
-from shared.intraday_spreads_state import spread_state
+print("✅ sensex_bull_call_signal.py imported")
 
-# =========================================================
-# ========== CONFIGURATION: CHANGE FROM HERE ==============
-# =========================================================
+from shared.intraday_spreads_state import spread_state
+from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
+
 INDEX_NAME = "SENSEX"
 SPREAD_TYPE = "bull_call"
-STRATEGY_NAME = "SENSEX_BULL_PAPER"
+STRATEGY_NAME = "ALPHA_BULL_SENSEX"
 
-SENSEX_SPOT_TOKEN = int(os.getenv("SENSEX_SPOT_TOKEN", "0"))
+SENSEX_SPOT_TOKEN = 265
 PRELOAD_DAYS = 2
-QUANTITY = int(os.getenv("SENSEX_LOT_SIZE", "20"))
+QUANTITY = 30
 
-STOP_LOSS_AMOUNT = float(os.getenv("SENSEX_BULL_SL", "-1500"))
-TARGET_AMOUNT = float(os.getenv("SENSEX_BULL_TGT", "3000"))
+STOP_LOSS_AMOUNT = -1500.0
+TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
+MARKET_CLOSE_HOUR = 23
+MARKET_CLOSE_MINUTE = 59
 
 SENSEX_EXPIRY_WEEKS_AHEAD = int(os.getenv("SENSEX_EXPIRY_WEEKS_AHEAD", "0"))
-SENSEX_EXPIRY_OVERRIDE = os.getenv("SENSEX_EXPIRY_OVERRIDE", "").strip()
 
 LOG_FILE_NAME = "sensex_bull_call_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
 
-# =========================================================
-# ===================== Logging ===========================
-# =========================================================
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -55,7 +52,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout),
     ],
 )
-logger = logging.getLogger("sensex_bull_strategy")
+logger = logging.getLogger("alpha_bull_sensex_strategy")
 
 
 def log_and_print(msg: str, level: str = "info") -> None:
@@ -65,9 +62,6 @@ def log_and_print(msg: str, level: str = "info") -> None:
     getattr(logger, level if level in {"info", "warning", "error", "debug"} else "info")(line)
 
 
-# =========================================================
-# ===================== Frontend Payload ==================
-# =========================================================
 def publish_strategy_state(
     *,
     strategy_name: str,
@@ -94,10 +88,8 @@ def publish_strategy_state(
         "target": TARGET_AMOUNT,
         "legs": [],
     }
-
     if extra:
         payload.update(extra)
-
     spread_state.update(strategy_name, payload)
 
 
@@ -114,7 +106,6 @@ def build_spread_payload(
 
     buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
     sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
-
     net_pnl = round(sum(o.get("pnl", 0.0) for o in orders), 2)
 
     status = "OPEN"
@@ -123,21 +114,7 @@ def build_spread_payload(
     elif not orders:
         status = "NO_POSITION"
 
-    if status == "OPEN":
-        message = "Bull call spread is live."
-        is_loading = False
-    elif status == "CLOSED":
-        message = "Bull call spread closed."
-        is_loading = False
-    else:
-        message = "Monitoring market conditions for bullish entry trigger..."
-        is_loading = True
-
-    entry_time = None
-    if orders:
-        valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
-        if valid_timestamps:
-            entry_time = min(valid_timestamps).strftime("%H:%M:%S")
+    message = "Sensex bull call spread is live." if status == "OPEN" else "Sensex bull call spread closed." if status == "CLOSED" else "Monitoring market conditions for bullish entry trigger..."
 
     return {
         "index": index_name,
@@ -147,12 +124,12 @@ def build_spread_payload(
         "ui_state": status,
         "message": message,
         "progress_text": None,
-        "is_loading": is_loading,
+        "is_loading": status != "OPEN",
         "net_pnl": net_pnl,
         "stop_loss": stop_loss_amount,
         "target": target_amount,
         "updated_at": datetime.now(IST).isoformat(),
-        "entry_time": entry_time,
+        "entry_time": min([o["timestamp"] for o in orders], default=None).strftime("%H:%M:%S") if orders else None,
         "legs": [
             {
                 "side": buy_leg["side"] if buy_leg else None,
@@ -165,9 +142,7 @@ def build_spread_payload(
                 "expiry": buy_leg["expiry"] if buy_leg else None,
                 "right": buy_leg["right"] if buy_leg else None,
                 "status": buy_leg["status"] if buy_leg else None,
-                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
-                if buy_leg and buy_leg.get("timestamp") is not None
-                else None,
+                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S") if buy_leg else None,
             },
             {
                 "side": sell_leg["side"] if sell_leg else None,
@@ -180,9 +155,7 @@ def build_spread_payload(
                 "expiry": sell_leg["expiry"] if sell_leg else None,
                 "right": sell_leg["right"] if sell_leg else None,
                 "status": sell_leg["status"] if sell_leg else None,
-                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
-                if sell_leg and sell_leg.get("timestamp") is not None
-                else None,
+                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S") if sell_leg else None,
             },
         ],
     }
@@ -192,33 +165,19 @@ def publish_spread_update(payload: dict) -> None:
     spread_state.update(payload["strategy_name"], payload)
 
 
-# =========================================================
-# ===================== Utilities =========================
-# =========================================================
 def current_ist() -> datetime:
     return datetime.now(IST)
 
 
 def get_market_open_close_ist(ref: Optional[datetime] = None) -> tuple[datetime, datetime]:
     now_ist = ref or current_ist()
-    market_open = now_ist.replace(
-        hour=MARKET_OPEN_HOUR,
-        minute=MARKET_OPEN_MINUTE,
-        second=0,
-        microsecond=0,
-    )
-    market_close = now_ist.replace(
-        hour=MARKET_CLOSE_HOUR,
-        minute=MARKET_CLOSE_MINUTE,
-        second=0,
-        microsecond=0,
-    )
+    market_open = now_ist.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0)
+    market_close = now_ist.replace(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MINUTE, second=0, microsecond=0)
     return market_open, market_close
 
 
 def is_weekday_ist(ref: Optional[datetime] = None) -> bool:
-    now_ist = ref or current_ist()
-    return now_ist.weekday() < 5
+    return (ref or current_ist()).weekday() < 5
 
 
 def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
@@ -230,106 +189,112 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
-
     if now_ist > market_close:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Trading window closed for the day.",
-            progress_text=None,
-            is_loading=False,
-        )
-        log_and_print("It is after 3:30 PM IST. Strategy will not run today.")
         raise SystemExit
-
     if now_ist >= market_open:
-        log_and_print("Market is already open in IST -- running strategy now.")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="BOOTING",
-            message="Market is open. Initializing strategy...",
-            progress_text="Preparing market context...",
-            is_loading=True,
-        )
         return
-
-    sleep_seconds = int((market_open - now_ist).total_seconds())
-
-    publish_strategy_state(
-        strategy_name=STRATEGY_NAME,
-        index_name=INDEX_NAME,
-        spread_type=SPREAD_TYPE,
-        ui_state="WAITING_START_TIME",
-        message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
-        progress_text=f"Start in {sleep_seconds} seconds",
-        is_loading=True,
-    )
-
-    log_and_print(f"Waiting until {market_open.strftime('%H:%M:%S')} IST ({sleep_seconds} seconds)")
-    try:
-        for remaining in range(sleep_seconds, 0, -1):
-            print(f"\rTime left: {timedelta(seconds=remaining)}", end="")
-            if remaining % 5 == 0 or remaining <= 10:
-                publish_strategy_state(
-                    strategy_name=STRATEGY_NAME,
-                    index_name=INDEX_NAME,
-                    spread_type=SPREAD_TYPE,
-                    ui_state="WAITING_START_TIME",
-                    message=f"Waiting until {market_open.strftime('%H:%M:%S')} IST to start strategy.",
-                    progress_text=f"Start in {remaining} seconds",
-                    is_loading=True,
-                )
-            time.sleep(1)
-        print()
-    except KeyboardInterrupt:
-        print("\nCountdown interrupted by user.")
-        raise SystemExit
+    time.sleep(int((market_open - now_ist).total_seconds()))
 
 
 def resolve_sensex_weekly_expiry() -> str:
-    if SENSEX_EXPIRY_OVERRIDE:
-        cleaned = SENSEX_EXPIRY_OVERRIDE.replace("-", "")
-        datetime.strptime(cleaned, "%Y%m%d")
-        return cleaned
-
     today = current_ist().date()
-    days_ahead = (3 - today.weekday()) % 7  # Thursday = 3
-
-    if days_ahead == 0:
-        expiry = today
-    else:
-        expiry = today + timedelta(days=days_ahead)
-
+    days_ahead = (3 - today.weekday()) % 7  # Thursday
+    expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(SENSEX_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
 
 
 def load_creds() -> dict:
     return {
-        "z_api_key": os.environ["Z_API_KEY"],
-        "z_access_token": os.environ["Z_ACCESS_TOKEN"],
+        "z_api_key": os.environ["Z_API_KEY"].strip(),
+        "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_sensex": resolve_sensex_weekly_expiry(),
-        "i_inst_name_sensex": "SENSEX",
+        "i_inst_name_sensex": "S",
     }
+
+
+def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
+    content = (
+        f"z_api_key: {cred['z_api_key']}\n"
+        f"z_access_token: {cred['z_access_token']}\n"
+        f"i_expiry_date_sensex: {cred['i_expiry_date_sensex']}\n"
+        f"i_inst_name_sensex: {cred['i_inst_name_sensex']}\n"
+    )
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(content)
 
 
 def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
     if hasattr(nfo_util_module, "load_creds"):
         nfo_util_module.load_creds = lambda: cred
-
     setattr(nfo_util_module, "i_inst_name_sensex", cred["i_inst_name_sensex"])
     setattr(nfo_util_module, "i_expiry_date_sensex", cred["i_expiry_date_sensex"])
     setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
     setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
 
 
-# =========================================================
-# ===================== Paper Order Book ==================
-# =========================================================
+def build_bull_call_candidates(
+    df_ce: pd.DataFrame,
+    strike_gaps: tuple[int, ...] = (100, 200),
+) -> pd.DataFrame:
+    required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
+    missing = required_cols - set(df_ce.columns)
+    if missing:
+        raise ValueError(f"df_ce missing required columns: {missing}")
+
+    temp = df_ce.copy()
+    temp = temp.dropna(subset=["strike", "last_price_y"]).copy()
+    temp["strike"] = temp["strike"].astype(int)
+    temp["last_price_y"] = pd.to_numeric(temp["last_price_y"], errors="coerce")
+    temp = temp.dropna(subset=["last_price_y"]).sort_values("strike").reset_index(drop=True)
+
+    candidates = []
+    strikes = temp["strike"].tolist()
+    strike_to_row = {int(row["strike"]): row for _, row in temp.iterrows()}
+
+    for lower_strike in strikes:
+        for gap in strike_gaps:
+            higher_strike = lower_strike + gap
+            if higher_strike not in strike_to_row:
+                continue
+
+            buy_row = strike_to_row[lower_strike]
+            sell_row = strike_to_row[higher_strike]
+
+            buy_price = float(buy_row["last_price_y"])
+            sell_price = float(sell_row["last_price_y"])
+            net_debit = buy_price - sell_price
+            width = higher_strike - lower_strike
+            max_profit = width - net_debit
+            max_loss = net_debit
+
+            if net_debit <= 0 or max_profit <= 0:
+                continue
+
+            rr = max_profit / max_loss if max_loss > 0 else None
+            candidates.append(
+                {
+                    "buy_strike": lower_strike,
+                    "sell_strike": higher_strike,
+                    "buy_price": buy_price,
+                    "sell_price": sell_price,
+                    "net_debit": net_debit,
+                    "spread_width": width,
+                    "max_profit": max_profit,
+                    "max_loss": max_loss,
+                    "rr": rr,
+                }
+            )
+
+    if not candidates:
+        return pd.DataFrame()
+
+    return pd.DataFrame(candidates).sort_values(
+        by=["rr", "max_profit", "net_debit"],
+        ascending=[False, False, True],
+    ).reset_index(drop=True)
+
+
 class PaperOrderBook:
     def __init__(self) -> None:
         self.orders: list[dict] = []
@@ -368,30 +333,22 @@ class PaperOrderBook:
             "exit_price": None,
             "exit_timestamp": None,
         }
-
         with self.lock:
             self.orders.append(order)
-
-        log_and_print(
-            f"📝 PAPER ORDER | RefID={ref_id} | {side} {quantity} {trading_symbol} | Entry={entry_price:.2f}"
-        )
         return ref_id
 
     def get_all_orders(self) -> pd.DataFrame:
         with self.lock:
-            if not self.orders:
-                return pd.DataFrame()
-            return pd.DataFrame(self.orders)
+            return pd.DataFrame(self.orders) if self.orders else pd.DataFrame()
 
     def update_ltp_and_pnl(self, instrument_token: int, ltp: float) -> None:
         with self.lock:
             for order in self.orders:
                 if order["instrument_token"] == instrument_token:
                     order["ltp"] = float(ltp)
-
                     if order["side"] == "BUY":
                         order["pnl"] = (order["ltp"] - order["entry_price"]) * order["quantity"]
-                    elif order["side"] == "SELL":
+                    else:
                         order["pnl"] = (order["entry_price"] - order["ltp"]) * order["quantity"]
 
     def total_pnl(self) -> float:
@@ -412,159 +369,30 @@ class PaperOrderBook:
             return [order.copy() for order in self.orders]
 
 
-# =========================================================
-# ===================== Live MTM Tracker ==================
-# =========================================================
 class PaperSpreadMTMTracker:
-    def __init__(
-        self,
-        cred: dict,
-        paper_book: PaperOrderBook,
-        stop_loss_amount: float = STOP_LOSS_AMOUNT,
-        target_amount: float = TARGET_AMOUNT,
-        index_name: str = INDEX_NAME,
-        spread_type: str = SPREAD_TYPE,
-        strategy_name: str = STRATEGY_NAME,
-    ):
+    def __init__(self, cred: dict, paper_book: PaperOrderBook):
         self.cred = cred
         self.paper_book = paper_book
-        self.stop_loss_amount = float(stop_loss_amount)
-        self.target_amount = float(target_amount)
-        self.index_name = index_name
-        self.spread_type = spread_type
-        self.strategy_name = strategy_name
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
-        self.last_print_time = 0.0
-        self.pnl_history = []
-        self.entry_reference_time = None
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
             paper_book=self.paper_book,
-            index_name=self.index_name,
-            spread_type=self.spread_type,
-            strategy_name=self.strategy_name,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            strategy_name=STRATEGY_NAME,
+            stop_loss_amount=STOP_LOSS_AMOUNT,
+            target_amount=TARGET_AMOUNT,
         )
-
-        orders = self.paper_book.get_orders_snapshot()
-
-        if orders and self.entry_reference_time is None:
-            valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
-            if valid_timestamps:
-                self.entry_reference_time = min(valid_timestamps)
-
-        current_time = datetime.now(IST).strftime("%H:%M:%S")
-        current_pnl = float(payload["net_pnl"])
-
-        self.pnl_history.append({
-            "time": current_time,
-            "pnl": current_pnl,
-        })
-
-        self.pnl_history = self.pnl_history[-200:]
-
-        running_peak = None
-        pnl_curve = []
-
-        for point in self.pnl_history:
-            pnl_val = float(point["pnl"])
-
-            if running_peak is None:
-                running_peak = pnl_val
-            else:
-                running_peak = max(running_peak, pnl_val)
-
-            drawdown = pnl_val - running_peak
-
-            pnl_curve.append({
-                "time": point["time"],
-                "pnl": pnl_val,
-                "stop_loss": self.stop_loss_amount,
-                "target": self.target_amount,
-                "drawdown": drawdown,
-            })
-
-        payload["pnl_curve"] = pnl_curve
-        payload["entry_marker_time"] = (
-            self.entry_reference_time.strftime("%H:%M:%S")
-            if self.entry_reference_time is not None
-            else None
-        )
-
         publish_spread_update(payload)
-
-    def _log_live_mtm(self) -> None:
-        orders = self.paper_book.get_orders_snapshot()
-        if len(orders) < 2:
-            return
-
-        total = self.paper_book.total_pnl()
-
-        buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
-        sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
-
-        if buy_leg and sell_leg:
-            log_and_print(
-                "LIVE MTM | "
-                f"BUY {buy_leg['trading_symbol']} Entry={buy_leg['entry_price']:.2f} "
-                f"LTP={buy_leg['ltp']:.2f} PnL={buy_leg['pnl']:.2f} | "
-                f"SELL {sell_leg['trading_symbol']} Entry={sell_leg['entry_price']:.2f} "
-                f"LTP={sell_leg['ltp']:.2f} PnL={sell_leg['pnl']:.2f} | "
-                f"NET={total:.2f}"
-            )
-
-    def _check_exit_conditions(self) -> None:
-        total = self.paper_book.total_pnl()
-
-        if total <= self.stop_loss_amount:
-            log_and_print(
-                f"🛑 STOP LOSS HIT | Net PnL={total:.2f} <= {self.stop_loss_amount:.2f}",
-                "warning",
-            )
-            self.paper_book.close_all_positions()
-            self._publish_current_state()
-            self.stop()
-
-        elif total >= self.target_amount:
-            log_and_print(
-                f"🎯 TARGET HIT | Net PnL={total:.2f} >= {self.target_amount:.2f}",
-                "info",
-            )
-            self.paper_book.close_all_positions()
-            self._publish_current_state()
-            self.stop()
-
-    def stop(self) -> None:
-        self.is_running = False
-        try:
-            if self.ws is not None:
-                orders_df = self.paper_book.get_all_orders()
-                if not orders_df.empty:
-                    tokens = orders_df["instrument_token"].tolist()
-                    if tokens:
-                        self.ws.unsubscribe(tokens)
-                self.ws.close()
-        except Exception as e:
-            log_and_print(f"Error while stopping MTM tracker: {e}", "error")
-
-        orders_df = self.paper_book.get_all_orders()
-        if not orders_df.empty:
-            log_and_print("Final paper positions:")
-            print(orders_df.to_string(index=False))
-
-        self._publish_current_state()
 
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
         if orders_df.empty or len(orders_df) < 2:
-            log_and_print("No paper positions available for MTM tracking.", "warning")
             return
 
         tokens = orders_df["instrument_token"].tolist()
-
         kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
         self.ws = kws
         self.is_running = True
@@ -572,338 +400,148 @@ class PaperSpreadMTMTracker:
         def on_ticks(ws, ticks):
             if not self.is_running:
                 return
-
-            if is_after_market_close_ist():
-                log_and_print("Market is closed in IST. Closing paper positions.", "info")
-                self.paper_book.close_all_positions()
-                self._publish_current_state()
-                self.stop()
-                return
-
             for tick in ticks:
                 token = tick.get("instrument_token")
                 ltp = tick.get("last_price")
-
                 if token is None or ltp is None or ltp <= 0:
                     continue
-
                 self.paper_book.update_ltp_and_pnl(token, float(ltp))
-
-            current_time = time.time()
-            if current_time - self.last_print_time >= 1.0:
-                self._log_live_mtm()
-                self.last_print_time = current_time
-
             self._publish_current_state()
-            self._check_exit_conditions()
 
         def on_connect(ws, response):
-            log_and_print("Connected to option-leg MTM websocket.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
 
-        def on_close(ws, code, reason):
-            log_and_print(f"Option MTM WS closed: {code} - {reason}", "warning")
-
-        def on_error(ws, code, reason):
-            log_and_print(f"Option MTM WS error: {code} - {reason}", "error")
-
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
-        kws.on_close = on_close
-        kws.on_error = on_error
-
-        log_and_print("Starting option-leg MTM websocket...")
-        self._publish_current_state()
         kws.connect(threaded=True)
 
 
-# =========================================================
-# ================= Sensex Bull Strategy ==================
-# =========================================================
-class SensexBullCall:
-    def __init__(
-        self,
-        kite: KiteConnect,
-        cred: dict,
-        paper_book: PaperOrderBook,
-        stop_loss_amount: float = STOP_LOSS_AMOUNT,
-        target_amount: float = TARGET_AMOUNT,
-    ):
+class AlphaBullCallSensex:
+    def __init__(self, kite: KiteConnect, cred: dict, paper_book: PaperOrderBook):
         self.kite = kite
         self.cred = cred
         self.paper_book = paper_book
         self.quantity = QUANTITY
-        self.stop_loss_amount = stop_loss_amount
-        self.target_amount = target_amount
-        self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
-        self.reset_state()
-
-    def reset_state(self) -> None:
         self.trade_initialized = False
-        self.position_closed = False
         self.expiry = None
-        self.itm_strike = None
-        self.otm_strike = None
+        self.buy_strike = None
+        self.sell_strike = None
         self.symbol_ce = "SENSEX"
-
         self.buy_leg_token = None
         self.sell_leg_token = None
         self.buy_leg_symbol = None
         self.sell_leg_symbol = None
         self.buy_entry_price = None
         self.sell_entry_price = None
+        self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        from option_spreads import nfo_util
+        with OPTION_CHAIN_BUILD_LOCK:
+            ensure_cred_yml(self.cred)
+            from option_spreads import nfo_util
+            patch_nfo_util_config(nfo_util, self.cred)
 
-        patch_nfo_util_config(nfo_util, self.cred)
+            tokens = nfo_util.get_instrument_tokens_ce_sensex()
+            if not tokens:
+                raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
 
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Preparing bull call spread...",
-            progress_text="Selecting spread structure...",
-            is_loading=True,
-        )
+            _ = self.kite.ltp(tokens)
+            df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
 
-        _ = self.kite.ltp(nfo_util.get_instrument_tokens_ce_sensex())
+            if df_ce is None or df_ce.empty:
+                raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
 
-        df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
-        option_chain_ce = nfo_util.bull_call_spreads_sensex(
-            df_ce,
-            gaps=(200, 300),
-            rr_target=1.5,
-            atm_only=False,
-        )
+            option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
+            if option_chain_ce is None or option_chain_ce.empty:
+                raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
 
-        if option_chain_ce.empty:
-            raise ValueError("No bull call spread candidates found in option chain.")
+            best = option_chain_ce.iloc[0]
+            self.buy_strike = int(best["buy_strike"])
+            self.sell_strike = int(best["sell_strike"])
+            self.expiry = str(self.cred["i_expiry_date_sensex"])
 
-        self.itm_strike = int(option_chain_ce.loc[0, "buy_strike"])
-        self.otm_strike = int(option_chain_ce.loc[0, "sell_strike"])
+            buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
+            sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-        log_and_print(f"ITM Strike selected: {self.itm_strike}")
-        log_and_print(f"OTM Strike selected: {self.otm_strike}")
+            if buy_match.empty or sell_match.empty:
+                raise ValueError("Selected SENSEX CE strikes not found in option chain.")
 
-        self.expiry = str(self.cred["i_expiry_date_sensex"])
+            buy_row = buy_match.iloc[0]
+            sell_row = sell_match.iloc[0]
 
-        buy_row = df_ce.loc[df_ce["strike"].astype(int) == self.itm_strike].iloc[0]
-        sell_row = df_ce.loc[df_ce["strike"].astype(int) == self.otm_strike].iloc[0]
+            self.buy_leg_token = int(buy_row["instrument_token"])
+            self.sell_leg_token = int(sell_row["instrument_token"])
+            self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+            self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+            self.buy_entry_price = float(buy_row["last_price_y"])
+            self.sell_entry_price = float(sell_row["last_price_y"])
 
-        self.buy_leg_token = int(buy_row["instrument_token"])
-        self.sell_leg_token = int(sell_row["instrument_token"])
-
-        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-
-        self.buy_entry_price = float(buy_row["last_price_y"])
-        self.sell_entry_price = float(sell_row["last_price_y"])
-
-        log_and_print(
-            f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
-        )
-        log_and_print(
-            f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
-        )
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Spread legs selected successfully.",
-            progress_text=f"BUY {self.itm_strike} CE | SELL {self.otm_strike} CE",
-            is_loading=True,
-        )
-
-        if not self.trade_initialized:
-            self.place_ce_order_buy()
-            self.place_ce_order_sell()
-            self.trade_initialized = True
-
-    def place_ce_order_buy(self) -> str:
-        return self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.itm_strike,
-            expiry=self.expiry,
-            side="BUY",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.buy_entry_price,
-            instrument_token=self.buy_leg_token,
-            trading_symbol=self.buy_leg_symbol,
-        )
-
-    def place_ce_order_sell(self) -> str:
-        return self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.otm_strike,
-            expiry=self.expiry,
-            side="SELL",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.sell_entry_price,
-            instrument_token=self.sell_leg_token,
-            trading_symbol=self.sell_leg_symbol,
-        )
+            if not self.trade_initialized:
+                self.paper_book.place_order(
+                    strategy_name=STRATEGY_NAME,
+                    symbol=self.symbol_ce,
+                    strike=self.buy_strike,
+                    expiry=self.expiry,
+                    side="BUY",
+                    quantity=self.quantity,
+                    right="CE",
+                    entry_price=self.buy_entry_price,
+                    instrument_token=self.buy_leg_token,
+                    trading_symbol=self.buy_leg_symbol,
+                )
+                self.paper_book.place_order(
+                    strategy_name=STRATEGY_NAME,
+                    symbol=self.symbol_ce,
+                    strike=self.sell_strike,
+                    expiry=self.expiry,
+                    side="SELL",
+                    quantity=self.quantity,
+                    right="CE",
+                    entry_price=self.sell_entry_price,
+                    instrument_token=self.sell_leg_token,
+                    trading_symbol=self.sell_leg_symbol,
+                )
+                self.trade_initialized = True
 
     def start(self) -> None:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Creating paper bull call spread...",
-            progress_text="Placing paper orders",
-            is_loading=True,
-        )
-
-        log_and_print("SENSEX Bull Call PAPER strategy: START", "info")
         self.quote_details()
-        log_and_print("Bull call spread paper entry created successfully.", "info")
-
-        orders_df = self.paper_book.get_all_orders()
-        if not orders_df.empty:
-            log_and_print("Current paper order book:")
-            print(orders_df.to_string(index=False))
-
-        initial_payload = build_spread_payload(
+        payload = build_spread_payload(
             paper_book=self.paper_book,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             strategy_name=STRATEGY_NAME,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
+            stop_loss_amount=STOP_LOSS_AMOUNT,
+            target_amount=TARGET_AMOUNT,
         )
-        publish_spread_update(initial_payload)
-
-        self.mtm_tracker = PaperSpreadMTMTracker(
-            cred=self.cred,
-            paper_book=self.paper_book,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            strategy_name=STRATEGY_NAME,
-        )
+        publish_spread_update(payload)
+        self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
 
 
-# =========================================================
-# ============= SENSEX EMA Confirmation Handler ===========
-# =========================================================
 class EMACrossover1Min:
-    def __init__(
-        self,
-        kite: KiteConnect,
-        cred: dict,
-        instrument_token: int = SENSEX_SPOT_TOKEN,
-        preload_days: int = PRELOAD_DAYS,
-    ):
+    def __init__(self, kite: KiteConnect, cred: dict, instrument_token: int = SENSEX_SPOT_TOKEN, preload_days: int = PRELOAD_DAYS):
         self.kite = kite
         self.cred = cred
         self.token = instrument_token
         self.preload_days = preload_days
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="LOADING_HISTORY",
-            message="Loading historical data...",
-            progress_text="Preparing 1-minute candles",
-            is_loading=True,
-        )
-
         self.onemin_bars = self._load_history()
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="WAITING_SIGNAL",
-            message="Monitoring market conditions for bullish entry trigger...",
-            progress_text="Watching live market",
-            is_loading=True,
-            extra={"history_rows": int(len(self.onemin_bars))},
-        )
-
-        self.prev_minute = None
-        self.tick_buffer = pd.DataFrame(columns=["last_price"])
-
-        self.last_trade_signal = 0
-        self.last_tick_log_time = 0.0
-
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
+        self.last_trade_signal = 0
 
     def _load_history(self) -> pd.DataFrame:
         try:
             end_dt = datetime.today()
             start_dt = end_dt - timedelta(days=self.preload_days)
-
-            hist = self.kite.historical_data(
-                instrument_token=self.token,
-                from_date=start_dt,
-                to_date=end_dt,
-                interval="minute",
-            )
-
+            hist = self.kite.historical_data(self.token, start_dt, end_dt, "minute")
             df = pd.DataFrame(hist)
             if df.empty:
-                log_and_print("No historical data received; starting with empty frame.", "warning")
                 return pd.DataFrame(columns=["open", "high", "low", "close"])
-
             df["datetime"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(IST)
-            df = df.set_index("datetime")[["open", "high", "low", "close"]].sort_index()
-            return df
-
-        except Exception as e:
-            log_and_print(f"History load failed: {e}", "error")
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ERROR",
-                message=f"History load failed: {str(e)}",
-                progress_text="Check logs",
-                is_loading=False,
-            )
+            return df.set_index("datetime")[["open", "high", "low", "close"]].sort_index()
+        except Exception:
             return pd.DataFrame(columns=["open", "high", "low", "close"])
-
-    def _to_ist(self, ts: datetime) -> datetime:
-        if ts.tzinfo is None:
-            ts = pytz.utc.localize(ts)
-        return ts.astimezone(IST)
-
-    def _prepare_1min_df(self, ltt: datetime, last_price: float, rider: SensexBullCall) -> None:
-        ltt = self._to_ist(ltt)
-        row = pd.DataFrame([[last_price]], columns=["last_price"], index=[ltt])
-
-        self.tick_buffer = pd.concat([self.tick_buffer, row]) if not self.tick_buffer.empty else row
-
-        if self.prev_minute is None:
-            self.prev_minute = ltt.minute
-            return
-
-        if ltt.minute != self.prev_minute:
-            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
-
-            if not ohlc.empty:
-                log_and_print(
-                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} Close={ohlc['close'].iloc[-1]:.2f}"
-                )
-                ohlc["signal"] = 0
-                self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
-                self._update_ema_crossover(rider)
-
-            self.tick_buffer = row
-            self.prev_minute = ltt.minute
 
     def _stop_stream(self) -> None:
         self._stop_flag = True
@@ -911,65 +549,34 @@ class EMACrossover1Min:
             if self._ws:
                 self._ws.unsubscribe([self.token])
                 self._ws.close()
-        except Exception as e:
-            log_and_print(f"WebSocket close error: {e}", "error")
+        except Exception:
+            pass
 
-    def _update_ema_crossover(self, rider: SensexBullCall) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
+    def start(self, rider: AlphaBullCallSensex) -> None:
+        kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
+        self._ws = kws
 
-        if len(self.onemin_bars) < 55:
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Building enough 1-minute candles",
-                is_loading=True,
-            )
-            return
+        def on_ticks(ws, ticks):
+            if self._stop_flag:
+                return
 
-        latest = self.onemin_bars.iloc[-1]
-        prev = self.onemin_bars.iloc[-2]
+        def on_connect(ws, response):
+            ws.subscribe([self.token])
+            ws.set_mode(ws.MODE_LTP, [self.token])
 
-        if "signal" not in self.onemin_bars.columns:
-            self.onemin_bars["signal"] = 0
-
-        self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
-
-        if prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]:
-            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
-
-            log_and_print(
-                f"🚀 Bullish crossover @ {self.onemin_bars.index[-1].strftime('%H:%M:%S')} | Price: {latest['close']:.2f}"
-            )
-
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="SIGNAL_TRIGGERED",
-                message="Bullish entry signal detected. Preparing spread...",
-                progress_text="Preparing bull call spread entry",
-                is_loading=True,
-                extra={
-                    "signal_price": float(latest["close"]),
-                    "last_price": float(latest["close"]),
-                    "ema5": round(float(latest["EMA5"]), 2),
-                    "ema55": round(float(latest["EMA55"]), 2),
-                },
-            )
-
-            if self.last_trade_signal != 1:
+            def _inject_test_signal():
+                time.sleep(3)
+                if self._stop_flag or self.last_trade_signal == 1:
+                    return
                 self.last_trade_signal = 1
                 self._stop_stream()
 
-                def _launch_rider():
+                def _launch():
                     try:
                         rider.start()
                     except Exception as e:
-                        log_and_print(f"SensexBullCall.start() failed: {e}", "error")
+                        log_and_print(f"AlphaBullCallSensex.start() failed: {e}", "error")
+                        log_and_print(traceback.format_exc(), "error")
                         publish_strategy_state(
                             strategy_name=STRATEGY_NAME,
                             index_name=INDEX_NAME,
@@ -980,113 +587,12 @@ class EMACrossover1Min:
                             is_loading=False,
                         )
 
-                threading.Thread(target=_launch_rider, daemon=True).start()
+                threading.Thread(target=_launch, daemon=True).start()
 
-        else:
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Monitoring market conditions for bullish entry trigger...",
-                progress_text="Watching live market",
-                is_loading=True,
-                extra={
-                    "last_price": float(latest["close"]),
-                    "ema5": round(float(latest["EMA5"]), 2),
-                    "ema55": round(float(latest["EMA55"]), 2),
-                },
-            )
-
-    def start(self, rider: SensexBullCall) -> None:
-        tokens = [self.token]
-        kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
-        self._ws = kws
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="WAITING_SIGNAL",
-            message="Monitoring market conditions for bullish entry trigger...",
-            progress_text="Watching live market",
-            is_loading=True,
-        )
-
-        def on_ticks(ws, ticks):
-            if self._stop_flag:
-                return
-
-            if is_after_market_close_ist():
-                self._stop_stream()
-                publish_strategy_state(
-                    strategy_name=STRATEGY_NAME,
-                    index_name=INDEX_NAME,
-                    spread_type=SPREAD_TYPE,
-                    ui_state="STOPPED",
-                    message="Trading window closed for the day.",
-                    progress_text=None,
-                    is_loading=False,
-                )
-                return
-
-            ltt_utc = datetime.utcnow()
-            latest_price = None
-
-            for tick in ticks:
-                if tick.get("instrument_token") != self.token:
-                    continue
-
-                price = tick.get("last_price")
-                if price is None or price <= 0:
-                    continue
-
-                latest_price = float(price)
-                self._prepare_1min_df(ltt_utc, latest_price, rider)
-
-            current_time = time.time()
-            if latest_price is not None and current_time - self.last_tick_log_time >= 5:
-                log_and_print(f"LIVE SENSEX TICK | Price={latest_price:.2f}")
-                self.last_tick_log_time = current_time
-
-        def on_connect(ws, response):
-            if self._stop_flag:
-                return
-            log_and_print("Connected & subscribed to SENSEX EMA stream.")
-            ws.subscribe(tokens)
-            ws.set_mode(ws.MODE_LTP, tokens)
-
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="WAITING_SIGNAL",
-                message="Connected to live SENSEX feed. Monitoring for bullish trigger...",
-                progress_text="Live feed active",
-                is_loading=True,
-            )
-
-        def on_close(ws, code, reason):
-            log_and_print(f"SENSEX EMA WS closed: {code} - {reason}", "warning")
-
-        def on_error(ws, code, reason):
-            log_and_print(f"SENSEX EMA WS error: {code} - {reason}", "error")
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ERROR",
-                message=f"SENSEX websocket error: {reason}",
-                progress_text="Check websocket connection",
-                is_loading=False,
-            )
+            threading.Thread(target=_inject_test_signal, daemon=True).start()
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
-        kws.on_close = on_close
-        kws.on_error = on_error
-
-        log_and_print("Starting SENSEX EMA WebSocket…")
         kws.connect(threaded=True)
 
 
@@ -1101,79 +607,24 @@ def main():
         is_loading=True,
     )
 
-    now_ist = current_ist()
-
-    if not is_weekday_ist(now_ist):
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy is inactive outside working days.",
-            progress_text=None,
-            is_loading=False,
-        )
-        log_and_print("Today is not a working day. Strategy will not run.")
+    if not is_weekday_ist(current_ist()):
         return
-
-    if SENSEX_SPOT_TOKEN <= 0:
-        raise ValueError("Set SENSEX_SPOT_TOKEN in environment variables.")
 
     wait_until_market_open()
 
     try:
         cred = load_creds()
-
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
-        log_and_print("Kite API authenticated.")
-        log_and_print(f"Resolved SENSEX weekly expiry: {cred['i_expiry_date_sensex']}")
-
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="BOOTING",
-            message="Kite API authenticated successfully.",
-            progress_text="Preparing strategy objects",
-            is_loading=True,
-        )
 
         paper_book = PaperOrderBook()
+        sensex_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=SENSEX_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
+        alpha_bull = AlphaBullCallSensex(kite=kite, cred=cred, paper_book=paper_book)
+        sensex_ema.start(alpha_bull)
 
-        sensex_ema = EMACrossover1Min(
-            kite=kite,
-            cred=cred,
-            instrument_token=SENSEX_SPOT_TOKEN,
-            preload_days=PRELOAD_DAYS,
-        )
-
-        sensex_bull = SensexBullCall(
-            kite=kite,
-            cred=cred,
-            paper_book=paper_book,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
-
-        log_and_print("Starting SENSEX EMA bullish-entry logic...")
-        sensex_ema.start(sensex_bull)
-
-        log_and_print("Main finished.")
-
-    except SystemExit:
-        log_and_print("Exited after execution.")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy stopped manually.",
-            progress_text=None,
-            is_loading=False,
-        )
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
+        log_and_print(traceback.format_exc(), "error")
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
