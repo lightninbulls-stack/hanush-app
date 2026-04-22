@@ -214,7 +214,7 @@ def wait_until_market_open() -> None:
 
 def resolve_nifty_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (1 - today.weekday()) % 7  # Tuesday
+    days_ahead = (1 - today.weekday()) % 7
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
