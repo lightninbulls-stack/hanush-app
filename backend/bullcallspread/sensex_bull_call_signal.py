@@ -475,21 +475,26 @@ class AlphaBullCallSensex:
     def quote_details(self) -> None:
         log_and_print("QD 1: ensure_cred_yml")
         ensure_cred_yml(self.cred)
+        
         log_and_print("QD 2: import nfo_util")
-        from option_spreads import nfo_util    
+        from option_spreads import nfo_util
+        
         log_and_print("QD 3: patch_nfo_util_config")
-        patch_nfo_util_config(nfo_util, self.cred)  
+        patch_nfo_util_config(nfo_util, self.cred) 
+        
         log_and_print("QD 4: get_instrument_tokens_ce_sensex")
         tokens = nfo_util.get_instrument_tokens_ce_sensex()
         if not tokens:
             raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
+            
         log_and_print(f"QD 5: token count={len(tokens)}")
-        _ = self.kite.ltp(tokens)    
+        _ = self.kite.ltp(tokens)   
+        
         log_and_print("QD 6: build_sensex_ce_chain_100_strike_with_ltp")
         df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
         if df_ce is None or df_ce.empty:
             raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
-            log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
+        log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
         option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
         if option_chain_ce is None or option_chain_ce.empty:
             raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
