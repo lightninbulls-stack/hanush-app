@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,6 +17,8 @@ import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
+print("✅ nifty_bear_put_signal.py imported")
+
 from shared.intraday_spreads_state import spread_state
 
 # =========================================================
@@ -23,7 +26,7 @@ from shared.intraday_spreads_state import spread_state
 # =========================================================
 INDEX_NAME = "NIFTY"
 SPREAD_TYPE = "bear_put"
-STRATEGY_NAME = "ALPHA_BEAR_PAPER"
+STRATEGY_NAME = "ALPHA_BEAR_PUT_NIFTY"
 
 NIFTY_SPOT_TOKEN = 256265
 PRELOAD_DAYS = 2
@@ -34,11 +37,10 @@ TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
+MARKET_CLOSE_HOUR = 23
+MARKET_CLOSE_MINUTE = 59
 
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-NIFTY_EXPIRY_OVERRIDE = os.getenv("NIFTY_EXPIRY_OVERRIDE", "").strip()
 
 LOG_FILE_NAME = "bear_put_spread.log"
 
@@ -231,6 +233,11 @@ def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
 
+    log_and_print(
+        f"WAIT CHECK | now_ist={now_ist} | "
+        f"market_open={market_open} | market_close={market_close}"
+    )
+
     if now_ist > market_close:
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -241,7 +248,7 @@ def wait_until_market_open() -> None:
             progress_text=None,
             is_loading=False,
         )
-        log_and_print("It is after 3:30 PM IST. Strategy will not run today.")
+        log_and_print("It is after market close. Strategy will not run today.")
         raise SystemExit
 
     if now_ist >= market_open:
@@ -291,11 +298,6 @@ def wait_until_market_open() -> None:
 
 
 def resolve_nifty_weekly_expiry() -> str:
-    if NIFTY_EXPIRY_OVERRIDE:
-        cleaned = NIFTY_EXPIRY_OVERRIDE.replace("-", "")
-        datetime.strptime(cleaned, "%Y%m%d")
-        return cleaned
-
     today = current_ist().date()
     days_ahead = (1 - today.weekday()) % 7  # Tuesday = 1
 
@@ -310,11 +312,25 @@ def resolve_nifty_weekly_expiry() -> str:
 
 def load_creds() -> dict:
     return {
-        "z_api_key": os.environ["Z_API_KEY"],
-        "z_access_token": os.environ["Z_ACCESS_TOKEN"],
+        "z_api_key": os.environ["Z_API_KEY"].strip(),
+        "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
-        "i_inst_name_nifty": "NIFTY",
+        "i_inst_name_nifty": "N",
     }
+
+
+def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
+    content = (
+        f"z_api_key: {cred['z_api_key']}\n"
+        f"z_access_token: {cred['z_access_token']}\n"
+        f"i_expiry_date_nifty: {cred['i_expiry_date_nifty']}\n"
+        f"i_inst_name_nifty: {cred['i_inst_name_nifty']}\n"
+    )
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(content)
+
+    log_and_print(f"cred.yml created for legacy spread utilities at {file_path}")
 
 
 def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
@@ -325,6 +341,88 @@ def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
     setattr(nfo_util_module, "i_expiry_date_nifty", cred["i_expiry_date_nifty"])
     setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
     setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
+
+
+# =========================================================
+# ===================== Spread Builder ====================
+# =========================================================
+def build_bear_put_candidates(
+    df_pe: pd.DataFrame,
+    strike_gaps: tuple[int, ...] = (150, 200),
+) -> pd.DataFrame:
+    """
+    Bear Put Spread:
+    - BUY higher strike PE
+    - SELL lower strike PE
+
+    This helper makes the code independent of a custom
+    nfo_util.bear_put_spreads_nifty() implementation.
+    """
+    required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
+    missing = required_cols - set(df_pe.columns)
+    if missing:
+        raise ValueError(f"df_pe missing required columns: {missing}")
+
+    temp = df_pe.copy()
+    temp = temp.dropna(subset=["strike", "last_price_y"]).copy()
+    temp["strike"] = temp["strike"].astype(int)
+    temp["last_price_y"] = pd.to_numeric(temp["last_price_y"], errors="coerce")
+    temp = temp.dropna(subset=["last_price_y"]).sort_values("strike").reset_index(drop=True)
+
+    candidates = []
+
+    strikes = temp["strike"].tolist()
+    strike_to_row = {int(row["strike"]): row for _, row in temp.iterrows()}
+
+    for lower_strike in strikes:
+        for gap in strike_gaps:
+            higher_strike = lower_strike + gap
+
+            if higher_strike not in strike_to_row:
+                continue
+
+            sell_row = strike_to_row[lower_strike]   # SELL lower strike PE
+            buy_row = strike_to_row[higher_strike]   # BUY higher strike PE
+
+            buy_price = float(buy_row["last_price_y"])
+            sell_price = float(sell_row["last_price_y"])
+
+            net_debit = buy_price - sell_price
+            width = higher_strike - lower_strike
+            max_profit = width - net_debit
+            max_loss = net_debit
+
+            if net_debit <= 0:
+                continue
+            if max_profit <= 0:
+                continue
+
+            rr = max_profit / max_loss if max_loss > 0 else None
+
+            candidates.append(
+                {
+                    "buy_strike": higher_strike,
+                    "sell_strike": lower_strike,
+                    "buy_price": buy_price,
+                    "sell_price": sell_price,
+                    "net_debit": net_debit,
+                    "spread_width": width,
+                    "max_profit": max_profit,
+                    "max_loss": max_loss,
+                    "rr": rr,
+                }
+            )
+
+    if not candidates:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(candidates)
+    out = out.sort_values(
+        by=["rr", "max_profit", "net_debit"],
+        ascending=[False, False, True],
+    ).reset_index(drop=True)
+
+    return out
 
 
 # =========================================================
@@ -643,8 +741,8 @@ class AlphaBearPut:
         self.trade_initialized = False
         self.position_closed = False
         self.expiry = None
-        self.itm_strike = None
-        self.otm_strike = None
+        self.buy_strike = None
+        self.sell_strike = None
         self.symbol_pe = "NIFTY"
 
         self.buy_leg_token = None
@@ -655,6 +753,8 @@ class AlphaBearPut:
         self.sell_entry_price = None
 
     def quote_details(self) -> None:
+        ensure_cred_yml(self.cred)
+
         from option_spreads import nfo_util
 
         patch_nfo_util_config(nfo_util, self.cred)
@@ -669,29 +769,74 @@ class AlphaBearPut:
             is_loading=True,
         )
 
-        _ = self.kite.ltp(nfo_util.get_instrument_tokens_pe_nifty())
+        log_and_print("DEBUG STEP 1 | quote_details() entered")
+        log_and_print(f"DEBUG STEP 2 | expiry from cred = {self.cred.get('i_expiry_date_nifty')}")
+
+        tokens = nfo_util.get_instrument_tokens_pe_nifty()
+        log_and_print(f"DEBUG STEP 3 | PE tokens fetched = {0 if tokens is None else len(tokens)}")
+
+        if not tokens:
+            raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
+
+        ltp_snapshot = self.kite.ltp(tokens)
+        log_and_print(f"DEBUG STEP 4 | LTP snapshot type = {type(ltp_snapshot).__name__}")
 
         df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
-        option_chain_pe = nfo_util.bear_put_spreads_nifty(
-            df_pe,
-            gaps=(150, 200),
-            rr_target=1.5,
-            atm_only=False,
+        log_and_print(f"DEBUG STEP 5 | df_pe built = {'None' if df_pe is None else f'{len(df_pe)} rows'}")
+
+        if df_pe is None or df_pe.empty:
+            raise ValueError("df_pe is empty. Could not build NIFTY PE option chain.")
+
+        log_and_print(
+            "DEBUG STEP 6 | df_pe sample =\n"
+            + df_pe[["tradingsymbol", "strike", "instrument_token", "last_price_y"]]
+            .head(10)
+            .to_string(index=False)
         )
 
-        if option_chain_pe.empty:
-            raise ValueError("No bear put spread candidates found in option chain.")
+        option_chain_pe = build_bear_put_candidates(
+            df_pe=df_pe,
+            strike_gaps=(150, 200),
+        )
 
-        self.itm_strike = int(option_chain_pe.loc[0, "buy_strike"])
-        self.otm_strike = int(option_chain_pe.loc[0, "sell_strike"])
+        log_and_print(
+            f"DEBUG STEP 7 | option_chain_pe = "
+            f"{'None' if option_chain_pe is None else f'{len(option_chain_pe)} rows'}"
+        )
 
-        log_and_print(f"ITM Strike selected: {self.itm_strike}")
-        log_and_print(f"OTM Strike selected: {self.otm_strike}")
+        if option_chain_pe is None or option_chain_pe.empty:
+            raise ValueError("No valid bear put spread candidates found in option chain.")
+
+        log_and_print(
+            "DEBUG STEP 8 | option_chain_pe sample =\n"
+            + option_chain_pe.head(10).to_string(index=False)
+        )
+
+        best = option_chain_pe.iloc[0]
+        log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
+
+        self.buy_strike = int(best["buy_strike"])   # higher strike PE
+        self.sell_strike = int(best["sell_strike"]) # lower strike PE
 
         self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-        buy_row = df_pe.loc[df_pe["strike"].astype(int) == self.itm_strike].iloc[0]
-        sell_row = df_pe.loc[df_pe["strike"].astype(int) == self.otm_strike].iloc[0]
+        log_and_print(
+            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | "
+            f"Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+        )
+
+        buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
+        sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
+
+        log_and_print(f"DEBUG STEP 10 | buy_match rows = {len(buy_match)} | sell_match rows = {len(sell_match)}")
+
+        if buy_match.empty:
+            raise ValueError(f"Buy strike {self.buy_strike} not found in df_pe.")
+        if sell_match.empty:
+            raise ValueError(f"Sell strike {self.sell_strike} not found in df_pe.")
+
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
 
         self.buy_leg_token = int(buy_row["instrument_token"])
         self.sell_leg_token = int(sell_row["instrument_token"])
@@ -703,10 +848,27 @@ class AlphaBearPut:
         self.sell_entry_price = float(sell_row["last_price_y"])
 
         log_and_print(
-            f"Selected BUY leg | {self.buy_leg_symbol} | Token={self.buy_leg_token} | Entry={self.buy_entry_price:.2f}"
+            f"DEBUG STEP 11 | BUY leg = {self.buy_leg_symbol} | "
+            f"token={self.buy_leg_token} | price={self.buy_entry_price}"
         )
         log_and_print(
-            f"Selected SELL leg | {self.sell_leg_symbol} | Token={self.sell_leg_token} | Entry={self.sell_entry_price:.2f}"
+            f"DEBUG STEP 12 | SELL leg = {self.sell_leg_symbol} | "
+            f"token={self.sell_leg_token} | price={self.sell_entry_price}"
+        )
+
+        buy_expiry_dt = pd.to_datetime(buy_row["expiry"])
+        sell_expiry_dt = pd.to_datetime(sell_row["expiry"])
+
+        log_and_print(
+            f"✅ BUY LEG SELECTED | Symbol: NIFTY, Year: {buy_expiry_dt.year}, "
+            f"Month: {buy_expiry_dt.month}, Day: {buy_expiry_dt.day}, "
+            f"Strike: {self.buy_strike}, Type: PE, Expiry: {buy_expiry_dt.strftime('%Y%m%d')}"
+        )
+
+        log_and_print(
+            f"✅ SELL LEG SELECTED | Symbol: NIFTY, Year: {sell_expiry_dt.year}, "
+            f"Month: {sell_expiry_dt.month}, Day: {sell_expiry_dt.day}, "
+            f"Strike: {self.sell_strike}, Type: PE, Expiry: {sell_expiry_dt.strftime('%Y%m%d')}"
         )
 
         publish_strategy_state(
@@ -715,7 +877,7 @@ class AlphaBearPut:
             spread_type=SPREAD_TYPE,
             ui_state="ENTERING_SPREAD",
             message="Spread legs selected successfully.",
-            progress_text=f"BUY {self.itm_strike} PE | SELL {self.otm_strike} PE",
+            progress_text=f"BUY {self.buy_strike} PE | SELL {self.sell_strike} PE",
             is_loading=True,
         )
 
@@ -728,7 +890,7 @@ class AlphaBearPut:
         return self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_pe,
-            strike=self.itm_strike,
+            strike=self.buy_strike,
             expiry=self.expiry,
             side="BUY",
             quantity=self.quantity,
@@ -742,7 +904,7 @@ class AlphaBearPut:
         return self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_pe,
-            strike=self.otm_strike,
+            strike=self.sell_strike,
             expiry=self.expiry,
             side="SELL",
             quantity=self.quantity,
@@ -765,7 +927,12 @@ class AlphaBearPut:
 
         log_and_print("Alpha Bear Put PAPER strategy: START", "info")
         self.quote_details()
-        log_and_print("Bear put spread paper entry created successfully.", "info")
+
+        log_and_print(
+            f"✅ SPREAD EXECUTED | "
+            f"BUY {self.buy_leg_symbol} @ {self.buy_entry_price:.2f} | "
+            f"SELL {self.sell_leg_symbol} @ {self.sell_entry_price:.2f}"
+        )
 
         orders_df = self.paper_book.get_all_orders()
         if not orders_df.empty:
@@ -838,6 +1005,7 @@ class EMACrossover1Min:
 
         self.last_trade_signal = 0
         self.last_tick_log_time = 0.0
+        self._last_candle_flush_time: Optional[datetime] = None
 
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
@@ -889,19 +1057,32 @@ class EMACrossover1Min:
 
         if self.prev_minute is None:
             self.prev_minute = ltt.minute
+            self._last_candle_flush_time = ltt
             return
 
-        if ltt.minute != self.prev_minute:
-            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+        minute_changed = ltt.minute != self.prev_minute
+
+        force_flush = (
+            self._last_candle_flush_time is not None
+            and (ltt - self._last_candle_flush_time).total_seconds() >= 90
+        )
+
+        if minute_changed or force_flush:
+            if minute_changed:
+                ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+            else:
+                ohlc = self.tick_buffer["last_price"].resample("1min").ohlc()
 
             if not ohlc.empty:
                 log_and_print(
-                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} Close={ohlc['close'].iloc[-1]:.2f}"
+                    f"1MIN CANDLE CLOSED | Time={ohlc.index[-1]} | Close={ohlc['close'].iloc[-1]:.2f}"
+                    + (" [FORCE FLUSH]" if force_flush and not minute_changed else "")
                 )
                 ohlc["signal"] = 0
                 self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
                 self._update_ema_crossover(rider)
 
+            self._last_candle_flush_time = ltt
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
@@ -918,7 +1099,7 @@ class EMACrossover1Min:
         self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
         self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
-        if len(self.onemin_bars) < 55:
+        if len(self.onemin_bars) < 2:
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -936,13 +1117,36 @@ class EMACrossover1Min:
         if "signal" not in self.onemin_bars.columns:
             self.onemin_bars["signal"] = 0
 
+        log_and_print(
+            f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+            f"Close={latest['close']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+        )
+
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        if prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]:
-            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = -1
+        # Real bearish logic:
+        # signal_condition = latest["EMA5"] <= latest["EMA55"]
+
+        # TEST MODE:
+        signal_condition = True
+        log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
+
+        log_and_print(
+            f"CHECKING SIGNAL | "
+            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
+            f"Condition={signal_condition}"
+        )
+
+        if signal_condition:
+            self.onemin_bars.at[self.onemin_bars.index[-1], "signal"] = 1
 
             log_and_print(
-                f"🔻 Bearish crossover @ {self.onemin_bars.index[-1].strftime('%H:%M:%S')} | Price: {latest['close']:.2f}"
+                f"🚀 EMA CROSSOVER SIGNAL | "
+                f"Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"Price={latest['close']:.2f} | "
+                f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
             )
 
             publish_strategy_state(
@@ -961,15 +1165,18 @@ class EMACrossover1Min:
                 },
             )
 
-            if self.last_trade_signal != -1:
-                self.last_trade_signal = -1
+            if self.last_trade_signal != 1:
+                log_and_print("Signal is new. Stopping NIFTY stream and launching spread entry.")
+                self.last_trade_signal = 1
                 self._stop_nifty_stream()
 
                 def _launch_rider():
                     try:
+                        log_and_print("🚀 _launch_rider: calling rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBearPut.start() failed: {e}", "error")
+                        log_and_print(traceback.format_exc(), "error")
                         publish_strategy_state(
                             strategy_name=STRATEGY_NAME,
                             index_name=INDEX_NAME,
@@ -983,6 +1190,11 @@ class EMACrossover1Min:
                 threading.Thread(target=_launch_rider, daemon=True).start()
 
         else:
+            log_and_print(
+                f"NO SIGNAL | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+                f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+            )
+
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -1046,7 +1258,19 @@ class EMACrossover1Min:
 
             current_time = time.time()
             if latest_price is not None and current_time - self.last_tick_log_time >= 5:
-                log_and_print(f"LIVE NIFTY TICK | Price={latest_price:.2f}")
+                ema5 = None
+                ema55 = None
+
+                if len(self.onemin_bars) > 0:
+                    latest_bar = self.onemin_bars.iloc[-1]
+                    ema5 = latest_bar.get("EMA5", None)
+                    ema55 = latest_bar.get("EMA55", None)
+
+                log_and_print(
+                    f"LIVE NIFTY TICK | Price={latest_price:.2f} | "
+                    f"EMA5={round(float(ema5), 2) if pd.notna(ema5) else 'NA'} | "
+                    f"EMA55={round(float(ema55), 2) if pd.notna(ema55) else 'NA'}"
+                )
                 self.last_tick_log_time = current_time
 
         def on_connect(ws, response):
@@ -1065,6 +1289,35 @@ class EMACrossover1Min:
                 progress_text="Live feed active",
                 is_loading=True,
             )
+
+            def _inject_test_signal():
+                time.sleep(3)
+                if self._stop_flag:
+                    return
+                try:
+                    log_and_print("⚠️ TEST MODE: Injecting fake candle to trigger spread entry...")
+                    now_ist = current_ist()
+                    fake_close = 24364.85
+
+                    fake_bar1 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close,
+                         "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
+                    )
+                    fake_bar2 = pd.DataFrame(
+                        {"open": fake_close, "high": fake_close, "low": fake_close,
+                         "close": fake_close, "signal": 0},
+                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
+                    )
+
+                    self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
+                    log_and_print("⚠️ TEST MODE: Fake bars injected. Firing _update_ema_crossover...")
+                    self._update_ema_crossover(rider)
+                except Exception as e:
+                    log_and_print(f"TEST SIGNAL injection failed: {e}", "error")
+                    log_and_print(traceback.format_exc(), "error")
+
+            threading.Thread(target=_inject_test_signal, daemon=True).start()
 
         def on_close(ws, code, reason):
             log_and_print(f"NIFTY EMA WS closed: {code} - {reason}", "warning")
@@ -1091,6 +1344,9 @@ class EMACrossover1Min:
 
 
 def main():
+    log_and_print("✅ Strategy main() entered")
+    log_and_print(f"MAIN STARTED | Current IST={current_ist()}")
+
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
         index_name=INDEX_NAME,
@@ -1102,6 +1358,7 @@ def main():
     )
 
     now_ist = current_ist()
+    log_and_print(f"WEEKDAY CHECK | now_ist={now_ist} | weekday={now_ist.weekday()}")
 
     if not is_weekday_ist(now_ist):
         publish_strategy_state(
@@ -1155,8 +1412,7 @@ def main():
 
         log_and_print("Starting NIFTY EMA bearish-entry logic...")
         nifty_ema.start(alpha_bear)
-
-        log_and_print("Main finished.")
+        log_and_print("Strategy initialized successfully. Live websocket is running in background.")
 
     except SystemExit:
         log_and_print("Exited after execution.")
@@ -1171,6 +1427,7 @@ def main():
         )
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
+        log_and_print(traceback.format_exc(), "error")
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
