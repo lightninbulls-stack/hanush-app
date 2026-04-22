@@ -4,7 +4,7 @@ export type SpreadLeg = {
   avg_price: number | null;
   ltp: number | null;
   pnl: number | null;
-  quantity?: number | null;
+  quantity: number | null;
   strike?: number | null;
   expiry?: string | null;
   right?: string | null;
@@ -12,12 +12,26 @@ export type SpreadLeg = {
   entry_time?: string | null;
 };
 
-export type PnlCurvePoint = {
+export type PnlPoint = {
   time: string;
   pnl: number;
   stop_loss?: number;
   target?: number;
   drawdown?: number;
+};
+
+export type StockSignalRow = {
+  symbol: string;
+  instrument_token: number;
+  name?: string | null;
+  signal_status: "WAITING" | "ENTERED" | string;
+  paper_trade: boolean;
+  entry_time?: string | null;
+  avg_price?: number | null;
+  current_ltp?: number | null;
+  max_ltp?: number | null;
+  points_captured?: number | null;
+  pct_captured?: number | null;
 };
 
 export type IntradaySpread = {
@@ -26,43 +40,40 @@ export type IntradaySpread = {
   strategy_name: string;
   status: string;
   ui_state?: string;
-  message?: string | null;
+  message?: string;
   progress_text?: string | null;
   is_loading?: boolean;
-  updated_at?: string | null;
-  net_pnl: number;
-  stop_loss: number;
-  target: number;
-  legs: SpreadLeg[];
+  net_pnl?: number;
+  stop_loss?: number;
+  target?: number;
+  updated_at?: string;
   entry_time?: string | null;
-  entry_marker_time?: string | null;
-  pnl_curve?: PnlCurvePoint[];
+  legs?: SpreadLeg[];
+  pnl_curve?: PnlPoint[];
+  entered_count?: number;
+  total_count?: number;
+  signals?: StockSignalRow[];
 };
 
-type IntradaySpreadsResponse = {
-  status: string;
-  data: Record<string, IntradaySpread>;
-};
+export type IntradaySpreadMap = Record<string, IntradaySpread>;
 
-export async function fetchAllIntradaySpreads(): Promise<
-  Record<string, IntradaySpread>
-> {
-  const response = await fetch("/api/intraday-spreads/all", {
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") || "";
+
+export async function fetchAllIntradaySpreads(): Promise<IntradaySpreadMap> {
+  const url = `${API_BASE}/api/intraday-spreads/all`;
+
+  const response = await fetch(url, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
     },
+    cache: "no-store",
   });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch intraday spreads: ${response.status}`);
   }
 
-  const payload: IntradaySpreadsResponse = await response.json();
-
-  if (payload.status !== "ok" || !payload.data) {
-    return {};
-  }
-
-  return payload.data;
+  const json = await response.json();
+  return (json?.data || {}) as IntradaySpreadMap;
 }
