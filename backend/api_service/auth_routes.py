@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth import (
@@ -38,7 +38,7 @@ CSV_FIELDS = [
 
 class RegisterRequest(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     phone: str
     password: str
 
@@ -72,6 +72,13 @@ def normalize_email(email: str) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email is required",
         )
+
+    if "@" not in value or "." not in value.split("@")[-1]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Valid email is required",
+        )
+
     return value
 
 
