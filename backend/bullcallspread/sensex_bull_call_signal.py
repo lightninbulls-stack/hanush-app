@@ -110,10 +110,15 @@ def build_spread_payload(
     elif not orders:
         status = "NO_POSITION"
 
-    message = "Sensex bull call spread is live." if status == "OPEN" else (
-        "Sensex bull call spread closed." if status == "CLOSED" else
-        "Monitoring market conditions for bullish entry trigger..."
-    )
+    if status == "OPEN":
+        message = "Sensex bull call spread is live."
+        is_loading = False
+    elif status == "CLOSED":
+        message = "Sensex bull call spread closed."
+        is_loading = False
+    else:
+        message = "Monitoring market conditions for bullish entry trigger..."
+        is_loading = True
 
     entry_time = None
     if orders:
@@ -129,7 +134,7 @@ def build_spread_payload(
         "ui_state": status,
         "message": message,
         "progress_text": None,
-        "is_loading": status != "OPEN",
+        "is_loading": is_loading,
         "net_pnl": net_pnl,
         "stop_loss": stop_loss_amount,
         "target": target_amount,
@@ -453,6 +458,7 @@ class PaperSpreadMTMTracker:
         kws.on_connect = on_connect
         kws.connect(threaded=True)
 
+
 class AlphaBullCallSensex:
     def __init__(self, kite: KiteConnect, cred: dict, paper_book: PaperOrderBook):
         self.kite = kite
@@ -613,7 +619,6 @@ class AlphaBullCallSensex:
             )
 
 
-
 class EMACrossover1Min:
     def __init__(self, kite: KiteConnect, cred: dict, instrument_token: int = SENSEX_SPOT_TOKEN, preload_days: int = PRELOAD_DAYS):
         self.kite = kite
@@ -731,7 +736,12 @@ def main():
         kite.set_access_token(cred["z_access_token"])
 
         paper_book = PaperOrderBook()
-        sensex_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=SENSEX_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
+        sensex_ema = EMACrossover1Min(
+            kite=kite,
+            cred=cred,
+            instrument_token=SENSEX_SPOT_TOKEN,
+            preload_days=PRELOAD_DAYS,
+        )
         alpha_bull = AlphaBullCallSensex(kite=kite, cred=cred, paper_book=paper_book)
         sensex_ema.start(alpha_bull)
 
