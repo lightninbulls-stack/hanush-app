@@ -17,14 +17,9 @@ import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
-print("✅ nifty_bull_call_signal.py imported")
-
 from shared.intraday_spreads_state import spread_state
 from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
 
-# =========================================================
-# ========== CONFIGURATION: CHANGE FROM HERE ==============
-# =========================================================
 INDEX_NAME = "NIFTY"
 SPREAD_TYPE = "bull_call"
 STRATEGY_NAME = "ALPHA_BULL_PAPER"
@@ -42,7 +37,6 @@ MARKET_CLOSE_HOUR = 23
 MARKET_CLOSE_MINUTE = 59
 
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-
 LOG_FILE_NAME = "bull_call_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -106,10 +100,8 @@ def build_spread_payload(
     target_amount: float,
 ) -> dict:
     orders = paper_book.get_orders_snapshot()
-
     buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
     sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
-
     net_pnl = round(sum(o.get("pnl", 0.0) for o in orders), 2)
 
     status = "OPEN"
@@ -212,29 +204,10 @@ def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
 
-    log_and_print(f"WAIT CHECK | now_ist={now_ist} | market_open={market_open} | market_close={market_close}")
-
     if now_ist > market_close:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Trading window closed for the day.",
-            is_loading=False,
-        )
         raise SystemExit
 
     if now_ist >= market_open:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="BOOTING",
-            message="Market is open. Initializing strategy...",
-            progress_text="Preparing market context...",
-            is_loading=True,
-        )
         return
 
     sleep_seconds = int((market_open - now_ist).total_seconds())
@@ -244,7 +217,7 @@ def wait_until_market_open() -> None:
 
 def resolve_nifty_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (1 - today.weekday()) % 7  # Tuesday
+    days_ahead = (1 - today.weekday()) % 7
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
@@ -279,10 +252,7 @@ def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
     setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
 
 
-def build_bull_call_candidates(
-    df_ce: pd.DataFrame,
-    strike_gaps: tuple[int, ...] = (150, 200),
-) -> pd.DataFrame:
+def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (150, 200)) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_ce.columns)
     if missing:
@@ -309,7 +279,6 @@ def build_bull_call_candidates(
 
             buy_price = float(buy_row["last_price_y"])
             sell_price = float(sell_row["last_price_y"])
-
             net_debit = buy_price - sell_price
             width = higher_strike - lower_strike
             max_profit = width - net_debit
@@ -396,7 +365,7 @@ class PaperOrderBook:
                     order["ltp"] = float(ltp)
                     if order["side"] == "BUY":
                         order["pnl"] = (order["ltp"] - order["entry_price"]) * order["quantity"]
-                    elif order["side"] == "SELL":
+                    else:
                         order["pnl"] = (order["entry_price"] - order["ltp"]) * order["quantity"]
 
     def total_pnl(self) -> float:
@@ -418,23 +387,9 @@ class PaperOrderBook:
 
 
 class PaperSpreadMTMTracker:
-    def __init__(
-        self,
-        cred: dict,
-        paper_book: PaperOrderBook,
-        stop_loss_amount: float = STOP_LOSS_AMOUNT,
-        target_amount: float = TARGET_AMOUNT,
-        index_name: str = INDEX_NAME,
-        spread_type: str = SPREAD_TYPE,
-        strategy_name: str = STRATEGY_NAME,
-    ):
+    def __init__(self, cred: dict, paper_book: PaperOrderBook):
         self.cred = cred
         self.paper_book = paper_book
-        self.stop_loss_amount = float(stop_loss_amount)
-        self.target_amount = float(target_amount)
-        self.index_name = index_name
-        self.spread_type = spread_type
-        self.strategy_name = strategy_name
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_print_time = 0.0
@@ -442,11 +397,11 @@ class PaperSpreadMTMTracker:
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
             paper_book=self.paper_book,
-            index_name=self.index_name,
-            spread_type=self.spread_type,
-            strategy_name=self.strategy_name,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            strategy_name=STRATEGY_NAME,
+            stop_loss_amount=STOP_LOSS_AMOUNT,
+            target_amount=TARGET_AMOUNT,
         )
         publish_spread_update(payload)
 
@@ -465,27 +420,6 @@ class PaperSpreadMTMTracker:
                 f"NET={total:.2f}"
             )
 
-    def _check_exit_conditions(self) -> None:
-        total = self.paper_book.total_pnl()
-        if total <= self.stop_loss_amount or total >= self.target_amount:
-            self.paper_book.close_all_positions()
-            self._publish_current_state()
-            self.stop()
-
-    def stop(self) -> None:
-        self.is_running = False
-        try:
-            if self.ws is not None:
-                orders_df = self.paper_book.get_all_orders()
-                if not orders_df.empty:
-                    tokens = orders_df["instrument_token"].tolist()
-                    if tokens:
-                        self.ws.unsubscribe(tokens)
-                self.ws.close()
-        except Exception as e:
-            log_and_print(f"Error while stopping MTM tracker: {e}", "error")
-        self._publish_current_state()
-
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
         if orders_df.empty or len(orders_df) < 2:
@@ -502,22 +436,24 @@ class PaperSpreadMTMTracker:
             if is_after_market_close_ist():
                 self.paper_book.close_all_positions()
                 self._publish_current_state()
-                self.stop()
                 return
+
             for tick in ticks:
                 token = tick.get("instrument_token")
                 ltp = tick.get("last_price")
                 if token is None or ltp is None or ltp <= 0:
                     continue
                 self.paper_book.update_ltp_and_pnl(token, float(ltp))
+
             current_time = time.time()
             if current_time - self.last_print_time >= 1.0:
                 self._log_live_mtm()
                 self.last_print_time = current_time
+
             self._publish_current_state()
-            self._check_exit_conditions()
 
         def on_connect(ws, response):
+            log_and_print("Connected to option-leg MTM websocket.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
 
@@ -527,24 +463,11 @@ class PaperSpreadMTMTracker:
 
 
 class AlphaBullCall:
-    def __init__(
-        self,
-        kite: KiteConnect,
-        cred: dict,
-        paper_book: PaperOrderBook,
-        stop_loss_amount: float = STOP_LOSS_AMOUNT,
-        target_amount: float = TARGET_AMOUNT,
-    ):
+    def __init__(self, kite: KiteConnect, cred: dict, paper_book: PaperOrderBook):
         self.kite = kite
         self.cred = cred
         self.paper_book = paper_book
         self.quantity = QUANTITY
-        self.stop_loss_amount = stop_loss_amount
-        self.target_amount = target_amount
-        self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
-        self.reset_state()
-
-    def reset_state(self) -> None:
         self.trade_initialized = False
         self.expiry = None
         self.buy_strike = None
@@ -556,22 +479,13 @@ class AlphaBullCall:
         self.sell_leg_symbol = None
         self.buy_entry_price = None
         self.sell_entry_price = None
+        self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
         with OPTION_CHAIN_BUILD_LOCK:
             ensure_cred_yml(self.cred)
             from option_spreads import nfo_util
             patch_nfo_util_config(nfo_util, self.cred)
-
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ENTERING_SPREAD",
-                message="Entry conditions satisfied. Preparing bull call spread...",
-                progress_text="Selecting spread structure...",
-                is_loading=True,
-            )
 
             tokens = nfo_util.get_instrument_tokens_ce_nifty()
             if not tokens:
@@ -584,7 +498,6 @@ class AlphaBullCall:
                 raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
 
             option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(150, 200))
-
             if option_chain_ce is None or option_chain_ce.empty:
                 raise ValueError("No valid bull call spread candidates found in option chain.")
 
@@ -596,10 +509,8 @@ class AlphaBullCall:
             buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
             sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-            if buy_match.empty:
-                raise ValueError(f"Buy strike {self.buy_strike} not found in df_ce.")
-            if sell_match.empty:
-                raise ValueError(f"Sell strike {self.sell_strike} not found in df_ce.")
+            if buy_match.empty or sell_match.empty:
+                raise ValueError("Selected NIFTY CE strikes not found in option chain.")
 
             buy_row = buy_match.iloc[0]
             sell_row = sell_match.iloc[0]
@@ -611,92 +522,50 @@ class AlphaBullCall:
             self.buy_entry_price = float(buy_row["last_price_y"])
             self.sell_entry_price = float(sell_row["last_price_y"])
 
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="ENTERING_SPREAD",
-                message="Spread legs selected successfully.",
-                progress_text=f"BUY {self.buy_strike} CE | SELL {self.sell_strike} CE",
-                is_loading=True,
-            )
-
             if not self.trade_initialized:
-                self.place_ce_order_buy()
-                self.place_ce_order_sell()
+                self.paper_book.place_order(
+                    strategy_name=STRATEGY_NAME,
+                    symbol=self.symbol_ce,
+                    strike=self.buy_strike,
+                    expiry=self.expiry,
+                    side="BUY",
+                    quantity=self.quantity,
+                    right="CE",
+                    entry_price=self.buy_entry_price,
+                    instrument_token=self.buy_leg_token,
+                    trading_symbol=self.buy_leg_symbol,
+                )
+                self.paper_book.place_order(
+                    strategy_name=STRATEGY_NAME,
+                    symbol=self.symbol_ce,
+                    strike=self.sell_strike,
+                    expiry=self.expiry,
+                    side="SELL",
+                    quantity=self.quantity,
+                    right="CE",
+                    entry_price=self.sell_entry_price,
+                    instrument_token=self.sell_leg_token,
+                    trading_symbol=self.sell_leg_symbol,
+                )
                 self.trade_initialized = True
 
-    def place_ce_order_buy(self) -> str:
-        return self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.buy_strike,
-            expiry=self.expiry,
-            side="BUY",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.buy_entry_price,
-            instrument_token=self.buy_leg_token,
-            trading_symbol=self.buy_leg_symbol,
-        )
-
-    def place_ce_order_sell(self) -> str:
-        return self.paper_book.place_order(
-            strategy_name=STRATEGY_NAME,
-            symbol=self.symbol_ce,
-            strike=self.sell_strike,
-            expiry=self.expiry,
-            side="SELL",
-            quantity=self.quantity,
-            right="CE",
-            entry_price=self.sell_entry_price,
-            instrument_token=self.sell_leg_token,
-            trading_symbol=self.sell_leg_symbol,
-        )
-
     def start(self) -> None:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ENTERING_SPREAD",
-            message="Entry conditions satisfied. Creating paper bull call spread...",
-            progress_text="Placing paper orders",
-            is_loading=True,
-        )
-
         self.quote_details()
-
-        initial_payload = build_spread_payload(
+        payload = build_spread_payload(
             paper_book=self.paper_book,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
             strategy_name=STRATEGY_NAME,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
+            stop_loss_amount=STOP_LOSS_AMOUNT,
+            target_amount=TARGET_AMOUNT,
         )
-        publish_spread_update(initial_payload)
-
-        self.mtm_tracker = PaperSpreadMTMTracker(
-            cred=self.cred,
-            paper_book=self.paper_book,
-            stop_loss_amount=self.stop_loss_amount,
-            target_amount=self.target_amount,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            strategy_name=STRATEGY_NAME,
-        )
+        publish_spread_update(payload)
+        self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
 
 
 class EMACrossover1Min:
-    def __init__(
-        self,
-        kite: KiteConnect,
-        cred: dict,
-        instrument_token: int = NIFTY_SPOT_TOKEN,
-        preload_days: int = PRELOAD_DAYS,
-    ):
+    def __init__(self, kite: KiteConnect, cred: dict, instrument_token: int = NIFTY_SPOT_TOKEN, preload_days: int = PRELOAD_DAYS):
         self.kite = kite
         self.cred = cred
         self.token = instrument_token
@@ -712,12 +581,7 @@ class EMACrossover1Min:
         try:
             end_dt = datetime.today()
             start_dt = end_dt - timedelta(days=self.preload_days)
-            hist = self.kite.historical_data(
-                instrument_token=self.token,
-                from_date=start_dt,
-                to_date=end_dt,
-                interval="minute",
-            )
+            hist = self.kite.historical_data(self.token, start_dt, end_dt, "minute")
             df = pd.DataFrame(hist)
             if df.empty:
                 return pd.DataFrame(columns=["open", "high", "low", "close"])
@@ -749,7 +613,7 @@ class EMACrossover1Min:
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
-    def _stop_stream(self) -> None:
+    def _stop_nifty_stream(self) -> None:
         self._stop_flag = True
         try:
             if self._ws:
@@ -763,21 +627,47 @@ class EMACrossover1Min:
         self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
 
         if len(self.onemin_bars) < 2:
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Building enough 1-minute candles",
+                is_loading=True,
+            )
             return
 
         latest = self.onemin_bars.iloc[-1]
+        prev = self.onemin_bars.iloc[-2]
+
+        if "signal" not in self.onemin_bars.columns:
+            self.onemin_bars["signal"] = 0
+
+        log_and_print(
+            f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
+            f"Close={latest['close']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
+        )
+
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # Replace later with real bullish rule:
-        # signal_condition = latest["EMA5"] >= latest["EMA55"]
-        signal_condition = True
+        signal_condition = latest["EMA5"] >= latest["EMA55"]
+
+        log_and_print(
+            f"CHECKING SIGNAL | "
+            f"PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
+            f"Condition={signal_condition}"
+        )
 
         if signal_condition and self.last_trade_signal != 1:
             self.last_trade_signal = 1
-            self._stop_stream()
+            self._stop_nifty_stream()
 
             def _launch_rider():
                 try:
+                    log_and_print("🚀 _launch_rider: calling rider.start()")
                     rider.start()
                 except Exception as e:
                     log_and_print(f"AlphaBullCall.start() failed: {e}", "error")
@@ -794,7 +684,24 @@ class EMACrossover1Min:
 
             threading.Thread(target=_launch_rider, daemon=True).start()
 
+        else:
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Watching live market",
+                is_loading=True,
+                extra={
+                    "last_price": float(latest["close"]),
+                    "ema5": round(float(latest["EMA5"]), 2),
+                    "ema55": round(float(latest["EMA55"]), 2),
+                },
+            )
+
     def start(self, rider: AlphaBullCall) -> None:
+        tokens = [self.token]
         kws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
         self._ws = kws
 
@@ -811,27 +718,21 @@ class EMACrossover1Min:
                 self._prepare_1min_df(ltt_utc, float(price), rider)
 
         def on_connect(ws, response):
-            ws.subscribe([self.token])
-            ws.set_mode(ws.MODE_LTP, [self.token])
+            if self._stop_flag:
+                return
+            log_and_print("Connected & subscribed to NIFTY EMA stream.")
+            ws.subscribe(tokens)
+            ws.set_mode(ws.MODE_LTP, tokens)
 
-            def _inject_test_signal():
-                time.sleep(3)
-                if self._stop_flag:
-                    return
-                now_ist = current_ist()
-                fake_close = 24364.85
-                fake_bar1 = pd.DataFrame(
-                    {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
-                    index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
-                )
-                fake_bar2 = pd.DataFrame(
-                    {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
-                    index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
-                )
-                self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
-                self._update_ema_crossover(rider)
-
-            threading.Thread(target=_inject_test_signal, daemon=True).start()
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Connected to live NIFTY feed. Monitoring for bullish trigger...",
+                progress_text="Live feed active",
+                is_loading=True,
+            )
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
@@ -869,24 +770,9 @@ def main():
 
         paper_book = PaperOrderBook()
         nifty_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=NIFTY_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
-        alpha_bull = AlphaBullCall(
-            kite=kite,
-            cred=cred,
-            paper_book=paper_book,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
+        alpha_bull = AlphaBullCall(kite=kite, cred=cred, paper_book=paper_book)
         nifty_ema.start(alpha_bull)
 
-    except SystemExit:
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy stopped manually.",
-            is_loading=False,
-        )
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
         log_and_print(traceback.format_exc(), "error")
