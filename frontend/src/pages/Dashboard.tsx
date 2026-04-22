@@ -380,7 +380,7 @@ const Dashboard: React.FC = () => {
             width: "100%",
             minHeight: "100vh",
             background: "#000000",
-            padding: isMobile ? "16px" : "24px",
+            padding: isMobile ? "16px" : "24px 24px 24px 0px",
             boxSizing: "border-box",
           }}
         >
