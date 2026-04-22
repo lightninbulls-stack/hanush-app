@@ -214,7 +214,7 @@ def wait_until_market_open() -> None:
 
 def resolve_nifty_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (1 - today.weekday()) % 7
+    days_ahead = (1 - today.weekday()) % 7  # Tuesday
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
@@ -479,148 +479,145 @@ class AlphaBearPut:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-    log_and_print("QD 1: ensure_cred_yml")
-    ensure_cred_yml(self.cred)
+        log_and_print("QD 1: ensure_cred_yml")
+        ensure_cred_yml(self.cred)
 
-    log_and_print("QD 2: import nfo_util")
-    from option_spreads import nfo_util
+        log_and_print("QD 2: import nfo_util")
+        from option_spreads import nfo_util
 
-    log_and_print("QD 3: patch_nfo_util_config")
-    patch_nfo_util_config(nfo_util, self.cred)
+        log_and_print("QD 3: patch_nfo_util_config")
+        patch_nfo_util_config(nfo_util, self.cred)
 
-    log_and_print("QD 4: get_instrument_tokens_pe_nifty")
-    tokens = nfo_util.get_instrument_tokens_pe_nifty()
-    if not tokens:
-        raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
+        log_and_print("QD 4: get_instrument_tokens_pe_nifty")
+        tokens = nfo_util.get_instrument_tokens_pe_nifty()
+        if not tokens:
+            raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
 
-    log_and_print(f"QD 5: token count={len(tokens)}")
-    _ = self.kite.ltp(tokens)
+        log_and_print(f"QD 5: token count={len(tokens)}")
+        _ = self.kite.ltp(tokens)
 
-    log_and_print("QD 6: build_nifty_pe_chain_100_strike_with_ltp")
-    df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
-    if df_pe is None or df_pe.empty:
-        raise ValueError("df_pe is empty. Could not build NIFTY PE option chain.")
+        log_and_print("QD 6: build_nifty_pe_chain_100_strike_with_ltp")
+        df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
+        if df_pe is None or df_pe.empty:
+            raise ValueError("df_pe is empty. Could not build NIFTY PE option chain.")
 
-    log_and_print(f"QD 7: df_pe rows={len(df_pe)}")
-    option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(150, 200))
-    if option_chain_pe is None or option_chain_pe.empty:
-        raise ValueError("No valid bear put spread candidates found in option chain.")
+        log_and_print(f"QD 7: df_pe rows={len(df_pe)}")
+        option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(150, 200))
+        if option_chain_pe is None or option_chain_pe.empty:
+            raise ValueError("No valid bear put spread candidates found in option chain.")
 
-    log_and_print(f"QD 8: candidate rows={len(option_chain_pe)}")
-    best = option_chain_pe.iloc[0]
-    self.buy_strike = int(best["buy_strike"])
-    self.sell_strike = int(best["sell_strike"])
-    self.expiry = str(self.cred["i_expiry_date_nifty"])
+        log_and_print(f"QD 8: candidate rows={len(option_chain_pe)}")
+        best = option_chain_pe.iloc[0]
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-    log_and_print(
-        f"QD 9: selected buy_strike={self.buy_strike}, "
-        f"sell_strike={self.sell_strike}, expiry={self.expiry}"
-    )
-
-    buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
-    sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
-
-    if buy_match.empty:
-        raise ValueError(f"Buy strike {self.buy_strike} not found in NIFTY PE chain.")
-    if sell_match.empty:
-        raise ValueError(f"Sell strike {self.sell_strike} not found in NIFTY PE chain.")
-
-    buy_row = buy_match.iloc[0]
-    sell_row = sell_match.iloc[0]
-
-    self.buy_leg_token = int(buy_row["instrument_token"])
-    self.sell_leg_token = int(sell_row["instrument_token"])
-    self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-    self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-    self.buy_entry_price = float(buy_row["last_price_y"])
-    self.sell_entry_price = float(sell_row["last_price_y"])
-
-    log_and_print(
-        "QD 10: legs resolved | "
-        f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
-        f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
-    )
-
-
-def place_orders(self) -> None:
-    if self.trade_initialized:
-        log_and_print("PO 1: trade already initialized, skipping place_orders")
-        return
-
-    log_and_print("PO 2: placing BUY order")
-    self.paper_book.place_order(
-        strategy_name=STRATEGY_NAME,
-        symbol=self.symbol_pe,
-        strike=self.buy_strike,
-        expiry=self.expiry,
-        side="BUY",
-        quantity=self.quantity,
-        right="PE",
-        entry_price=self.buy_entry_price,
-        instrument_token=self.buy_leg_token,
-        trading_symbol=self.buy_leg_symbol,
-    )
-
-    log_and_print("PO 3: placing SELL order")
-    self.paper_book.place_order(
-        strategy_name=STRATEGY_NAME,
-        symbol=self.symbol_pe,
-        strike=self.sell_strike,
-        expiry=self.expiry,
-        side="SELL",
-        quantity=self.quantity,
-        right="PE",
-        entry_price=self.sell_entry_price,
-        instrument_token=self.sell_leg_token,
-        trading_symbol=self.sell_leg_symbol,
-    )
-
-    self.trade_initialized = True
-    log_and_print("PO 4: place_orders complete")
-
-
-def start(self) -> None:
-    try:
-        log_and_print("STEP 1: waiting for full selection lock")
-        with OPTION_CHAIN_BUILD_LOCK:
-            log_and_print("STEP 2: acquired full selection lock")
-            log_and_print("STEP 3: entering quote_details()")
-            self.quote_details()
-            log_and_print("STEP 4: quote_details() complete")
-            log_and_print("STEP 5: entering place_orders()")
-            self.place_orders()
-            log_and_print("STEP 6: place_orders() complete")
-        log_and_print("STEP 7: released full selection lock")
-
-        payload = build_spread_payload(
-            paper_book=self.paper_book,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            strategy_name=STRATEGY_NAME,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
-        publish_spread_update(payload)
-
-        log_and_print("STEP 8: starting MTM tracker")
-        self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
-        self.mtm_tracker.start()
-        log_and_print("STEP 9: MTM tracker started")
-
-    except Exception as e:
-        log_and_print(f"START FAILED: {e}", "error")
-        log_and_print(traceback.format_exc(), "error")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ERROR",
-            message=f"Spread launch failed: {str(e)}",
-            progress_text="Check backend logs",
-            is_loading=False,
+        log_and_print(
+            f"QD 9: selected buy_strike={self.buy_strike}, "
+            f"sell_strike={self.sell_strike}, expiry={self.expiry}"
         )
 
-  
+        buy_match = df_pe.loc[df_pe["strike"].astype(int) == self.buy_strike]
+        sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
+
+        if buy_match.empty:
+            raise ValueError(f"Buy strike {self.buy_strike} not found in NIFTY PE chain.")
+        if sell_match.empty:
+            raise ValueError(f"Sell strike {self.sell_strike} not found in NIFTY PE chain.")
+
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
+
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
+
+        log_and_print(
+            "QD 10: legs resolved | "
+            f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
+            f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
+        )
+
+    def place_orders(self) -> None:
+        if self.trade_initialized:
+            log_and_print("PO 1: trade already initialized, skipping place_orders")
+            return
+
+        log_and_print("PO 2: placing BUY order")
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_pe,
+            strike=self.buy_strike,
+            expiry=self.expiry,
+            side="BUY",
+            quantity=self.quantity,
+            right="PE",
+            entry_price=self.buy_entry_price,
+            instrument_token=self.buy_leg_token,
+            trading_symbol=self.buy_leg_symbol,
+        )
+
+        log_and_print("PO 3: placing SELL order")
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_pe,
+            strike=self.sell_strike,
+            expiry=self.expiry,
+            side="SELL",
+            quantity=self.quantity,
+            right="PE",
+            entry_price=self.sell_entry_price,
+            instrument_token=self.sell_leg_token,
+            trading_symbol=self.sell_leg_symbol,
+        )
+
+        self.trade_initialized = True
+        log_and_print("PO 4: place_orders complete")
+
+    def start(self) -> None:
+        try:
+            log_and_print("STEP 1: waiting for full selection lock")
+            with OPTION_CHAIN_BUILD_LOCK:
+                log_and_print("STEP 2: acquired full selection lock")
+                log_and_print("STEP 3: entering quote_details()")
+                self.quote_details()
+                log_and_print("STEP 4: quote_details() complete")
+                log_and_print("STEP 5: entering place_orders()")
+                self.place_orders()
+                log_and_print("STEP 6: place_orders() complete")
+            log_and_print("STEP 7: released full selection lock")
+
+            payload = build_spread_payload(
+                paper_book=self.paper_book,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                strategy_name=STRATEGY_NAME,
+                stop_loss_amount=STOP_LOSS_AMOUNT,
+                target_amount=TARGET_AMOUNT,
+            )
+            publish_spread_update(payload)
+
+            log_and_print("STEP 8: starting MTM tracker")
+            self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
+            self.mtm_tracker.start()
+            log_and_print("STEP 9: MTM tracker started")
+
+        except Exception as e:
+            log_and_print(f"START FAILED: {e}", "error")
+            log_and_print(traceback.format_exc(), "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"Spread launch failed: {str(e)}",
+                progress_text="Check backend logs",
+                is_loading=False,
+            )
+
 
 class EMACrossover1Min:
     def __init__(self, kite: KiteConnect, cred: dict, instrument_token: int = NIFTY_SPOT_TOKEN, preload_days: int = PRELOAD_DAYS):
@@ -836,7 +833,12 @@ def main():
         kite.set_access_token(cred["z_access_token"])
 
         paper_book = PaperOrderBook()
-        nifty_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=NIFTY_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
+        nifty_ema = EMACrossover1Min(
+            kite=kite,
+            cred=cred,
+            instrument_token=NIFTY_SPOT_TOKEN,
+            preload_days=PRELOAD_DAYS,
+        )
         alpha_bear = AlphaBearPut(kite=kite, cred=cred, paper_book=paper_book)
         nifty_ema.start(alpha_bear)
 
