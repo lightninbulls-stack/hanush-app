@@ -249,12 +249,21 @@ def get_db():
         db.close()
 
 
+def get_admin_secret() -> str:
+    return os.getenv("ADMIN_SECRET", "").strip()
+
+
 def verify_admin_secret(secret: str) -> None:
-    admin_secret = os.getenv(
-        "ADMIN_SECRET",
-        "hanush_app_prod_2026_super_long_random_secret_key_9384747",
-    )
-    if secret != admin_secret:
+    provided = (secret or "").strip()
+    expected = get_admin_secret()
+
+    if not expected:
+        raise HTTPException(
+            status_code=500,
+            detail="ADMIN_SECRET is not configured on the server",
+        )
+
+    if provided != expected:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
 
@@ -286,6 +295,15 @@ def health():
         "bull_call_sensex_strategy_running": is_bull_call_sensex_strategy_running(),
         "bear_put_strategy_running": is_bear_put_strategy_running(),
         "bear_put_sensex_strategy_running": is_bear_put_sensex_strategy_running(),
+    }
+
+
+@app.get("/admin/secret-status")
+def admin_secret_status():
+    secret = get_admin_secret()
+    return {
+        "admin_secret_configured": bool(secret),
+        "admin_secret_length": len(secret),
     }
 
 
