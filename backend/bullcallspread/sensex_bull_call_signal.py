@@ -17,8 +17,6 @@ import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
-print("✅ sensex_bull_call_signal.py imported")
-
 from shared.intraday_spreads_state import spread_state
 from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
 
@@ -39,7 +37,6 @@ MARKET_CLOSE_HOUR = 23
 MARKET_CLOSE_MINUTE = 59
 
 SENSEX_EXPIRY_WEEKS_AHEAD = int(os.getenv("SENSEX_EXPIRY_WEEKS_AHEAD", "0"))
-
 LOG_FILE_NAME = "sensex_bull_call_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -103,7 +100,6 @@ def build_spread_payload(
     target_amount: float,
 ) -> dict:
     orders = paper_book.get_orders_snapshot()
-
     buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
     sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
     net_pnl = round(sum(o.get("pnl", 0.0) for o in orders), 2)
@@ -114,7 +110,21 @@ def build_spread_payload(
     elif not orders:
         status = "NO_POSITION"
 
-    message = "Sensex bull call spread is live." if status == "OPEN" else "Sensex bull call spread closed." if status == "CLOSED" else "Monitoring market conditions for bullish entry trigger..."
+    if status == "OPEN":
+        message = "Sensex bull call spread is live."
+        is_loading = False
+    elif status == "CLOSED":
+        message = "Sensex bull call spread closed."
+        is_loading = False
+    else:
+        message = "Monitoring market conditions for bullish entry trigger..."
+        is_loading = True
+
+    entry_time = None
+    if orders:
+        valid_timestamps = [o["timestamp"] for o in orders if o.get("timestamp") is not None]
+        if valid_timestamps:
+            entry_time = min(valid_timestamps).strftime("%H:%M:%S")
 
     return {
         "index": index_name,
@@ -124,12 +134,12 @@ def build_spread_payload(
         "ui_state": status,
         "message": message,
         "progress_text": None,
-        "is_loading": status != "OPEN",
+        "is_loading": is_loading,
         "net_pnl": net_pnl,
         "stop_loss": stop_loss_amount,
         "target": target_amount,
         "updated_at": datetime.now(IST).isoformat(),
-        "entry_time": min([o["timestamp"] for o in orders], default=None).strftime("%H:%M:%S") if orders else None,
+        "entry_time": entry_time,
         "legs": [
             {
                 "side": buy_leg["side"] if buy_leg else None,
@@ -142,7 +152,9 @@ def build_spread_payload(
                 "expiry": buy_leg["expiry"] if buy_leg else None,
                 "right": buy_leg["right"] if buy_leg else None,
                 "status": buy_leg["status"] if buy_leg else None,
-                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S") if buy_leg else None,
+                "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
+                if buy_leg and buy_leg.get("timestamp") is not None
+                else None,
             },
             {
                 "side": sell_leg["side"] if sell_leg else None,
@@ -155,7 +167,9 @@ def build_spread_payload(
                 "expiry": sell_leg["expiry"] if sell_leg else None,
                 "right": sell_leg["right"] if sell_leg else None,
                 "status": sell_leg["status"] if sell_leg else None,
-                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S") if sell_leg else None,
+                "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
+                if sell_leg and sell_leg.get("timestamp") is not None
+                else None,
             },
         ],
     }
@@ -189,16 +203,21 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
+
     if now_ist > market_close:
         raise SystemExit
+
     if now_ist >= market_open:
         return
-    time.sleep(int((market_open - now_ist).total_seconds()))
+
+    sleep_seconds = int((market_open - now_ist).total_seconds())
+    for _ in range(sleep_seconds):
+        time.sleep(1)
 
 
 def resolve_sensex_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (3 - today.weekday()) % 7  # Thursday
+    days_ahead = (3 - today.weekday()) % 7
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(SENSEX_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
@@ -233,10 +252,7 @@ def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
     setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
 
 
-def build_bull_call_candidates(
-    df_ce: pd.DataFrame,
-    strike_gaps: tuple[int, ...] = (100, 200),
-) -> pd.DataFrame:
+def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_ce.columns)
     if missing:
@@ -335,6 +351,7 @@ class PaperOrderBook:
         }
         with self.lock:
             self.orders.append(order)
+        log_and_print(f"📝 PAPER ORDER | RefID={ref_id} | {side} {quantity} {trading_symbol} | Entry={entry_price:.2f}")
         return ref_id
 
     def get_all_orders(self) -> pd.DataFrame:
@@ -375,6 +392,7 @@ class PaperSpreadMTMTracker:
         self.paper_book = paper_book
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
+        self.last_print_time = 0.0
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
@@ -386,6 +404,21 @@ class PaperSpreadMTMTracker:
             target_amount=TARGET_AMOUNT,
         )
         publish_spread_update(payload)
+
+    def _log_live_mtm(self) -> None:
+        orders = self.paper_book.get_orders_snapshot()
+        if len(orders) < 2:
+            return
+        total = self.paper_book.total_pnl()
+        buy_leg = next((o for o in orders if o["side"] == "BUY"), None)
+        sell_leg = next((o for o in orders if o["side"] == "SELL"), None)
+        if buy_leg and sell_leg:
+            log_and_print(
+                "LIVE MTM | "
+                f"BUY {buy_leg['trading_symbol']} Entry={buy_leg['entry_price']:.2f} LTP={buy_leg['ltp']:.2f} PnL={buy_leg['pnl']:.2f} | "
+                f"SELL {sell_leg['trading_symbol']} Entry={sell_leg['entry_price']:.2f} LTP={sell_leg['ltp']:.2f} PnL={sell_leg['pnl']:.2f} | "
+                f"NET={total:.2f}"
+            )
 
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
@@ -400,15 +433,27 @@ class PaperSpreadMTMTracker:
         def on_ticks(ws, ticks):
             if not self.is_running:
                 return
+            if is_after_market_close_ist():
+                self.paper_book.close_all_positions()
+                self._publish_current_state()
+                return
+
             for tick in ticks:
                 token = tick.get("instrument_token")
                 ltp = tick.get("last_price")
                 if token is None or ltp is None or ltp <= 0:
                     continue
                 self.paper_book.update_ltp_and_pnl(token, float(ltp))
+
+            current_time = time.time()
+            if current_time - self.last_print_time >= 1.0:
+                self._log_live_mtm()
+                self.last_print_time = current_time
+
             self._publish_current_state()
 
         def on_connect(ws, response):
+            log_and_print("Connected to option-leg MTM websocket.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
 
@@ -437,75 +482,84 @@ class AlphaBullCallSensex:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        with OPTION_CHAIN_BUILD_LOCK:
-            ensure_cred_yml(self.cred)
-            from option_spreads import nfo_util
-            patch_nfo_util_config(nfo_util, self.cred)
+        ensure_cred_yml(self.cred)
+        from option_spreads import nfo_util
+        patch_nfo_util_config(nfo_util, self.cred)
 
-            tokens = nfo_util.get_instrument_tokens_ce_sensex()
-            if not tokens:
-                raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
+        tokens = nfo_util.get_instrument_tokens_ce_sensex()
+        if not tokens:
+            raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
 
-            _ = self.kite.ltp(tokens)
-            df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
+        _ = self.kite.ltp(tokens)
+        df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
 
-            if df_ce is None or df_ce.empty:
-                raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
+        if df_ce is None or df_ce.empty:
+            raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
 
-            option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
-            if option_chain_ce is None or option_chain_ce.empty:
-                raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
+        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
+        if option_chain_ce is None or option_chain_ce.empty:
+            raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
 
-            best = option_chain_ce.iloc[0]
-            self.buy_strike = int(best["buy_strike"])
-            self.sell_strike = int(best["sell_strike"])
-            self.expiry = str(self.cred["i_expiry_date_sensex"])
+        best = option_chain_ce.iloc[0]
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
+        self.expiry = str(self.cred["i_expiry_date_sensex"])
 
-            buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
-            sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
+        buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
+        sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-            if buy_match.empty or sell_match.empty:
-                raise ValueError("Selected SENSEX CE strikes not found in option chain.")
+        if buy_match.empty or sell_match.empty:
+            raise ValueError("Selected SENSEX CE strikes not found in option chain.")
 
-            buy_row = buy_match.iloc[0]
-            sell_row = sell_match.iloc[0]
+        buy_row = buy_match.iloc[0]
+        sell_row = sell_match.iloc[0]
 
-            self.buy_leg_token = int(buy_row["instrument_token"])
-            self.sell_leg_token = int(sell_row["instrument_token"])
-            self.buy_leg_symbol = str(buy_row["tradingsymbol"])
-            self.sell_leg_symbol = str(sell_row["tradingsymbol"])
-            self.buy_entry_price = float(buy_row["last_price_y"])
-            self.sell_entry_price = float(sell_row["last_price_y"])
+        self.buy_leg_token = int(buy_row["instrument_token"])
+        self.sell_leg_token = int(sell_row["instrument_token"])
+        self.buy_leg_symbol = str(buy_row["tradingsymbol"])
+        self.sell_leg_symbol = str(sell_row["tradingsymbol"])
+        self.buy_entry_price = float(buy_row["last_price_y"])
+        self.sell_entry_price = float(sell_row["last_price_y"])
 
-            if not self.trade_initialized:
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_ce,
-                    strike=self.buy_strike,
-                    expiry=self.expiry,
-                    side="BUY",
-                    quantity=self.quantity,
-                    right="CE",
-                    entry_price=self.buy_entry_price,
-                    instrument_token=self.buy_leg_token,
-                    trading_symbol=self.buy_leg_symbol,
-                )
-                self.paper_book.place_order(
-                    strategy_name=STRATEGY_NAME,
-                    symbol=self.symbol_ce,
-                    strike=self.sell_strike,
-                    expiry=self.expiry,
-                    side="SELL",
-                    quantity=self.quantity,
-                    right="CE",
-                    entry_price=self.sell_entry_price,
-                    instrument_token=self.sell_leg_token,
-                    trading_symbol=self.sell_leg_symbol,
-                )
-                self.trade_initialized = True
+        log_and_print(
+            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+        )
+
+    def place_orders(self) -> None:
+        if self.trade_initialized:
+            return
+
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.buy_strike,
+            expiry=self.expiry,
+            side="BUY",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.buy_entry_price,
+            instrument_token=self.buy_leg_token,
+            trading_symbol=self.buy_leg_symbol,
+        )
+        self.paper_book.place_order(
+            strategy_name=STRATEGY_NAME,
+            symbol=self.symbol_ce,
+            strike=self.sell_strike,
+            expiry=self.expiry,
+            side="SELL",
+            quantity=self.quantity,
+            right="CE",
+            entry_price=self.sell_entry_price,
+            instrument_token=self.sell_leg_token,
+            trading_symbol=self.sell_leg_symbol,
+        )
+        self.trade_initialized = True
 
     def start(self) -> None:
-        self.quote_details()
+        with OPTION_CHAIN_BUILD_LOCK:
+            self.quote_details()
+            self.place_orders()
+
         payload = build_spread_payload(
             paper_book=self.paper_book,
             index_name=INDEX_NAME,
@@ -515,6 +569,7 @@ class AlphaBullCallSensex:
             target_amount=TARGET_AMOUNT,
         )
         publish_spread_update(payload)
+
         self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
         self.mtm_tracker.start()
 
@@ -526,9 +581,9 @@ class EMACrossover1Min:
         self.token = instrument_token
         self.preload_days = preload_days
         self.onemin_bars = self._load_history()
+        self.last_trade_signal = 0
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
-        self.last_trade_signal = 0
 
     def _load_history(self) -> pd.DataFrame:
         try:
@@ -561,8 +616,21 @@ class EMACrossover1Min:
                 return
 
         def on_connect(ws, response):
+            if self._stop_flag:
+                return
+            log_and_print("Connected & subscribed to SENSEX EMA stream.")
             ws.subscribe([self.token])
             ws.set_mode(ws.MODE_LTP, [self.token])
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Connected to live SENSEX feed. Monitoring for bullish trigger...",
+                progress_text="Live feed active",
+                is_loading=True,
+            )
 
             def _inject_test_signal():
                 time.sleep(3)
@@ -573,6 +641,7 @@ class EMACrossover1Min:
 
                 def _launch():
                     try:
+                        log_and_print("🚀 _launch_rider: calling rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBullCallSensex.start() failed: {e}", "error")
@@ -608,6 +677,14 @@ def main():
     )
 
     if not is_weekday_ist(current_ist()):
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy is inactive outside working days.",
+            is_loading=False,
+        )
         return
 
     wait_until_market_open()
