@@ -652,7 +652,9 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        signal_condition = latest["EMA5"] <= latest["EMA55"]
+        # signal_condition = latest["EMA5"] <= latest["EMA55"]
+        signal_condition = True
+        
 
         log_and_print(
             f"CHECKING SIGNAL | "
