@@ -33,10 +33,10 @@ const NON_FEATURE_TABS = [
 ];
 
 const WATCHLIST_SOURCE_CATEGORIES = [
-  "Momentum",
-  "Low Vol",
-  "Value",
-  "Quality",
+  "Consistent Trending",
+  "Slow Movement",
+  "Cheap Value",
+  "Best Quality",
   "Regime Upside",
   "Regime Downside",
   "Range Bound Upside",
@@ -95,7 +95,7 @@ const buildWatchlistStocks = (
 };
 
 const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("Momentum");
+  const [activeTab, setActiveTab] = useState("Consistent Trending");
   const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
@@ -312,7 +312,7 @@ const Dashboard: React.FC = () => {
       style={{
         display: "flex",
         minHeight: "100vh",
-        background: "#020617",
+        background: "#000000",
         color: "#ffffff",
       }}
     >
@@ -321,7 +321,8 @@ const Dashboard: React.FC = () => {
           style={{
             width: 320,
             minWidth: 320,
-            borderRight: "1px solid rgba(148,163,184,0.08)",
+            background: "#000000",
+            borderRight: "1px solid rgba(244, 208, 111, 0.25)",
           }}
         >
           <Sidebar
@@ -338,7 +339,7 @@ const Dashboard: React.FC = () => {
             position: "fixed",
             inset: 0,
             zIndex: 50,
-            background: "rgba(2,6,23,0.72)",
+            background: "rgba(0,0,0,0.78)",
             display: "flex",
           }}
         >
@@ -347,8 +348,7 @@ const Dashboard: React.FC = () => {
               width: 320,
               maxWidth: "86vw",
               height: "100%",
-              background: "#020617",
-              borderRight: "1px solid rgba(148,163,184,0.08)",
+              background: "#000000",
             }}
           >
             <Sidebar
@@ -370,8 +370,9 @@ const Dashboard: React.FC = () => {
       <main
         style={{
           flex: 1,
-          padding: isMobile ? "16px" : "24px",
+          padding: isMobile ? "16px 16px 24px 16px" : "24px 24px 24px 0px",
           overflowX: "hidden",
+          background: "#000000",
         }}
       >
         {isMobile && (
@@ -432,7 +433,7 @@ const Dashboard: React.FC = () => {
         ) : activeTab === "Bull Call Spreads" ? (
           <IntradaySpreadsPanel spreadType="bull_call" />
         ) : activeTab === "Bear Put Spreads" ? (
-          <IntradaySpreadsPanel spreadType="put_debit" />
+          <IntradaySpreadsPanel spreadType="bear_put" />
         ) : activeTab === "Upside Trend Stocks" ? (
           <IntradayStockSignalsPanel
             strategyName={UPSIDE_STOCK_SIGNAL_KEY}
