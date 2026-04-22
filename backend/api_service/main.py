@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
+from bearputspread.nifty_bear_put_signal import main as bear_put_main
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
@@ -29,15 +30,24 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Trading Bible API")
 data_service = DataService()
 
-_strategy_thread: threading.Thread | None = None
-_strategy_lock = threading.Lock()
+# =========================================================
+# ================= Strategy Threads ======================
+# =========================================================
+_bull_call_strategy_thread: threading.Thread | None = None
+_bull_call_strategy_lock = threading.Lock()
+
+_bear_put_strategy_thread: threading.Thread | None = None
+_bear_put_strategy_lock = threading.Lock()
 
 
 def start_bull_call_strategy() -> bool:
-    global _strategy_thread
+    global _bull_call_strategy_thread
 
-    with _strategy_lock:
-        if _strategy_thread is not None and _strategy_thread.is_alive():
+    with _bull_call_strategy_lock:
+        if (
+            _bull_call_strategy_thread is not None
+            and _bull_call_strategy_thread.is_alive()
+        ):
             logger.info("⚠️ Bull Call strategy thread already running.")
             return False
 
@@ -50,29 +60,75 @@ def start_bull_call_strategy() -> bool:
             finally:
                 logger.info("ℹ️ Bull Call strategy thread finished.")
 
-        _strategy_thread = threading.Thread(
+        _bull_call_strategy_thread = threading.Thread(
             target=run,
             daemon=True,
             name="bull-call-strategy-thread",
         )
-        _strategy_thread.start()
+        _bull_call_strategy_thread.start()
+        return True
+
+
+def start_bear_put_strategy() -> bool:
+    global _bear_put_strategy_thread
+
+    with _bear_put_strategy_lock:
+        if (
+            _bear_put_strategy_thread is not None
+            and _bear_put_strategy_thread.is_alive()
+        ):
+            logger.info("⚠️ Bear Put strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Bear Put strategy thread started.")
+                bear_put_main()
+            except Exception as exc:
+                logger.error("❌ Bear put strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Bear Put strategy thread finished.")
+
+        _bear_put_strategy_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="bear-put-strategy-thread",
+        )
+        _bear_put_strategy_thread.start()
         return True
 
 
 def is_strategy_running() -> bool:
-    global _strategy_thread
-    return _strategy_thread is not None and _strategy_thread.is_alive()
+    global _bull_call_strategy_thread
+    return (
+        _bull_call_strategy_thread is not None
+        and _bull_call_strategy_thread.is_alive()
+    )
+
+
+def is_bear_put_strategy_running() -> bool:
+    global _bear_put_strategy_thread
+    return (
+        _bear_put_strategy_thread is not None
+        and _bear_put_strategy_thread.is_alive()
+    )
 
 
 @app.on_event("startup")
 def startup_event() -> None:
     logger.info("✅ FastAPI startup triggered.")
-    started = start_bull_call_strategy()
 
-    if started:
+    bull_started = start_bull_call_strategy()
+    if bull_started:
         logger.info("✅ Bull Call strategy launched from startup.")
     else:
         logger.info("⚠️ Bull Call strategy was already running.")
+
+    bear_started = start_bear_put_strategy()
+    if bear_started:
+        logger.info("✅ Bear Put strategy launched from startup.")
+    else:
+        logger.info("⚠️ Bear Put strategy was already running.")
 
 
 app.add_middleware(
@@ -121,6 +177,8 @@ def health():
     return {
         "status": "healthy",
         "strategy_running": is_strategy_running(),
+        "bull_call_strategy_running": is_strategy_running(),
+        "bear_put_strategy_running": is_bear_put_strategy_running(),
     }
 
 
@@ -138,6 +196,27 @@ def start_strategy():
 def strategy_status():
     return {
         "strategy_running": is_strategy_running(),
+    }
+
+
+@app.post("/api/bear-put-strategy/start")
+def start_bear_put():
+    started = start_bear_put_strategy()
+    return {
+        "started": started,
+        "strategy_running": is_bear_put_strategy_running(),
+        "message": (
+            "Bear put strategy started."
+            if started
+            else "Bear put strategy already running."
+        ),
+    }
+
+
+@app.get("/api/bear-put-strategy/status")
+def bear_put_strategy_status():
+    return {
+        "strategy_running": is_bear_put_strategy_running(),
     }
 
 
