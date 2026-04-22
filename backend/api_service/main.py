@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from api_service import auth_routes, portfolio_routes, intraday_spreads_routes
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
+from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
 from bearputspread.nifty_bear_put_signal import main as bear_put_main
 from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
 from db import Base, SessionLocal, engine
@@ -36,6 +37,9 @@ data_service = DataService()
 # =========================================================
 _bull_call_strategy_thread: threading.Thread | None = None
 _bull_call_strategy_lock = threading.Lock()
+
+_bull_call_sensex_strategy_thread: threading.Thread | None = None
+_bull_call_sensex_strategy_lock = threading.Lock()
 
 _bear_put_strategy_thread: threading.Thread | None = None
 _bear_put_strategy_lock = threading.Lock()
@@ -70,6 +74,35 @@ def start_bull_call_strategy() -> bool:
             name="bull-call-strategy-thread",
         )
         _bull_call_strategy_thread.start()
+        return True
+
+
+def start_bull_call_sensex_strategy() -> bool:
+    global _bull_call_sensex_strategy_thread
+
+    with _bull_call_sensex_strategy_lock:
+        if (
+            _bull_call_sensex_strategy_thread is not None
+            and _bull_call_sensex_strategy_thread.is_alive()
+        ):
+            logger.info("⚠️ Bull Call SENSEX strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Bull Call SENSEX strategy thread started.")
+                bull_call_sensex_main()
+            except Exception as exc:
+                logger.error("❌ Bull Call SENSEX strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Bull Call SENSEX strategy thread finished.")
+
+        _bull_call_sensex_strategy_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="bull-call-sensex-strategy-thread",
+        )
+        _bull_call_sensex_strategy_thread.start()
         return True
 
 
@@ -139,6 +172,14 @@ def is_strategy_running() -> bool:
     )
 
 
+def is_bull_call_sensex_strategy_running() -> bool:
+    global _bull_call_sensex_strategy_thread
+    return (
+        _bull_call_sensex_strategy_thread is not None
+        and _bull_call_sensex_strategy_thread.is_alive()
+    )
+
+
 def is_bear_put_strategy_running() -> bool:
     global _bear_put_strategy_thread
     return (
@@ -164,6 +205,12 @@ def startup_event() -> None:
         logger.info("✅ Bull Call strategy launched from startup.")
     else:
         logger.info("⚠️ Bull Call strategy was already running.")
+
+    bull_sensex_started = start_bull_call_sensex_strategy()
+    if bull_sensex_started:
+        logger.info("✅ Bull Call SENSEX strategy launched from startup.")
+    else:
+        logger.info("⚠️ Bull Call SENSEX strategy was already running.")
 
     bear_started = start_bear_put_strategy()
     if bear_started:
@@ -225,6 +272,7 @@ def health():
         "status": "healthy",
         "strategy_running": is_strategy_running(),
         "bull_call_strategy_running": is_strategy_running(),
+        "bull_call_sensex_strategy_running": is_bull_call_sensex_strategy_running(),
         "bear_put_strategy_running": is_bear_put_strategy_running(),
         "bear_put_sensex_strategy_running": is_bear_put_sensex_strategy_running(),
     }
@@ -244,6 +292,27 @@ def start_strategy():
 def strategy_status():
     return {
         "strategy_running": is_strategy_running(),
+    }
+
+
+@app.post("/api/bull-call-sensex-strategy/start")
+def start_bull_call_sensex():
+    started = start_bull_call_sensex_strategy()
+    return {
+        "started": started,
+        "strategy_running": is_bull_call_sensex_strategy_running(),
+        "message": (
+            "Bull call SENSEX strategy started."
+            if started
+            else "Bull call SENSEX strategy already running."
+        ),
+    }
+
+
+@app.get("/api/bull-call-sensex-strategy/status")
+def bull_call_sensex_strategy_status():
+    return {
+        "strategy_running": is_bull_call_sensex_strategy_running(),
     }
 
 
