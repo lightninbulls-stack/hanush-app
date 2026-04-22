@@ -25,8 +25,8 @@ from shared.intraday_spreads_state import spread_state
 # ========== CONFIGURATION: CHANGE FROM HERE ==============
 # =========================================================
 INDEX_NAME = "NIFTY"
-SPREAD_TYPE = "bear_put"
-STRATEGY_NAME = "ALPHA_BEAR_PUT_NIFTY"
+SPREAD_TYPE = "put_debit"
+STRATEGY_NAME = "ALPHA_BEAR_PAPER"
 
 NIFTY_SPOT_TOKEN = 256265
 PRELOAD_DAYS = 2
@@ -350,14 +350,6 @@ def build_bear_put_candidates(
     df_pe: pd.DataFrame,
     strike_gaps: tuple[int, ...] = (150, 200),
 ) -> pd.DataFrame:
-    """
-    Bear Put Spread:
-    - BUY higher strike PE
-    - SELL lower strike PE
-
-    This helper makes the code independent of a custom
-    nfo_util.bear_put_spreads_nifty() implementation.
-    """
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_pe.columns)
     if missing:
@@ -381,8 +373,8 @@ def build_bear_put_candidates(
             if higher_strike not in strike_to_row:
                 continue
 
-            sell_row = strike_to_row[lower_strike]   # SELL lower strike PE
-            buy_row = strike_to_row[higher_strike]   # BUY higher strike PE
+            sell_row = strike_to_row[lower_strike]
+            buy_row = strike_to_row[higher_strike]
 
             buy_price = float(buy_row["last_price_y"])
             sell_price = float(sell_row["last_price_y"])
@@ -778,8 +770,7 @@ class AlphaBearPut:
         if not tokens:
             raise ValueError("No NIFTY PE tokens returned from nfo_util.get_instrument_tokens_pe_nifty()")
 
-        ltp_snapshot = self.kite.ltp(tokens)
-        log_and_print(f"DEBUG STEP 4 | LTP snapshot type = {type(ltp_snapshot).__name__}")
+        _ = self.kite.ltp(tokens)
 
         df_pe = nfo_util.build_nifty_pe_chain_100_strike_with_ltp()
         log_and_print(f"DEBUG STEP 5 | df_pe built = {'None' if df_pe is None else f'{len(df_pe)} rows'}")
@@ -815,8 +806,8 @@ class AlphaBearPut:
         best = option_chain_pe.iloc[0]
         log_and_print(f"DEBUG STEP 9 | best spread row = {best.to_dict()}")
 
-        self.buy_strike = int(best["buy_strike"])   # higher strike PE
-        self.sell_strike = int(best["sell_strike"]) # lower strike PE
+        self.buy_strike = int(best["buy_strike"])
+        self.sell_strike = int(best["sell_strike"])
 
         self.expiry = str(self.cred["i_expiry_date_nifty"])
 
@@ -1125,10 +1116,10 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # Real bearish logic:
+        # Real bearish signal:
         # signal_condition = latest["EMA5"] <= latest["EMA55"]
 
-        # TEST MODE:
+        # Keep test mode for quick frontend validation:
         signal_condition = True
         log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
 
