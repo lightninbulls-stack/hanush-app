@@ -1116,10 +1116,9 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # Real bearish signal:
+        # Keep this in test mode first so frontend/render wiring can be validated.
+        # After confirming everything works, replace with:
         # signal_condition = latest["EMA5"] <= latest["EMA55"]
-
-        # Keep test mode for quick frontend validation:
         signal_condition = True
         log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
 
