@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from auth import (
@@ -36,7 +38,7 @@ CSV_FIELDS = [
 
 class RegisterRequest(BaseModel):
     name: str
-    email: str
+    email: EmailStr
     phone: str
     password: str
 
@@ -167,6 +169,19 @@ def get_current_email(
         ) from exc
 
 
+def get_current_user(
+    current_email: str = Depends(get_current_email),
+    db: Session = Depends(get_db),
+) -> User:
+    user = db.query(User).filter(User.email == current_email).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+    return user
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     email = normalize_email(body.email)
@@ -242,3 +257,70 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=MeResponse)
 def me(current_email: str = Depends(get_current_email)):
     return MeResponse(email=current_email)
+
+
+@router.get("/users")
+def list_registered_users(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    activity_rows = load_user_activity_rows()
+
+    activity_map: dict[str, dict[str, str]] = {
+        str(row.get("id", "")).strip(): row for row in activity_rows
+    }
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "phone": user.phone,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login_at": activity_map.get(str(user.id), {}).get("last_login_at") or None,
+            "login_count": int(activity_map.get(str(user.id), {}).get("login_count") or 0),
+        }
+        for user in users
+    ]
+
+
+@router.get("/users/export.csv")
+def export_registered_users_csv(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    activity_rows = load_user_activity_rows()
+
+    activity_map: dict[str, dict[str, str]] = {
+        str(row.get("id", "")).strip(): row for row in activity_rows
+    }
+
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+
+    for user in users:
+        activity = activity_map.get(str(user.id), {})
+        writer.writerow(
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "phone": user.phone,
+                "created_at": user.created_at.isoformat() if user.created_at else "",
+                "last_login_at": activity.get("last_login_at", ""),
+                "login_count": activity.get("login_count", "0"),
+            }
+        )
+
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="registered_users.csv"'
+        },
+    )
