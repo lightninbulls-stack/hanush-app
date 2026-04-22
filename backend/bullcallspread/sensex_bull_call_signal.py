@@ -110,15 +110,10 @@ def build_spread_payload(
     elif not orders:
         status = "NO_POSITION"
 
-    if status == "OPEN":
-        message = "Sensex bull call spread is live."
-        is_loading = False
-    elif status == "CLOSED":
-        message = "Sensex bull call spread closed."
-        is_loading = False
-    else:
-        message = "Monitoring market conditions for bullish entry trigger..."
-        is_loading = True
+    message = "Sensex bull call spread is live." if status == "OPEN" else (
+        "Sensex bull call spread closed." if status == "CLOSED" else
+        "Monitoring market conditions for bullish entry trigger..."
+    )
 
     entry_time = None
     if orders:
@@ -134,7 +129,7 @@ def build_spread_payload(
         "ui_state": status,
         "message": message,
         "progress_text": None,
-        "is_loading": is_loading,
+        "is_loading": status != "OPEN",
         "net_pnl": net_pnl,
         "stop_loss": stop_loss_amount,
         "target": target_amount,
@@ -206,13 +201,10 @@ def wait_until_market_open() -> None:
 
     if now_ist > market_close:
         raise SystemExit
-
     if now_ist >= market_open:
         return
 
-    sleep_seconds = int((market_open - now_ist).total_seconds())
-    for _ in range(sleep_seconds):
-        time.sleep(1)
+    time.sleep(int((market_open - now_ist).total_seconds()))
 
 
 def resolve_sensex_weekly_expiry() -> str:
@@ -581,9 +573,9 @@ class EMACrossover1Min:
         self.token = instrument_token
         self.preload_days = preload_days
         self.onemin_bars = self._load_history()
-        self.last_trade_signal = 0
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
+        self.last_trade_signal = 0
 
     def _load_history(self) -> pd.DataFrame:
         try:
@@ -616,9 +608,6 @@ class EMACrossover1Min:
                 return
 
         def on_connect(ws, response):
-            if self._stop_flag:
-                return
-            log_and_print("Connected & subscribed to SENSEX EMA stream.")
             ws.subscribe([self.token])
             ws.set_mode(ws.MODE_LTP, [self.token])
 
@@ -641,7 +630,6 @@ class EMACrossover1Min:
 
                 def _launch():
                     try:
-                        log_and_print("🚀 _launch_rider: calling rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBullCallSensex.start() failed: {e}", "error")
