@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import csv
 import logging
 import os
 import threading
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -31,6 +35,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trading Bible API")
 data_service = DataService()
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+LOGIN_EVENTS_FILE = DATA_DIR / "login_events.csv"
 
 _bull_call_strategy_thread: threading.Thread | None = None
 _bull_call_strategy_lock = threading.Lock()
@@ -250,21 +257,68 @@ def get_db():
 
 
 def get_admin_secret() -> str:
-    return os.getenv("ADMIN_SECRET", "").strip()
+    secret = os.getenv("ADMIN_SECRET")
+    if not secret:
+        raise RuntimeError("ADMIN_SECRET not configured")
+    return secret.strip()
 
 
 def verify_admin_secret(secret: str) -> None:
     provided = (secret or "").strip()
     expected = get_admin_secret()
 
-    if not expected:
-        raise HTTPException(
-            status_code=500,
-            detail="ADMIN_SECRET is not configured on the server",
-        )
-
     if provided != expected:
         raise HTTPException(status_code=403, detail="Unauthorized")
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+
+    raw = value.strip()
+    if not raw:
+        return None
+
+    try:
+        if raw.endswith("Z"):
+            raw = raw.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def load_login_events() -> list[dict[str, str]]:
+    if not LOGIN_EVENTS_FILE.exists():
+        return []
+
+    with LOGIN_EVENTS_FILE.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        return list(reader)
+
+
+def build_login_dates_by_user() -> dict[int, set]:
+    login_dates_by_user: dict[int, set] = defaultdict(set)
+
+    for row in load_login_events():
+        try:
+            user_id = int(str(row.get("user_id", "")).strip())
+        except Exception:
+            continue
+
+        event_at = parse_iso_datetime(row.get("event_at"))
+        if event_at is None:
+            continue
+
+        login_dates_by_user[user_id].add(event_at.date())
+
+    return login_dates_by_user
 
 
 @app.exception_handler(Exception)
@@ -332,6 +386,181 @@ def admin_users(
         }
         for u in users
     ]
+
+
+@app.get("/admin/analytics/summary")
+def admin_analytics_summary(
+    secret: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    verify_admin_secret(secret)
+
+    from models.user import User
+
+    now = utc_now()
+    today = now.date()
+    last_1_day = today - timedelta(days=1)
+    last_7_days = today - timedelta(days=7)
+    last_30_days = today - timedelta(days=30)
+
+    users = db.query(User).all()
+    login_dates_by_user = build_login_dates_by_user()
+
+    signups_today = 0
+    signups_last_7_days = 0
+    signups_last_30_days = 0
+
+    active_1d = 0
+    active_7d = 0
+    active_30d = 0
+
+    for user in users:
+        created_at = user.created_at
+        if created_at is not None:
+            created_date = created_at.date()
+            if created_date == today:
+                signups_today += 1
+            if created_date >= last_7_days:
+                signups_last_7_days += 1
+            if created_date >= last_30_days:
+                signups_last_30_days += 1
+
+        login_dates = login_dates_by_user.get(user.id, set())
+
+        if any(d >= last_1_day for d in login_dates):
+            active_1d += 1
+        if any(d >= last_7_days for d in login_dates):
+            active_7d += 1
+        if any(d >= last_30_days for d in login_dates):
+            active_30d += 1
+
+    return {
+        "total_users": len(users),
+        "signups_today": signups_today,
+        "signups_last_7_days": signups_last_7_days,
+        "signups_last_30_days": signups_last_30_days,
+        "active_users_1d": active_1d,
+        "active_users_7d": active_7d,
+        "active_users_30d": active_30d,
+        "note": "Retention becomes more accurate after login_events.csv starts collecting login history from this deployment onward.",
+    }
+
+
+@app.get("/admin/analytics/daily-signups")
+def admin_daily_signups(
+    secret: str = Query(...),
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+):
+    verify_admin_secret(secret)
+
+    from models.user import User
+
+    today = utc_now().date()
+    start_date = today - timedelta(days=days - 1)
+
+    signups_map: dict[str, int] = {}
+    current = start_date
+    while current <= today:
+        signups_map[current.isoformat()] = 0
+        current += timedelta(days=1)
+
+    users = db.query(User).all()
+    for user in users:
+        if user.created_at is None:
+            continue
+
+        created_date = user.created_at.date()
+        if start_date <= created_date <= today:
+            key = created_date.isoformat()
+            signups_map[key] = signups_map.get(key, 0) + 1
+
+    return {
+        "days": days,
+        "series": [
+            {"date": date_str, "signups": count}
+            for date_str, count in signups_map.items()
+        ],
+    }
+
+
+@app.get("/admin/analytics/active-users")
+def admin_active_users(
+    secret: str = Query(...),
+):
+    verify_admin_secret(secret)
+
+    today = utc_now().date()
+    login_dates_by_user = build_login_dates_by_user()
+
+    active_1d_users = 0
+    active_7d_users = 0
+    active_30d_users = 0
+
+    last_1_day = today - timedelta(days=1)
+    last_7_days = today - timedelta(days=7)
+    last_30_days = today - timedelta(days=30)
+
+    for login_dates in login_dates_by_user.values():
+        if any(d >= last_1_day for d in login_dates):
+            active_1d_users += 1
+        if any(d >= last_7_days for d in login_dates):
+            active_7d_users += 1
+        if any(d >= last_30_days for d in login_dates):
+            active_30d_users += 1
+
+    return {
+        "active_users_1d": active_1d_users,
+        "active_users_7d": active_7d_users,
+        "active_users_30d": active_30d_users,
+    }
+
+
+@app.get("/admin/analytics/retention")
+def admin_retention(
+    secret: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    verify_admin_secret(secret)
+
+    from models.user import User
+
+    today = utc_now().date()
+    users = db.query(User).all()
+    login_dates_by_user = build_login_dates_by_user()
+
+    def compute_retention(day_n: int) -> dict:
+        eligible = 0
+        retained = 0
+
+        for user in users:
+            if user.created_at is None:
+                continue
+
+            signup_date = user.created_at.date()
+            target_date = signup_date + timedelta(days=day_n)
+
+            if target_date > today:
+                continue
+
+            eligible += 1
+            if target_date in login_dates_by_user.get(user.id, set()):
+                retained += 1
+
+        rate = round((retained / eligible) * 100, 2) if eligible > 0 else 0.0
+
+        return {
+            "eligible_users": eligible,
+            "retained_users": retained,
+            "retention_rate_pct": rate,
+        }
+
+    return {
+        "d1": compute_retention(1),
+        "d7": compute_retention(7),
+        "d30": compute_retention(30),
+        "note": "This uses exact-day retention based on login_events.csv. Historical cohorts before login event tracking started may understate retention.",
+    }
 
 
 @app.post("/api/strategy/start")
