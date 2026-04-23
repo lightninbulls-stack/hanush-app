@@ -31,7 +31,7 @@ STRIKE_STEP = 100
 STRIKE_WINDOW = 500
 
 PRELOAD_DAYS = 2
-QUANTITY = 65
+QUANTITY = 50
 
 STOP_LOSS_AMOUNT = -1500.0
 TARGET_AMOUNT = 3000.0
@@ -42,7 +42,7 @@ MARKET_CLOSE_HOUR = 23
 MARKET_CLOSE_MINUTE = 59
 
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-LOG_FILE_NAME = "bear_put_spread.log"
+LOG_FILE_NAME = "nifty_bear_put_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -54,7 +54,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout),
     ],
 )
-logger = logging.getLogger("alpha_bear_strategy")
+logger = logging.getLogger("alpha_bear_nifty_strategy")
 
 
 def log_and_print(msg: str, level: str = "info") -> None:
@@ -116,10 +116,10 @@ def build_spread_payload(
         status = "NO_POSITION"
 
     if status == "OPEN":
-        message = "Bear put spread is live."
+        message = "NIFTY bear put spread is live."
         is_loading = False
     elif status == "CLOSED":
-        message = "Bear put spread closed."
+        message = "NIFTY bear put spread closed."
         is_loading = False
     else:
         message = "Monitoring market conditions for bearish entry trigger..."
@@ -221,7 +221,7 @@ def wait_until_market_open() -> None:
 
 def resolve_nifty_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (3 - today.weekday()) % 7
+    days_ahead = (3 - today.weekday()) % 7  # Thursday
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
