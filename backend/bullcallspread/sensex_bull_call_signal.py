@@ -18,7 +18,7 @@ import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
-from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
+from shared.strategy_locks import SENSEX_BULL_CALL_LOCK
 
 INDEX_NAME = "SENSEX"
 SPREAD_TYPE = "bull_call"
@@ -204,12 +204,19 @@ def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
 
-    if now_ist > market_close:
-        raise SystemExit
+    log_and_print(
+        f"WAIT CHECK | now={now_ist.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"open={market_open.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"close={market_close.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
     if now_ist >= market_open:
+        log_and_print("Skipping market-open wait for paper/test mode.")
         return
 
-    time.sleep(int((market_open - now_ist).total_seconds()))
+    sleep_seconds = int((market_open - now_ist).total_seconds())
+    log_and_print(f"Waiting {sleep_seconds} seconds until market open.")
+    time.sleep(sleep_seconds)
 
 
 def resolve_sensex_weekly_expiry() -> str:
@@ -579,16 +586,19 @@ class AlphaBullCallSensex:
 
     def start(self) -> None:
         try:
-            log_and_print("STEP 1: waiting for full selection lock")
-            with OPTION_CHAIN_BUILD_LOCK:
-                log_and_print("STEP 2: acquired full selection lock")
+            log_and_print("STEP 0: entered AlphaBullCallSensex.start()")
+            log_and_print("STEP 1: waiting for SENSEX_BULL_CALL_LOCK")
+
+            with SENSEX_BULL_CALL_LOCK:
+                log_and_print("STEP 2: acquired SENSEX_BULL_CALL_LOCK")
                 log_and_print("STEP 3: entering quote_details()")
                 self.quote_details()
                 log_and_print("STEP 4: quote_details() complete")
                 log_and_print("STEP 5: entering place_orders()")
                 self.place_orders()
                 log_and_print("STEP 6: place_orders() complete")
-            log_and_print("STEP 7: released full selection lock")
+
+            log_and_print("STEP 7: released SENSEX_BULL_CALL_LOCK")
 
             payload = build_spread_payload(
                 paper_book=self.paper_book,
@@ -661,6 +671,7 @@ class EMACrossover1Min:
                 return
 
         def on_connect(ws, response):
+            log_and_print("WS 1: on_connect fired")
             ws.subscribe([self.token])
             ws.set_mode(ws.MODE_LTP, [self.token])
 
@@ -675,6 +686,7 @@ class EMACrossover1Min:
             )
 
             def _inject_test_signal():
+                log_and_print("WS 2: inject_test_signal started")
                 time.sleep(3)
                 if self._stop_flag or self.last_trade_signal == 1:
                     return
@@ -683,6 +695,7 @@ class EMACrossover1Min:
 
                 def _launch():
                     try:
+                        log_and_print("WS 3: about to call rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBullCallSensex.start() failed: {e}", "error")
@@ -717,6 +730,8 @@ def main():
         is_loading=True,
     )
 
+    log_and_print("MAIN 1: entered main()")
+
     if not is_weekday_ist(current_ist()):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -729,13 +744,19 @@ def main():
         return
 
     wait_until_market_open()
+    log_and_print("MAIN 2: passed wait_until_market_open()")
 
     try:
         cred = load_creds()
+        log_and_print("MAIN 3: creds loaded")
+
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
+        log_and_print("MAIN 4: kite initialized")
 
         paper_book = PaperOrderBook()
+        log_and_print("MAIN 5: paper book created")
+
         sensex_ema = EMACrossover1Min(
             kite=kite,
             cred=cred,
@@ -743,6 +764,7 @@ def main():
             preload_days=PRELOAD_DAYS,
         )
         alpha_bull = AlphaBullCallSensex(kite=kite, cred=cred, paper_book=paper_book)
+        log_and_print("MAIN 6: about to start EMA stream")
         sensex_ema.start(alpha_bull)
 
     except Exception as e:
