@@ -10,7 +10,7 @@ import threading
 import time
 import traceback
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 import pandas as pd
@@ -25,6 +25,11 @@ SPREAD_TYPE = "put_debit"
 STRATEGY_NAME = "ALPHA_BEAR_SENSEX"
 
 SENSEX_SPOT_TOKEN = 265
+SENSEX_SPOT_SYMBOL = "BSE:SENSEX"
+SENSEX_EXCHANGE_SEGMENT = "BFO"
+STRIKE_STEP = 100
+STRIKE_WINDOW = 500
+
 PRELOAD_DAYS = 2
 QUANTITY = 30
 
@@ -153,8 +158,7 @@ def build_spread_payload(
                 "right": buy_leg["right"] if buy_leg else None,
                 "status": buy_leg["status"] if buy_leg else None,
                 "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
-                if buy_leg and buy_leg.get("timestamp") is not None
-                else None,
+                if buy_leg and buy_leg.get("timestamp") is not None else None,
             },
             {
                 "side": sell_leg["side"] if sell_leg else None,
@@ -168,8 +172,7 @@ def build_spread_payload(
                 "right": sell_leg["right"] if sell_leg else None,
                 "status": sell_leg["status"] if sell_leg else None,
                 "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
-                if sell_leg and sell_leg.get("timestamp") is not None
-                else None,
+                if sell_leg and sell_leg.get("timestamp") is not None else None,
             },
         ],
     }
@@ -203,13 +206,17 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
-
-    if now_ist > market_close:
-        raise SystemExit
+    log_and_print(
+        f"WAIT CHECK | now={now_ist.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"open={market_open.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"close={market_close.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     if now_ist >= market_open:
+        log_and_print("Skipping market-open wait for paper/test mode.")
         return
-
-    time.sleep(int((market_open - now_ist).total_seconds()))
+    sleep_seconds = int((market_open - now_ist).total_seconds())
+    log_and_print(f"Waiting {sleep_seconds} seconds until market open.")
+    time.sleep(sleep_seconds)
 
 
 def resolve_sensex_weekly_expiry() -> str:
@@ -220,33 +227,17 @@ def resolve_sensex_weekly_expiry() -> str:
     return expiry.strftime("%Y%m%d")
 
 
+def parse_yyyymmdd_to_date(value: str) -> date:
+    return datetime.strptime(value, "%Y%m%d").date()
+
+
 def load_creds() -> dict:
     return {
         "z_api_key": os.environ["Z_API_KEY"].strip(),
         "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_sensex": resolve_sensex_weekly_expiry(),
-        "i_inst_name_sensex": "S",
+        "i_inst_name_sensex": "SENSEX",
     }
-
-
-def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
-    content = (
-        f"z_api_key: {cred['z_api_key']}\n"
-        f"z_access_token: {cred['z_access_token']}\n"
-        f"i_expiry_date_sensex: {cred['i_expiry_date_sensex']}\n"
-        f"i_inst_name_sensex: {cred['i_inst_name_sensex']}\n"
-    )
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(content)
-
-
-def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
-    if hasattr(nfo_util_module, "load_creds"):
-        nfo_util_module.load_creds = lambda: cred
-    setattr(nfo_util_module, "i_inst_name_sensex", cred["i_inst_name_sensex"])
-    setattr(nfo_util_module, "i_expiry_date_sensex", cred["i_expiry_date_sensex"])
-    setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
-    setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
 
 
 def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
@@ -306,6 +297,89 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
         by=["rr", "max_profit", "net_debit"],
         ascending=[False, False, True],
     ).reset_index(drop=True)
+
+
+def get_spot_ltp(kite: KiteConnect) -> float:
+    quote = kite.ltp([SENSEX_SPOT_SYMBOL])
+    if SENSEX_SPOT_SYMBOL not in quote:
+        raise ValueError(f"Spot quote missing for {SENSEX_SPOT_SYMBOL}")
+    ltp = quote[SENSEX_SPOT_SYMBOL].get("last_price")
+    if ltp is None or float(ltp) <= 0:
+        raise ValueError(f"Invalid spot LTP for {SENSEX_SPOT_SYMBOL}: {ltp}")
+    return float(ltp)
+
+
+def round_to_step(value: float, step: int) -> int:
+    return int(round(value / step) * step)
+
+
+def load_sensex_option_instruments(kite: KiteConnect, expiry_str: str, option_type: str) -> pd.DataFrame:
+    expiry_date = parse_yyyymmdd_to_date(expiry_str)
+    all_instruments = pd.DataFrame(kite.instruments(SENSEX_EXCHANGE_SEGMENT))
+    if all_instruments.empty:
+        raise ValueError(f"No instruments returned from Kite for {SENSEX_EXCHANGE_SEGMENT}")
+
+    required_cols = {
+        "tradingsymbol", "instrument_token", "name",
+        "expiry", "strike", "instrument_type", "segment", "exchange"
+    }
+    missing = required_cols - set(all_instruments.columns)
+    if missing:
+        raise ValueError(f"Instrument dump missing columns: {missing}")
+
+    df = all_instruments.copy()
+    df["expiry"] = pd.to_datetime(df["expiry"]).dt.date
+    df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
+
+    df = df[
+        (df["name"].astype(str).str.upper() == "SENSEX")
+        & (df["instrument_type"].astype(str).str.upper() == option_type.upper())
+        & (df["expiry"] == expiry_date)
+        & (df["strike"].notna())
+    ].copy()
+
+    if df.empty:
+        raise ValueError(f"No SENSEX {option_type} instruments found for expiry {expiry_str}")
+
+    return df.reset_index(drop=True)
+
+
+def build_local_sensex_chain_with_ltp(
+    *,
+    kite: KiteConnect,
+    expiry_str: str,
+    option_type: str,
+    strike_step: int = STRIKE_STEP,
+    strike_window: int = STRIKE_WINDOW,
+) -> pd.DataFrame:
+    spot = get_spot_ltp(kite)
+    atm = round_to_step(spot, strike_step)
+    lower_strike = atm - strike_window
+    upper_strike = atm + strike_window
+
+    log_and_print(f"Current SENSEX Spot: {spot:.2f}")
+    log_and_print(f"Detected ATM Strike: {atm}")
+    log_and_print(f"Strike Range: {lower_strike} to {upper_strike}")
+
+    df = load_sensex_option_instruments(kite, expiry_str, option_type)
+    df = df[(df["strike"] >= lower_strike) & (df["strike"] <= upper_strike)].copy()
+
+    if df.empty:
+        raise ValueError(f"No SENSEX {option_type} instruments inside strike range {lower_strike}-{upper_strike}")
+
+    df["quote_symbol"] = df["tradingsymbol"].astype(str).map(lambda x: f"{SENSEX_EXCHANGE_SEGMENT}:{x}")
+    quote_symbols = df["quote_symbol"].dropna().tolist()
+    if not quote_symbols:
+        raise ValueError(f"Quote symbol list is empty for SENSEX {option_type}")
+
+    quotes = kite.ltp(quote_symbols)
+    df["last_price_y"] = df["quote_symbol"].map(lambda s: float(quotes.get(s, {}).get("last_price", 0.0)))
+
+    df = df[df["last_price_y"] > 0].copy()
+    if df.empty:
+        raise ValueError(f"All fetched LTPs are invalid/zero for SENSEX {option_type}")
+
+    return df.sort_values("strike").reset_index(drop=True)
 
 
 class PaperOrderBook:
@@ -479,41 +553,34 @@ class AlphaBearPutSensex:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        log_and_print("QD 1: ensure_cred_yml")
-        ensure_cred_yml(self.cred)
+        log_and_print("QD 1: building local SENSEX PE chain")
+        self.expiry = str(self.cred["i_expiry_date_sensex"])
 
-        log_and_print("QD 2: import nfo_util")
-        from option_spreads import nfo_util
+        df_pe = build_local_sensex_chain_with_ltp(
+            kite=self.kite,
+            expiry_str=self.expiry,
+            option_type="PE",
+            strike_step=STRIKE_STEP,
+            strike_window=STRIKE_WINDOW,
+        )
 
-        log_and_print("QD 3: patch_nfo_util_config")
-        patch_nfo_util_config(nfo_util, self.cred)
-
-        log_and_print("QD 4: get_instrument_tokens_pe_sensex")
-        tokens = nfo_util.get_instrument_tokens_pe_sensex()
-        if not tokens:
-            raise ValueError("No SENSEX PE tokens returned from nfo_util.get_instrument_tokens_pe_sensex()")
-
-        log_and_print(f"QD 5: token count={len(tokens)}")
-        _ = self.kite.ltp(tokens)
-
-        log_and_print("QD 6: build_sensex_pe_chain_100_strike_with_ltp")
-        df_pe = nfo_util.build_sensex_pe_chain_100_strike_with_ltp()
         if df_pe is None or df_pe.empty:
-            raise ValueError("df_pe is empty. Could not build SENSEX PE option chain.")
+            raise ValueError("Local SENSEX PE chain is empty")
 
-        log_and_print(f"QD 7: df_pe rows={len(df_pe)}")
+        log_and_print(f"QD 2: df_pe rows={len(df_pe)}")
+
         option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(100, 200))
         if option_chain_pe is None or option_chain_pe.empty:
-            raise ValueError("No valid Sensex bear put spread candidates found in option chain.")
+            raise ValueError("No valid Sensex bear put spread candidates found in local chain")
 
-        log_and_print(f"QD 8: candidate rows={len(option_chain_pe)}")
+        log_and_print(f"QD 3: candidate rows={len(option_chain_pe)}")
+
         best = option_chain_pe.iloc[0]
         self.buy_strike = int(best["buy_strike"])
         self.sell_strike = int(best["sell_strike"])
-        self.expiry = str(self.cred["i_expiry_date_sensex"])
 
         log_and_print(
-            f"QD 9: selected buy_strike={self.buy_strike}, "
+            f"QD 4: selected buy_strike={self.buy_strike}, "
             f"sell_strike={self.sell_strike}, expiry={self.expiry}"
         )
 
@@ -521,9 +588,9 @@ class AlphaBearPutSensex:
         sell_match = df_pe.loc[df_pe["strike"].astype(int) == self.sell_strike]
 
         if buy_match.empty:
-            raise ValueError(f"Buy strike {self.buy_strike} not found in SENSEX PE chain.")
+            raise ValueError(f"Buy strike {self.buy_strike} not found in SENSEX PE chain")
         if sell_match.empty:
-            raise ValueError(f"Sell strike {self.sell_strike} not found in SENSEX PE chain.")
+            raise ValueError(f"Sell strike {self.sell_strike} not found in SENSEX PE chain")
 
         buy_row = buy_match.iloc[0]
         sell_row = sell_match.iloc[0]
@@ -536,7 +603,7 @@ class AlphaBearPutSensex:
         self.sell_entry_price = float(sell_row["last_price_y"])
 
         log_and_print(
-            "QD 10: legs resolved | "
+            "QD 5: legs resolved | "
             f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
             f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
         )
@@ -579,16 +646,19 @@ class AlphaBearPutSensex:
 
     def start(self) -> None:
         try:
-            log_and_print("STEP 1: waiting for full selection lock")
-            with OPTION_CHAIN_BUILD_LOCK:
-                log_and_print("STEP 2: acquired full selection lock")
+            log_and_print("STEP 0: entered AlphaBearPutSensex.start()")
+            log_and_print("STEP 1: waiting for SENSEX_BEAR_PUT_LOCK")
+
+            with SENSEX_BEAR_PUT_LOCK:
+                log_and_print("STEP 2: acquired SENSEX_BEAR_PUT_LOCK")
                 log_and_print("STEP 3: entering quote_details()")
                 self.quote_details()
                 log_and_print("STEP 4: quote_details() complete")
                 log_and_print("STEP 5: entering place_orders()")
                 self.place_orders()
                 log_and_print("STEP 6: place_orders() complete")
-            log_and_print("STEP 7: released full selection lock")
+
+            log_and_print("STEP 7: released SENSEX_BEAR_PUT_LOCK")
 
             payload = build_spread_payload(
                 paper_book=self.paper_book,
@@ -661,6 +731,7 @@ class EMACrossover1Min:
                 return
 
         def on_connect(ws, response):
+            log_and_print("WS 1: on_connect fired")
             ws.subscribe([self.token])
             ws.set_mode(ws.MODE_LTP, [self.token])
 
@@ -675,6 +746,7 @@ class EMACrossover1Min:
             )
 
             def _inject_test_signal():
+                log_and_print("WS 2: inject_test_signal started")
                 time.sleep(3)
                 if self._stop_flag or self.last_trade_signal == 1:
                     return
@@ -683,6 +755,7 @@ class EMACrossover1Min:
 
                 def _launch():
                     try:
+                        log_and_print("WS 3: about to call rider.start()")
                         rider.start()
                     except Exception as e:
                         log_and_print(f"AlphaBearPutSensex.start() failed: {e}", "error")
@@ -717,6 +790,8 @@ def main():
         is_loading=True,
     )
 
+    log_and_print("MAIN 1: entered main()")
+
     if not is_weekday_ist(current_ist()):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -729,13 +804,19 @@ def main():
         return
 
     wait_until_market_open()
+    log_and_print("MAIN 2: passed wait_until_market_open()")
 
     try:
         cred = load_creds()
+        log_and_print("MAIN 3: creds loaded")
+
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
+        log_and_print("MAIN 4: kite initialized")
 
         paper_book = PaperOrderBook()
+        log_and_print("MAIN 5: paper book created")
+
         sensex_ema = EMACrossover1Min(
             kite=kite,
             cred=cred,
@@ -743,6 +824,7 @@ def main():
             preload_days=PRELOAD_DAYS,
         )
         alpha_bear = AlphaBearPutSensex(kite=kite, cred=cred, paper_book=paper_book)
+        log_and_print("MAIN 6: about to start EMA stream")
         sensex_ema.start(alpha_bear)
 
     except Exception as e:
