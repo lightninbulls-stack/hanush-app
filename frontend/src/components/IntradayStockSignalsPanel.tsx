@@ -49,41 +49,41 @@ function getTopCapture(signals: StockSignalRow[]) {
 const cardStyle: React.CSSProperties = {
   borderRadius: "30px",
   padding: "28px",
-  background: "linear-gradient(135deg, rgba(7,15,33,0.96), rgba(16,40,82,0.92))",
-  border: "1px solid rgba(96,165,250,0.16)",
-  boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+  background: "#000000",
+  border: "1px solid rgba(244, 208, 111, 0.20)",
+  boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
   color: "#ffffff",
 };
 
 const chipStyle: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: "14px",
-  background: "rgba(15,23,42,0.78)",
-  border: "1px solid rgba(148,163,184,0.14)",
-  color: "#e2e8f0",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(244, 208, 111, 0.14)",
+  color: "#e5e7eb",
   fontSize: "14px",
   minWidth: "145px",
 };
 
 const headerValueStyle: React.CSSProperties = {
   fontSize: "14px",
-  color: "#cbd5e1",
+  color: "#9ca3af",
 };
 
 const tableHeaderStyle: React.CSSProperties = {
   padding: "14px 16px",
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
   fontWeight: 600,
   fontSize: "13px",
-  color: "#94a3b8",
+  color: "#9ca3af",
   textAlign: "left",
 };
 
 const tableCellStyle: React.CSSProperties = {
   padding: "14px 16px",
-  borderBottom: "1px solid rgba(148,163,184,0.08)",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
   fontSize: "14px",
-  color: "#e2e8f0",
+  color: "#e5e7eb",
 };
 
 const IntradayStockSignalsPanel: React.FC<Props> = ({
@@ -160,8 +160,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
       >
         <div>
           <h2 style={{ margin: 0, fontSize: "38px", fontWeight: 800 }}>{title}</h2>
-          <div style={{ marginTop: 8, color: "#cbd5e1", fontSize: 15 }}>{subtitle}</div>
-          <div style={{ marginTop: 6, color: "#94a3b8", fontSize: 13 }}>
+          <div style={{ marginTop: 8, color: "#d1d5db", fontSize: 15 }}>{subtitle}</div>
+          <div style={{ marginTop: 6, color: "#9ca3af", fontSize: 13 }}>
             {spread?.strategy_name || strategyName}
           </div>
         </div>
@@ -204,14 +204,14 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
       </div>
 
       {loading ? (
-        <div style={{ color: "#cbd5e1" }}>Loading intraday stock signals...</div>
+        <div style={{ color: "#d1d5db" }}>Loading intraday stock signals...</div>
       ) : error ? (
         <div style={{ color: "#ef4444" }}>{error}</div>
       ) : !spread ? (
-        <div style={{ color: "#cbd5e1" }}>{emptyMessage}</div>
+        <div style={{ color: "#d1d5db" }}>{emptyMessage}</div>
       ) : (
         <>
-          <div style={{ color: "#cbd5e1", fontSize: 14, marginBottom: 16 }}>
+          <div style={{ color: "#d1d5db", fontSize: 14, marginBottom: 16 }}>
             {spread.message || emptyMessage}
           </div>
 
@@ -219,8 +219,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             style={{
               overflowX: "auto",
               borderRadius: "22px",
-              border: "1px solid rgba(148,163,184,0.12)",
-              background: "rgba(2,6,23,0.35)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.02)",
             }}
           >
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
@@ -240,7 +240,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
               <tbody>
                 {signals.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ ...tableCellStyle, color: "#cbd5e1" }}>
+                    <td colSpan={8} style={{ ...tableCellStyle, color: "#d1d5db" }}>
                       {emptyMessage}
                     </td>
                   </tr>
