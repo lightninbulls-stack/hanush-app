@@ -1,21 +1,7 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-22,1,IOC,Oil Gas & Consumable Fuels,100,1.47,-0.61,-7.41,-4.12,28.38,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,2,BPCL,Oil Gas & Consumable Fuels,96,1.27,3.52,-11.91,-6.95,31.69,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,3,DABUR,Fast Moving Consumer Goods,71,6.17,1.8,-10.46,-6.72,23.33,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,4,ASHOKLEY,Capital Goods,64,1.99,0.2,-4.24,31.9,38.81,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,5,SBIN,Financial Services,64,2.97,3.13,7.29,24.51,25.12,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,6,JUBLFOOD,Consumer Services,63,8.41,3.17,-6.84,-15.67,33.72,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,7,IDFCFIRSTB,Financial Services,54,2.2,4.78,-17.68,-6.29,37.65,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,8,HDFCBANK,Financial Services,52,-1.23,-5.12,-13.57,-18.23,22.56,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,9,SRF,Chemicals,49,-0.31,-2.98,-17.78,-19.29,32.04,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,10,HINDPETRO,Oil Gas & Consumable Fuels,47,4.34,9.5,-13.09,-14.73,38.35,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,11,PIDILITIND,Chemicals,46,6.73,2.5,-5.1,-5.45,23.47,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,12,BAJAJFINSV,Financial Services,36,0.94,2.85,-7.9,-11.57,25.38,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,13,EICHERMOT,Automobile and Auto Components,32,1.43,2.88,-1.74,4.86,30.49,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,14,PNB,Financial Services,26,1.41,1.37,-10.89,-1.49,30.54,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,15,BANKINDIA,Financial Services,25,3.53,0.31,0.03,21.04,37.17,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,16,CHOLAFIN,Financial Services,20,0.97,2.72,-7.33,-7.82,34.27,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,17,BRITANNIA,Fast Moving Consumer Goods,11,1.33,-2.64,-3.0,-2.19,20.19,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,18,KOTAKBANK,Financial Services,7,-1.45,0.39,-10.49,-12.34,21.45,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,19,MFSL,Financial Services,6,-4.24,-2.47,-1.32,1.14,27.24,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-04-22,20,LODHA,Realty,0,2.82,3.59,-16.43,-24.51,35.99,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,1,DABUR,Fast Moving Consumer Goods,100,7.59,6.93,-10.6,-8.14,23.22,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,2,JUBLFOOD,Consumer Services,90,7.22,8.51,-6.62,-17.21,33.61,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,3,SRF,Chemicals,71,1.53,2.57,-16.02,-20.3,31.81,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,4,BANKINDIA,Financial Services,39,1.34,3.49,-4.12,20.28,37.21,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,5,BRITANNIA,Fast Moving Consumer Goods,26,1.53,-0.04,-3.85,-5.88,19.82,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-04-23,6,VOLTAS,Consumer Durables,0,2.61,7.3,2.42,2.11,33.08,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
