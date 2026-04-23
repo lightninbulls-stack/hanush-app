@@ -15,10 +15,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
-from bearputspread.nifty_bear_put_signal import main as bear_put_main
-from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
+# from bearputspread.nifty_bear_put_signal import main as bear_put_main
+# from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
+
+# from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
+
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
-from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
+
+
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
