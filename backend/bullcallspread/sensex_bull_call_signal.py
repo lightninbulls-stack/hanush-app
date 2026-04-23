@@ -498,20 +498,33 @@ class AlphaBullCallSensex:
         log_and_print("QD 4: get_instrument_tokens_ce_sensex")
         tokens = nfo_util.get_instrument_tokens_ce_sensex()
         if not tokens:
-            raise ValueError("No SENSEX CE tokens returned from nfo_util.get_instrument_tokens_ce_sensex()")
+            raise ValueError("❌ No SENSEX CE tokens returned from get_instrument_tokens_ce_sensex()")
+
+        tokens = [t for t in tokens if t is not None]
+        if len(tokens) == 0:
+            raise ValueError("❌ All SENSEX CE tokens are None / invalid")
 
         log_and_print(f"QD 5: token count={len(tokens)}")
-        _ = self.kite.ltp(tokens)
 
-        log_and_print("QD 6: build_sensex_ce_chain_100_strike_with_ltp")
-        df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
+        try:
+            _ = self.kite.ltp(tokens)
+        except Exception as e:
+            raise ValueError(f"❌ Kite LTP failed for SENSEX CE tokens | count={len(tokens)} | error={e}") from e
+
+        log_and_print("QD 6A: calling build_sensex_ce_chain_100_strike_with_ltp()")
+        try:
+            df_ce = nfo_util.build_sensex_ce_chain_100_strike_with_ltp()
+        except Exception as e:
+            raise ValueError(f"❌ Failed inside build_sensex_ce_chain_100_strike_with_ltp() | error={e}") from e
+
         if df_ce is None or df_ce.empty:
-            raise ValueError("df_ce is empty. Could not build SENSEX CE option chain.")
+            raise ValueError("❌ SENSEX CE option chain is empty")
 
-        log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
+        log_and_print(f"QD 6B: SENSEX CE chain built successfully | rows={len(df_ce)}")
+
         option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
         if option_chain_ce is None or option_chain_ce.empty:
-            raise ValueError("No valid Sensex bull call spread candidates found in option chain.")
+            raise ValueError("❌ No valid Sensex bull call spread candidates found in option chain.")
 
         log_and_print(f"QD 8: candidate rows={len(option_chain_ce)}")
         best = option_chain_ce.iloc[0]
@@ -528,9 +541,9 @@ class AlphaBullCallSensex:
         sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
         if buy_match.empty:
-            raise ValueError(f"Buy strike {self.buy_strike} not found in SENSEX CE chain.")
+            raise ValueError(f"❌ Buy strike {self.buy_strike} not found in SENSEX CE chain.")
         if sell_match.empty:
-            raise ValueError(f"Sell strike {self.sell_strike} not found in SENSEX CE chain.")
+            raise ValueError(f"❌ Sell strike {self.sell_strike} not found in SENSEX CE chain.")
 
         buy_row = buy_match.iloc[0]
         sell_row = sell_match.iloc[0]
