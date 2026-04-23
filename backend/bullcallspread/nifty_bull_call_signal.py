@@ -10,7 +10,7 @@ import threading
 import time
 import traceback
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 import pandas as pd
@@ -25,6 +25,11 @@ SPREAD_TYPE = "bull_call"
 STRATEGY_NAME = "ALPHA_BULL_PAPER"
 
 NIFTY_SPOT_TOKEN = 256265
+NIFTY_SPOT_SYMBOL = "NSE:NIFTY 50"
+NIFTY_EXCHANGE_SEGMENT = "NFO"
+STRIKE_STEP = 100
+STRIKE_WINDOW = 500
+
 PRELOAD_DAYS = 2
 QUANTITY = 65
 
@@ -153,8 +158,7 @@ def build_spread_payload(
                 "right": buy_leg["right"] if buy_leg else None,
                 "status": buy_leg["status"] if buy_leg else None,
                 "entry_time": buy_leg["timestamp"].strftime("%H:%M:%S")
-                if buy_leg and buy_leg.get("timestamp") is not None
-                else None,
+                if buy_leg and buy_leg.get("timestamp") is not None else None,
             },
             {
                 "side": sell_leg["side"] if sell_leg else None,
@@ -168,8 +172,7 @@ def build_spread_payload(
                 "right": sell_leg["right"] if sell_leg else None,
                 "status": sell_leg["status"] if sell_leg else None,
                 "entry_time": sell_leg["timestamp"].strftime("%H:%M:%S")
-                if sell_leg and sell_leg.get("timestamp") is not None
-                else None,
+                if sell_leg and sell_leg.get("timestamp") is not None else None,
             },
         ],
     }
@@ -203,17 +206,14 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
-
     log_and_print(
         f"WAIT CHECK | now={now_ist.strftime('%Y-%m-%d %H:%M:%S')} | "
         f"open={market_open.strftime('%Y-%m-%d %H:%M:%S')} | "
         f"close={market_close.strftime('%Y-%m-%d %H:%M:%S')}"
     )
-
     if now_ist >= market_open:
         log_and_print("Skipping market-open wait for paper/test mode.")
         return
-
     sleep_seconds = int((market_open - now_ist).total_seconds())
     log_and_print(f"Waiting {sleep_seconds} seconds until market open.")
     time.sleep(sleep_seconds)
@@ -221,10 +221,14 @@ def wait_until_market_open() -> None:
 
 def resolve_nifty_weekly_expiry() -> str:
     today = current_ist().date()
-    days_ahead = (1 - today.weekday()) % 7
+    days_ahead = (3 - today.weekday()) % 7  # Thursday weekly
     expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
     return expiry.strftime("%Y%m%d")
+
+
+def parse_yyyymmdd_to_date(value: str) -> date:
+    return datetime.strptime(value, "%Y%m%d").date()
 
 
 def load_creds() -> dict:
@@ -232,31 +236,11 @@ def load_creds() -> dict:
         "z_api_key": os.environ["Z_API_KEY"].strip(),
         "z_access_token": os.environ["Z_ACCESS_TOKEN"].strip(),
         "i_expiry_date_nifty": resolve_nifty_weekly_expiry(),
-        "i_inst_name_nifty": "N",
+        "i_inst_name_nifty": "NIFTY",
     }
 
 
-def ensure_cred_yml(cred: dict, file_path: str = "cred.yml") -> None:
-    content = (
-        f"z_api_key: {cred['z_api_key']}\n"
-        f"z_access_token: {cred['z_access_token']}\n"
-        f"i_expiry_date_nifty: {cred['i_expiry_date_nifty']}\n"
-        f"i_inst_name_nifty: {cred['i_inst_name_nifty']}\n"
-    )
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(content)
-
-
-def patch_nfo_util_config(nfo_util_module, cred: dict) -> None:
-    if hasattr(nfo_util_module, "load_creds"):
-        nfo_util_module.load_creds = lambda: cred
-    setattr(nfo_util_module, "i_inst_name_nifty", cred["i_inst_name_nifty"])
-    setattr(nfo_util_module, "i_expiry_date_nifty", cred["i_expiry_date_nifty"])
-    setattr(nfo_util_module, "z_api_key", cred["z_api_key"])
-    setattr(nfo_util_module, "z_access_token", cred["z_access_token"])
-
-
-def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (150, 200)) -> pd.DataFrame:
+def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_ce.columns)
     if missing:
@@ -313,6 +297,89 @@ def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...]
         by=["rr", "max_profit", "net_debit"],
         ascending=[False, False, True],
     ).reset_index(drop=True)
+
+
+def get_spot_ltp(kite: KiteConnect) -> float:
+    quote = kite.ltp([NIFTY_SPOT_SYMBOL])
+    if NIFTY_SPOT_SYMBOL not in quote:
+        raise ValueError(f"Spot quote missing for {NIFTY_SPOT_SYMBOL}")
+    ltp = quote[NIFTY_SPOT_SYMBOL].get("last_price")
+    if ltp is None or float(ltp) <= 0:
+        raise ValueError(f"Invalid spot LTP for {NIFTY_SPOT_SYMBOL}: {ltp}")
+    return float(ltp)
+
+
+def round_to_step(value: float, step: int) -> int:
+    return int(round(value / step) * step)
+
+
+def load_nifty_option_instruments(kite: KiteConnect, expiry_str: str, option_type: str) -> pd.DataFrame:
+    expiry_date = parse_yyyymmdd_to_date(expiry_str)
+    all_instruments = pd.DataFrame(kite.instruments(NIFTY_EXCHANGE_SEGMENT))
+    if all_instruments.empty:
+        raise ValueError(f"No instruments returned from Kite for {NIFTY_EXCHANGE_SEGMENT}")
+
+    required_cols = {
+        "tradingsymbol", "instrument_token", "name",
+        "expiry", "strike", "instrument_type", "segment", "exchange"
+    }
+    missing = required_cols - set(all_instruments.columns)
+    if missing:
+        raise ValueError(f"Instrument dump missing columns: {missing}")
+
+    df = all_instruments.copy()
+    df["expiry"] = pd.to_datetime(df["expiry"]).dt.date
+    df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
+
+    df = df[
+        (df["name"].astype(str).str.upper() == "NIFTY")
+        & (df["instrument_type"].astype(str).str.upper() == option_type.upper())
+        & (df["expiry"] == expiry_date)
+        & (df["strike"].notna())
+    ].copy()
+
+    if df.empty:
+        raise ValueError(f"No NIFTY {option_type} instruments found for expiry {expiry_str}")
+
+    return df.reset_index(drop=True)
+
+
+def build_local_nifty_chain_with_ltp(
+    *,
+    kite: KiteConnect,
+    expiry_str: str,
+    option_type: str,
+    strike_step: int = STRIKE_STEP,
+    strike_window: int = STRIKE_WINDOW,
+) -> pd.DataFrame:
+    spot = get_spot_ltp(kite)
+    atm = round_to_step(spot, strike_step)
+    lower_strike = atm - strike_window
+    upper_strike = atm + strike_window
+
+    log_and_print(f"Current NIFTY Spot: {spot:.2f}")
+    log_and_print(f"Detected ATM Strike: {atm}")
+    log_and_print(f"Strike Range: {lower_strike} to {upper_strike}")
+
+    df = load_nifty_option_instruments(kite, expiry_str, option_type)
+    df = df[(df["strike"] >= lower_strike) & (df["strike"] <= upper_strike)].copy()
+
+    if df.empty:
+        raise ValueError(f"No NIFTY {option_type} instruments inside strike range {lower_strike}-{upper_strike}")
+
+    df["quote_symbol"] = df["tradingsymbol"].astype(str).map(lambda x: f"{NIFTY_EXCHANGE_SEGMENT}:{x}")
+    quote_symbols = df["quote_symbol"].dropna().tolist()
+    if not quote_symbols:
+        raise ValueError(f"Quote symbol list is empty for NIFTY {option_type}")
+
+    quotes = kite.ltp(quote_symbols)
+    df["last_price_y"] = df["quote_symbol"].map(lambda s: float(quotes.get(s, {}).get("last_price", 0.0)))
+
+    df = df[df["last_price_y"] > 0].copy()
+    if df.empty:
+        raise ValueError(f"All fetched LTPs are invalid/zero for NIFTY {option_type}")
+
+    return df.sort_values("strike").reset_index(drop=True)
 
 
 class PaperOrderBook:
@@ -486,41 +553,34 @@ class AlphaBullCall:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
-        log_and_print("QD 1: ensure_cred_yml")
-        ensure_cred_yml(self.cred)
+        log_and_print("QD 1: building local NIFTY CE chain")
+        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
-        log_and_print("QD 2: import nfo_util")
-        from option_spreads import nfo_util
+        df_ce = build_local_nifty_chain_with_ltp(
+            kite=self.kite,
+            expiry_str=self.expiry,
+            option_type="CE",
+            strike_step=STRIKE_STEP,
+            strike_window=STRIKE_WINDOW,
+        )
 
-        log_and_print("QD 3: patch_nfo_util_config")
-        patch_nfo_util_config(nfo_util, self.cred)
-
-        log_and_print("QD 4: get_instrument_tokens_ce_nifty")
-        tokens = nfo_util.get_instrument_tokens_ce_nifty()
-        if not tokens:
-            raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
-
-        log_and_print(f"QD 5: token count={len(tokens)}")
-        _ = self.kite.ltp(tokens)
-
-        log_and_print("QD 6: build_nifty_ce_chain_100_strike_with_ltp")
-        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
         if df_ce is None or df_ce.empty:
-            raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
+            raise ValueError("Local NIFTY CE chain is empty")
 
-        log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
-        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(150, 200))
+        log_and_print(f"QD 2: df_ce rows={len(df_ce)}")
+
+        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
         if option_chain_ce is None or option_chain_ce.empty:
-            raise ValueError("No valid bull call spread candidates found in option chain.")
+            raise ValueError("No valid NIFTY bull call spread candidates found in local chain")
 
-        log_and_print(f"QD 8: candidate rows={len(option_chain_ce)}")
+        log_and_print(f"QD 3: candidate rows={len(option_chain_ce)}")
+
         best = option_chain_ce.iloc[0]
         self.buy_strike = int(best["buy_strike"])
         self.sell_strike = int(best["sell_strike"])
-        self.expiry = str(self.cred["i_expiry_date_nifty"])
 
         log_and_print(
-            f"QD 9: selected buy_strike={self.buy_strike}, "
+            f"QD 4: selected buy_strike={self.buy_strike}, "
             f"sell_strike={self.sell_strike}, expiry={self.expiry}"
         )
 
@@ -528,9 +588,9 @@ class AlphaBullCall:
         sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
         if buy_match.empty:
-            raise ValueError(f"Buy strike {self.buy_strike} not found in NIFTY CE chain.")
+            raise ValueError(f"Buy strike {self.buy_strike} not found in NIFTY CE chain")
         if sell_match.empty:
-            raise ValueError(f"Sell strike {self.sell_strike} not found in NIFTY CE chain.")
+            raise ValueError(f"Sell strike {self.sell_strike} not found in NIFTY CE chain")
 
         buy_row = buy_match.iloc[0]
         sell_row = sell_match.iloc[0]
@@ -543,7 +603,7 @@ class AlphaBullCall:
         self.sell_entry_price = float(sell_row["last_price_y"])
 
         log_and_print(
-            "QD 10: legs resolved | "
+            "QD 5: legs resolved | "
             f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
             f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
         )
