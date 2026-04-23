@@ -18,7 +18,7 @@ import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
-from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
+from shared.strategy_locks import NIFTY_BULL_CALL_LOCK
 
 INDEX_NAME = "NIFTY"
 SPREAD_TYPE = "bull_call"
@@ -204,15 +204,19 @@ def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
 
-    if now_ist > market_close:
-        raise SystemExit
+    log_and_print(
+        f"WAIT CHECK | now={now_ist.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"open={market_open.strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"close={market_close.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
 
     if now_ist >= market_open:
+        log_and_print("Skipping market-open wait for paper/test mode.")
         return
 
     sleep_seconds = int((market_open - now_ist).total_seconds())
-    for _ in range(sleep_seconds):
-        time.sleep(1)
+    log_and_print(f"Waiting {sleep_seconds} seconds until market open.")
+    time.sleep(sleep_seconds)
 
 
 def resolve_nifty_weekly_expiry() -> str:
@@ -482,34 +486,51 @@ class AlphaBullCall:
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
 
     def quote_details(self) -> None:
+        log_and_print("QD 1: ensure_cred_yml")
         ensure_cred_yml(self.cred)
+
+        log_and_print("QD 2: import nfo_util")
         from option_spreads import nfo_util
+
+        log_and_print("QD 3: patch_nfo_util_config")
         patch_nfo_util_config(nfo_util, self.cred)
 
+        log_and_print("QD 4: get_instrument_tokens_ce_nifty")
         tokens = nfo_util.get_instrument_tokens_ce_nifty()
         if not tokens:
             raise ValueError("No NIFTY CE tokens returned from nfo_util.get_instrument_tokens_ce_nifty()")
 
+        log_and_print(f"QD 5: token count={len(tokens)}")
         _ = self.kite.ltp(tokens)
-        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
 
+        log_and_print("QD 6: build_nifty_ce_chain_100_strike_with_ltp")
+        df_ce = nfo_util.build_nifty_ce_chain_100_strike_with_ltp()
         if df_ce is None or df_ce.empty:
             raise ValueError("df_ce is empty. Could not build NIFTY CE option chain.")
 
+        log_and_print(f"QD 7: df_ce rows={len(df_ce)}")
         option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(150, 200))
         if option_chain_ce is None or option_chain_ce.empty:
             raise ValueError("No valid bull call spread candidates found in option chain.")
 
+        log_and_print(f"QD 8: candidate rows={len(option_chain_ce)}")
         best = option_chain_ce.iloc[0]
         self.buy_strike = int(best["buy_strike"])
         self.sell_strike = int(best["sell_strike"])
         self.expiry = str(self.cred["i_expiry_date_nifty"])
 
+        log_and_print(
+            f"QD 9: selected buy_strike={self.buy_strike}, "
+            f"sell_strike={self.sell_strike}, expiry={self.expiry}"
+        )
+
         buy_match = df_ce.loc[df_ce["strike"].astype(int) == self.buy_strike]
         sell_match = df_ce.loc[df_ce["strike"].astype(int) == self.sell_strike]
 
-        if buy_match.empty or sell_match.empty:
-            raise ValueError("Selected NIFTY CE strikes not found in option chain.")
+        if buy_match.empty:
+            raise ValueError(f"Buy strike {self.buy_strike} not found in NIFTY CE chain.")
+        if sell_match.empty:
+            raise ValueError(f"Sell strike {self.sell_strike} not found in NIFTY CE chain.")
 
         buy_row = buy_match.iloc[0]
         sell_row = sell_match.iloc[0]
@@ -522,13 +543,17 @@ class AlphaBullCall:
         self.sell_entry_price = float(sell_row["last_price_y"])
 
         log_and_print(
-            f"✅ Selected Spread | Buy Strike = {self.buy_strike} | Sell Strike = {self.sell_strike} | Expiry = {self.expiry}"
+            "QD 10: legs resolved | "
+            f"BUY {self.buy_leg_symbol} token={self.buy_leg_token} price={self.buy_entry_price:.2f} | "
+            f"SELL {self.sell_leg_symbol} token={self.sell_leg_token} price={self.sell_entry_price:.2f}"
         )
 
     def place_orders(self) -> None:
         if self.trade_initialized:
+            log_and_print("PO 1: trade already initialized, skipping place_orders")
             return
 
+        log_and_print("PO 2: placing BUY order")
         self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_ce,
@@ -541,6 +566,8 @@ class AlphaBullCall:
             instrument_token=self.buy_leg_token,
             trading_symbol=self.buy_leg_symbol,
         )
+
+        log_and_print("PO 3: placing SELL order")
         self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_ce,
@@ -554,24 +581,51 @@ class AlphaBullCall:
             trading_symbol=self.sell_leg_symbol,
         )
         self.trade_initialized = True
+        log_and_print("PO 4: place_orders complete")
 
     def start(self) -> None:
-        with OPTION_CHAIN_BUILD_LOCK:
-            self.quote_details()
-            self.place_orders()
+        try:
+            log_and_print("STEP 0: entered AlphaBullCall.start()")
+            log_and_print("STEP 1: waiting for NIFTY_BULL_CALL_LOCK")
 
-        payload = build_spread_payload(
-            paper_book=self.paper_book,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            strategy_name=STRATEGY_NAME,
-            stop_loss_amount=STOP_LOSS_AMOUNT,
-            target_amount=TARGET_AMOUNT,
-        )
-        publish_spread_update(payload)
+            with NIFTY_BULL_CALL_LOCK:
+                log_and_print("STEP 2: acquired NIFTY_BULL_CALL_LOCK")
+                log_and_print("STEP 3: entering quote_details()")
+                self.quote_details()
+                log_and_print("STEP 4: quote_details() complete")
+                log_and_print("STEP 5: entering place_orders()")
+                self.place_orders()
+                log_and_print("STEP 6: place_orders() complete")
 
-        self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
-        self.mtm_tracker.start()
+            log_and_print("STEP 7: released NIFTY_BULL_CALL_LOCK")
+
+            payload = build_spread_payload(
+                paper_book=self.paper_book,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                strategy_name=STRATEGY_NAME,
+                stop_loss_amount=STOP_LOSS_AMOUNT,
+                target_amount=TARGET_AMOUNT,
+            )
+            publish_spread_update(payload)
+
+            log_and_print("STEP 8: starting MTM tracker")
+            self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
+            self.mtm_tracker.start()
+            log_and_print("STEP 9: MTM tracker started")
+
+        except Exception as e:
+            log_and_print(f"START FAILED: {e}", "error")
+            log_and_print(traceback.format_exc(), "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"Spread launch failed: {str(e)}",
+                progress_text="Check backend logs",
+                is_loading=False,
+            )
 
 
 class EMACrossover1Min:
@@ -675,7 +729,7 @@ class EMACrossover1Min:
 
             def _launch_rider():
                 try:
-                    log_and_print("🚀 _launch_rider: calling rider.start()")
+                    log_and_print("WS 3: about to call rider.start()")
                     rider.start()
                 except Exception as e:
                     log_and_print(f"AlphaBullCall.start() failed: {e}", "error")
@@ -712,6 +766,7 @@ class EMACrossover1Min:
         def on_connect(ws, response):
             if self._stop_flag:
                 return
+            log_and_print("WS 1: on_connect fired")
             log_and_print("Connected & subscribed to NIFTY EMA stream.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
@@ -727,6 +782,7 @@ class EMACrossover1Min:
             )
 
             def _inject_test_signal():
+                log_and_print("WS 2: inject_test_signal started")
                 time.sleep(3)
                 if self._stop_flag:
                     return
@@ -769,6 +825,8 @@ def main():
         is_loading=True,
     )
 
+    log_and_print("MAIN 1: entered main()")
+
     if not is_weekday_ist(current_ist()):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -781,16 +839,28 @@ def main():
         return
 
     wait_until_market_open()
+    log_and_print("MAIN 2: passed wait_until_market_open()")
 
     try:
         cred = load_creds()
+        log_and_print("MAIN 3: creds loaded")
+
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
+        log_and_print("MAIN 4: kite initialized")
 
         paper_book = PaperOrderBook()
-        nifty_ema = EMACrossover1Min(kite=kite, cred=cred, instrument_token=NIFTY_SPOT_TOKEN, preload_days=PRELOAD_DAYS)
-        alpha_bear = AlphaBearPut(kite=kite, cred=cred, paper_book=paper_book)
-        nifty_ema.start(alpha_bear)
+        log_and_print("MAIN 5: paper book created")
+
+        nifty_ema = EMACrossover1Min(
+            kite=kite,
+            cred=cred,
+            instrument_token=NIFTY_SPOT_TOKEN,
+            preload_days=PRELOAD_DAYS,
+        )
+        alpha_bull = AlphaBullCall(kite=kite, cred=cred, paper_book=paper_book)
+        log_and_print("MAIN 6: about to start EMA stream")
+        nifty_ema.start(alpha_bull)
 
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
