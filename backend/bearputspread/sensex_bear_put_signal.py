@@ -18,7 +18,7 @@ import pytz
 from kiteconnect import KiteConnect, KiteTicker
 
 from shared.intraday_spreads_state import spread_state
-from shared.option_chain_build_lock import OPTION_CHAIN_BUILD_LOCK
+from shared.strategy_locks import SENSEX_BEAR_PUT_LOCK
 
 INDEX_NAME = "SENSEX"
 SPREAD_TYPE = "put_debit"
