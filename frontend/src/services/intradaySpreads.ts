@@ -19,6 +19,22 @@ export type PnlPoint = {
   target?: number;
   drawdown?: number;
 };
+
+export type StockSignalRow = {
+  symbol: string;
+  instrument_token: number;
+  name?: string | null;
+  signal_status: "WAITING" | "ENTERED" | string;
+  paper_trade?: boolean;
+  entry_time?: string | null;
+  avg_price?: number | null;
+  current_ltp?: number | null;
+  max_ltp?: number | null;
+  min_ltp?: number | null;
+  favorable_price?: number | null;
+  points_captured?: number | null;
+  pct_captured?: number | null;
+};
 export type IntradaySpread = {
   index: string;
   spread_type: string;
