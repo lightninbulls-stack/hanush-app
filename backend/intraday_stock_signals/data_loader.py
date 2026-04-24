@@ -14,7 +14,7 @@ def resolve_instrument_file(candidates: Iterable[str] = INSTRUMENT_FILE_CANDIDAT
             return path
 
     raise FileNotFoundError(
-        f"No Zerodha instrument file found. Checked: {list(candidates)}"
+        f"No kite instrument file found. Checked: {list(candidates)}"
     )
 
 
