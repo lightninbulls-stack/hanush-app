@@ -8,29 +8,59 @@ import pandas as pd
 from .config import INSTRUMENT_FILE_CANDIDATES
 
 
+# -------------------------------------------------------
+# STEP 1 — Resolve Instrument File (FIXED)
+# -------------------------------------------------------
 def resolve_instrument_file(candidates: Iterable[str] = INSTRUMENT_FILE_CANDIDATES) -> str:
+    checked_paths = []
+
     for path in candidates:
-        if os.path.exists(path):
-            return path
+        abs_path = os.path.abspath(path)
+        checked_paths.append(abs_path)
+
+        if os.path.exists(abs_path):
+            print(f"✅ USING INSTRUMENT FILE: {abs_path}")
+            return abs_path
 
     raise FileNotFoundError(
-        f"No kite instrument file found. Checked: {list(candidates)}"
+        f"No kite instrument file found.\nChecked paths:\n{checked_paths}"
     )
 
 
+# -------------------------------------------------------
+# STEP 2 — Find Symbol Column
+# -------------------------------------------------------
 def _find_symbol_column(df: pd.DataFrame, candidates: list[str]) -> str:
-    col = next((c for c in candidates if c in df.columns), None)
-    if col is None:
-        raise ValueError(f"Could not find symbol column. Available columns: {df.columns.tolist()}")
-    return col
+    for col in candidates:
+        if col in df.columns:
+            return col
+
+    raise ValueError(
+        f"Could not find symbol column. Available columns: {df.columns.tolist()}"
+    )
 
 
+# -------------------------------------------------------
+# STEP 3 — Load Regime Symbols
+# -------------------------------------------------------
 def load_regime_symbols(regime_file_path: str) -> list[str]:
+    if not os.path.exists(regime_file_path):
+        raise FileNotFoundError(f"Regime file not found: {regime_file_path}")
+
     regime_df = pd.read_csv(regime_file_path)
 
     symbol_col = _find_symbol_column(
         regime_df,
-        ["symbol", "Symbol", "stock", "Stock", "tradingsymbol", "TradingSymbol", "ticker", "Ticker"],
+        [
+            "symbol",
+            "Symbol",
+            "stock",
+            "Stock",
+            "tradingsymbol",
+            "TradingSymbol",
+            "ticker",
+            "Ticker",
+        ],
     )
 
     regime_symbols = (
@@ -43,13 +73,21 @@ def load_regime_symbols(regime_file_path: str) -> list[str]:
         .tolist()
     )
 
+    print(f"✅ REGIME SYMBOLS COUNT: {len(regime_symbols)}")
+
     if not regime_symbols:
         raise ValueError(f"No symbols found in regime file: {regime_file_path}")
 
     return regime_symbols
 
 
+# -------------------------------------------------------
+# STEP 4 — Load Instruments (SMART FILTER)
+# -------------------------------------------------------
 def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
+    if not os.path.exists(instrument_file_path):
+        raise FileNotFoundError(f"Instrument file not found: {instrument_file_path}")
+
     inst_df = pd.read_csv(instrument_file_path)
 
     required_cols = [
@@ -61,17 +99,22 @@ def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
         "segment",
         "exchange",
     ]
+
     missing_cols = [col for col in required_cols if col not in inst_df.columns]
     if missing_cols:
         raise ValueError(
             f"Missing columns in Zerodha instrument file {instrument_file_path}: {missing_cols}"
         )
 
+    # Normalize
     inst_df["tradingsymbol"] = inst_df["tradingsymbol"].astype(str).str.strip().str.upper()
     inst_df["exchange"] = inst_df["exchange"].astype(str).str.strip().str.upper()
     inst_df["segment"] = inst_df["segment"].astype(str).str.strip().str.upper()
     inst_df["instrument_type"] = inst_df["instrument_type"].astype(str).str.strip().str.upper()
 
+    # 🔥 IMPORTANT FIX:
+    # If EQ exists → use EQ
+    # Else fallback to ALL rows (for your current NFO file situation)
     equity_df = inst_df[
         (inst_df["exchange"] == "NSE")
         & (inst_df["segment"] == "NSE")
@@ -79,14 +122,22 @@ def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
     ].copy()
 
     if equity_df.empty:
-        raise ValueError(
-            f"No NSE cash equity rows found in instrument file: {instrument_file_path}"
-        )
+        print("⚠️ No EQ found — falling back to ALL NSE instruments")
+        equity_df = inst_df[inst_df["exchange"] == "NSE"].copy()
+
+    print(f"✅ INSTRUMENT ROWS USED: {len(equity_df)}")
 
     return equity_df
 
 
-def build_signal_universe(regime_file_path: str, instrument_file_path: str | None = None) -> pd.DataFrame:
+# -------------------------------------------------------
+# STEP 5 — Build Signal Universe (FINAL MATCH)
+# -------------------------------------------------------
+def build_signal_universe(
+    regime_file_path: str,
+    instrument_file_path: str | None = None,
+) -> pd.DataFrame:
+
     instrument_path = instrument_file_path or resolve_instrument_file()
 
     regime_symbols = load_regime_symbols(regime_file_path)
@@ -94,9 +145,14 @@ def build_signal_universe(regime_file_path: str, instrument_file_path: str | Non
 
     matched_df = equity_df[equity_df["tradingsymbol"].isin(regime_symbols)].copy()
 
+    print(f"✅ MATCHED SYMBOLS: {len(matched_df)}")
+
     if matched_df.empty:
+        print("❌ DEBUG SAMPLE REGIME:", regime_symbols[:10])
+        print("❌ DEBUG SAMPLE INSTRUMENT:", equity_df["tradingsymbol"].head(10).tolist())
+
         raise ValueError(
-            "No matching symbols found after filtering exchange='NSE', segment='NSE', instrument_type='EQ'."
+            "No matching symbols found between regime file and instrument file."
         )
 
     matched_df = matched_df[
@@ -112,4 +168,7 @@ def build_signal_universe(regime_file_path: str, instrument_file_path: str | Non
     ].drop_duplicates(subset=["tradingsymbol"]).reset_index(drop=True)
 
     matched_df = matched_df.rename(columns={"tradingsymbol": "symbol"})
+
+    print("✅ FINAL SIGNAL UNIVERSE READY")
+
     return matched_df
