@@ -1,0 +1,15 @@
+name: Upside Stock Signal Scheduler
+
+on:
+  schedule:
+    - cron: "20 9 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  trigger-upside-stock-signal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render upside stock signal
+        run: |
+          curl -X POST "https://hanush-backend-service1.onrender.com/api/upside-stock-signal-strategy/start"
