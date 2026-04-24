@@ -141,11 +141,14 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
   }, [spread]);
 
   const enteredCount =
-    spread?.entered_count ?? signals.filter((s) => s.signal_status === "ENTERED").length;
+    spread?.entered_count ??
+    signals.filter((s) => s.signal_status === "ENTERED").length;
 
   const totalCount = spread?.total_count ?? signals.length;
 
   const bestCapture = getTopCapture(signals);
+
+  const isDownside = strategyName.includes("DOWNSIDE");
 
   return (
     <div style={cardStyle}>
@@ -159,8 +162,12 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: "38px", fontWeight: 800 }}>{title}</h2>
-          <div style={{ marginTop: 8, color: "#d1d5db", fontSize: 15 }}>{subtitle}</div>
+          <h2 style={{ margin: 0, fontSize: "38px", fontWeight: 800 }}>
+            {title}
+          </h2>
+          <div style={{ marginTop: 8, color: "#d1d5db", fontSize: 15 }}>
+            {subtitle}
+          </div>
           <div style={{ marginTop: 6, color: "#9ca3af", fontSize: 13 }}>
             {spread?.strategy_name || strategyName}
           </div>
@@ -181,120 +188,75 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
           >
             {spread?.status || "WAITING"}
           </div>
-          <div style={headerValueStyle}>Updated: {formatUpdatedAt(spread?.updated_at)}</div>
+          <div style={headerValueStyle}>
+            Updated: {formatUpdatedAt(spread?.updated_at)}
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
+      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
         <div style={chipStyle}>Entered: {enteredCount}</div>
         <div style={chipStyle}>Total Stocks: {totalCount}</div>
         <div style={chipStyle}>
           Best Capture:{" "}
           {bestCapture
-            ? `${bestCapture.symbol} (${formatPrice(bestCapture.points_captured)})`
+            ? `${bestCapture.symbol} (${formatPrice(
+                bestCapture.points_captured
+              )})`
             : "--"}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ color: "#d1d5db" }}>Loading intraday stock signals...</div>
+        <div>Loading...</div>
       ) : error ? (
-        <div style={{ color: "#ef4444" }}>{error}</div>
-      ) : !spread ? (
-        <div style={{ color: "#d1d5db" }}>{emptyMessage}</div>
+        <div style={{ color: "red" }}>{error}</div>
       ) : (
-        <>
-          <div style={{ color: "#d1d5db", fontSize: 14, marginBottom: 16 }}>
-            {spread.message || emptyMessage}
-          </div>
+        <table style={{ width: "100%" }}>
+          <thead>
+            <tr>
+              <th style={tableHeaderStyle}>Trading Symbol</th>
+              <th style={tableHeaderStyle}>Status</th>
+              <th style={tableHeaderStyle}>Entry Time</th>
+              <th style={tableHeaderStyle}>Avg Price</th>
+              <th style={tableHeaderStyle}>Current LTP</th>
+              <th style={tableHeaderStyle}>
+                {isDownside ? "Min LTP" : "Max LTP"}
+              </th>
+              <th style={tableHeaderStyle}>Points</th>
+              <th style={tableHeaderStyle}>%</th>
+            </tr>
+          </thead>
 
-          <div
-            style={{
-              overflowX: "auto",
-              borderRadius: "22px",
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.02)",
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-              <thead>
-                <tr>
-                  <th style={tableHeaderStyle}>Trading Symbol</th>
-                  <th style={tableHeaderStyle}>Status</th>
-                  <th style={tableHeaderStyle}>Entry Time</th>
-                  <th style={tableHeaderStyle}>Avg Price</th>
-                  <th style={tableHeaderStyle}>Current LTP</th>
-                  <th style={tableHeaderStyle}>Max LTP</th>
-                  <th style={tableHeaderStyle}>Points Captured</th>
-                  <th style={tableHeaderStyle}>% Captured</th>
-                </tr>
-              </thead>
+          <tbody>
+            {signals.map((row) => (
+              <tr key={row.instrument_token}>
+                <td style={tableCellStyle}>{row.symbol}</td>
+                <td style={tableCellStyle}>{row.signal_status}</td>
+                <td style={tableCellStyle}>{row.entry_time}</td>
+                <td style={tableCellStyle}>{formatPrice(row.avg_price)}</td>
+                <td style={tableCellStyle}>
+                  {formatPrice(row.current_ltp)}
+                </td>
 
-              <tbody>
-                {signals.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ ...tableCellStyle, color: "#d1d5db" }}>
-                      {emptyMessage}
-                    </td>
-                  </tr>
-                ) : (
-                  signals.map((row) => {
-                    const entered = row.signal_status === "ENTERED";
-                    const positive = (row.points_captured || 0) >= 0;
+                <td style={tableCellStyle}>
+                  {formatPrice(
+                    isDownside
+                      ? row.min_ltp ?? row.favorable_price ?? row.max_ltp
+                      : row.max_ltp ?? row.favorable_price
+                  )}
+                </td>
 
-                    return (
-                      <tr key={row.instrument_token}>
-                        <td style={{ ...tableCellStyle, fontWeight: 700 }}>{row.symbol}</td>
-
-                        <td
-                          style={{
-                            ...tableCellStyle,
-                            color: entered ? "#22c55e" : "#f59e0b",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {row.signal_status}
-                        </td>
-
-                        <td style={tableCellStyle}>{row.entry_time || "--"}</td>
-                        <td style={tableCellStyle}>{formatPrice(row.avg_price)}</td>
-                        <td style={tableCellStyle}>{formatPrice(row.current_ltp)}</td>
-                        <td style={tableCellStyle}>{formatPrice(row.max_ltp)}</td>
-
-                        <td
-                          style={{
-                            ...tableCellStyle,
-                            color: positive ? "#22c55e" : "#ef4444",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {formatPrice(row.points_captured)}
-                        </td>
-
-                        <td
-                          style={{
-                            ...tableCellStyle,
-                            color: positive ? "#22c55e" : "#ef4444",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {formatPercent(row.pct_captured)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
+                <td style={tableCellStyle}>
+                  {formatPrice(row.points_captured)}
+                </td>
+                <td style={tableCellStyle}>
+                  {formatPercent(row.pct_captured)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
