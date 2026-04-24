@@ -1,107 +1,208 @@
 from __future__ import annotations
 
-import traceback
+import time
+from datetime import datetime
 
 from kiteconnect import KiteConnect
 
 from .config import DOWNSIDE_CONFIG
-from .data_loader import build_signal_universe, resolve_instrument_file
+from .data_loader import build_signal_universe
+from .ema_engine import update_ema, is_bearish
 from .publisher import publish_strategy_state
-from .strategy_runner import IntradayStockSignalRunner
-from .utils import (
-    build_log_and_print,
-    is_after_market_close_ist,
-    is_weekday_ist,
-    load_creds,
-    setup_logger,
-    wait_until_market_open,
-)
+from .utils import load_creds, setup_logger
+
+
+STRATEGY_NAME = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL"
+
+
+def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
+    logger.info("DS RUN 1: Downside Strategy Started")
+
+    active_signals: dict[str, dict] = {}
+    min_ltp_tracker: dict[str, float] = {}
+
+    while True:
+        now = datetime.now()
+
+        if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
+            logger.info("DS RUN STOP: Market closed — stopping downside strategy")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                ui_state="STOPPED",
+                message="Market closed. Downside stock signal stopped.",
+                progress_text="Stopped after 3:30 PM",
+                is_loading=False,
+                extra={
+                    "signals": [],
+                    "entered_count": len(active_signals),
+                    "total_count": int(len(universe_df)),
+                },
+            )
+            break
+
+        signals_output = []
+
+        for _, row in universe_df.iterrows():
+            symbol = str(row["symbol"]).strip().upper()
+
+            try:
+                quote_key = f"NSE:{symbol}"
+                ltp_data = kite.ltp(quote_key)
+
+                if quote_key not in ltp_data:
+                    logger.error("DS LTP FAIL: %s missing in ltp response=%s", quote_key, ltp_data)
+                    continue
+
+                ltp = float(ltp_data[quote_key]["last_price"])
+
+                ema_fast, ema_slow = update_ema(symbol, ltp)
+
+                logger.info(
+                    "DS TICK | symbol=%s | ltp=%.2f | ema_fast=%s | ema_slow=%s",
+                    symbol,
+                    ltp,
+                    round(ema_fast, 4) if ema_fast is not None else None,
+                    round(ema_slow, 4) if ema_slow is not None else None,
+                )
+
+                if ema_fast is None or ema_slow is None:
+                    continue
+
+                if is_bearish(symbol):
+                    if symbol not in active_signals:
+                        logger.info("DS SIGNAL ENTERED | %s @ %.2f", symbol, ltp)
+
+                        active_signals[symbol] = {
+                            "entry_price": ltp,
+                            "entry_time": now.strftime("%H:%M:%S"),
+                        }
+                        min_ltp_tracker[symbol] = ltp
+
+                    min_ltp_tracker[symbol] = min(min_ltp_tracker[symbol], ltp)
+
+                if symbol in active_signals:
+                    entry_price = float(active_signals[symbol]["entry_price"])
+                    min_ltp = float(min_ltp_tracker[symbol])
+
+                    points_captured = entry_price - min_ltp
+                    pct_captured = (points_captured / entry_price) * 100 if entry_price else 0.0
+
+                    signals_output.append(
+                        {
+                            "symbol": symbol,
+                            "instrument_token": int(row["instrument_token"]),
+                            "signal_status": "ENTERED",
+                            "entry_time": active_signals[symbol]["entry_time"],
+                            "avg_price": round(entry_price, 2),
+                            "current_ltp": round(ltp, 2),
+                            "max_ltp": round(min_ltp, 2),
+                            "points_captured": round(points_captured, 2),
+                            "pct_captured": round(pct_captured, 2),
+                        }
+                    )
+
+            except Exception as exc:
+                logger.exception("DS STOCK ERROR | symbol=%s | error=%s", symbol, exc)
+
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            ui_state="RUNNING",
+            message="Live downside stock signal running.",
+            progress_text=f"{len(signals_output)} entered out of {len(universe_df)} stocks",
+            is_loading=False,
+            extra={
+                "signals": signals_output,
+                "entered_count": len(signals_output),
+                "total_count": int(len(universe_df)),
+            },
+        )
+
+        time.sleep(1)
 
 
 def main() -> None:
-    strategy_name = DOWNSIDE_CONFIG["strategy_name"]
-    side = DOWNSIDE_CONFIG["side"]
-    regime_file_path = DOWNSIDE_CONFIG["regime_file_path"]
-    fast_span = DOWNSIDE_CONFIG["fast_span"]
-    slow_span = DOWNSIDE_CONFIG["slow_span"]
-    log_file_name = DOWNSIDE_CONFIG["log_file_name"]
-
-    logger = setup_logger("lightnin_bear_downside_intraday_signal", log_file_name)
-    log_and_print = build_log_and_print(logger)
-
-    log_and_print("Downside strategy main() entered")
-
-    publish_strategy_state(
-        strategy_name=strategy_name,
-        ui_state="BOOTING",
-        message="Downside strategy process started.",
-        progress_text="Initializing",
-        is_loading=True,
+    logger = setup_logger(
+        "lightnin_bear_downside_intraday_signal",
+        DOWNSIDE_CONFIG["log_file_name"],
     )
 
-    if not is_weekday_ist():
-        publish_strategy_state(
-            strategy_name=strategy_name,
-            ui_state="STOPPED",
-            message="Downside strategy inactive outside working days.",
-            is_loading=False,
-        )
-        return
+    logger.info("DS MAIN 1: LIGHTNIN BEAR DOWNSIDE main() started")
 
-    wait_until_market_open(
-        lambda **kwargs: publish_strategy_state(strategy_name=strategy_name, **kwargs)
+    publish_strategy_state(
+        strategy_name=STRATEGY_NAME,
+        ui_state="BOOTING",
+        message="Downside stock signal process started.",
+        progress_text="Initializing",
+        is_loading=True,
+        extra={
+            "signals": [],
+            "entered_count": 0,
+            "total_count": 0,
+        },
     )
 
     try:
+        logger.info("DS MAIN 2: loading credentials")
         cred = load_creds()
+        logger.info("DS MAIN 3: credentials loaded")
 
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
-        log_and_print("Kite authenticated successfully.")
+        logger.info("DS MAIN 4: Kite authenticated")
 
-        instrument_file_path = resolve_instrument_file()
-        regime_tokens_df = build_signal_universe(
-            regime_file_path=regime_file_path,
-            instrument_file_path=instrument_file_path,
+        logger.info("DS MAIN 5: building signal universe")
+        universe_df = build_signal_universe(
+            regime_file_path=DOWNSIDE_CONFIG["regime_file_path"],
         )
 
-        log_and_print(
-            f"Matched {len(regime_tokens_df)} downside regime stocks with NSE cash tokens."
+        logger.info("DS MAIN 6: Downside universe loaded: %s stocks", len(universe_df))
+
+        if universe_df.empty:
+            raise ValueError("DS MAIN FAIL: universe_df is empty")
+
+        logger.info("DS MAIN 7: universe columns=%s", universe_df.columns.tolist())
+        logger.info(
+            "DS MAIN 8: universe sample=%s",
+            universe_df.head(10).to_dict("records"),
         )
 
-        engine = IntradayStockSignalRunner(
-            kite=kite,
-            cred=cred,
-            regime_tokens_df=regime_tokens_df,
-            strategy_name=strategy_name,
-            side=side,
-            fast_span=fast_span,
-            slow_span=slow_span,
-            log_and_print=log_and_print,
-            is_after_market_close_fn=is_after_market_close_ist,
-        )
-
-        engine.start()
-        log_and_print("Downside intraday stock signal engine started.")
-
-    except SystemExit:
-        log_and_print("Downside strategy exited after execution.")
         publish_strategy_state(
-            strategy_name=strategy_name,
-            ui_state="STOPPED",
-            message="Downside strategy stopped Manually.",
+            strategy_name=STRATEGY_NAME,
+            ui_state="RUNNING",
+            message="Downside stock signal universe loaded.",
+            progress_text=f"Tracking {len(universe_df)} stocks",
             is_loading=False,
+            extra={
+                "signals": [],
+                "entered_count": 0,
+                "total_count": int(len(universe_df)),
+            },
+        )
+
+        logger.info("DS MAIN 9: entering run_downside_strategy loop")
+
+        run_downside_strategy(
+            kite=kite,
+            universe_df=universe_df,
+            logger=logger,
         )
 
     except Exception as exc:
-        log_and_print(f"Downside strategy failed: {exc}", "error")
-        log_and_print(traceback.format_exc(), "error")
+        error_msg = f"Downside strategy failed: {exc}"
+        logger.exception("DS MAIN ERROR: %s", error_msg)
+
         publish_strategy_state(
-            strategy_name=strategy_name,
+            strategy_name=STRATEGY_NAME,
             ui_state="ERROR",
-            message=f"Downside strategy failed: {str(exc)}",
-            progress_text="Check logs",
+            message=error_msg,
+            progress_text="Check Render logs",
             is_loading=False,
+            extra={
+                "signals": [],
+                "entered_count": 0,
+                "total_count": 0,
+                "error": str(exc),
+            },
         )
 
 
