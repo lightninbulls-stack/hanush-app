@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { loginUser, registerUser, saveAuthToken } from "../api";
 
 type AuthMode = "login" | "signup";
@@ -11,6 +11,89 @@ const initialSignUpState = {
   confirmPassword: "",
 };
 
+const quantFeatures = [
+  {
+    icon: "⭐",
+    title: "Watchlist",
+    desc: "Track high-conviction stocks with real-time intelligence and signals.",
+  },
+  {
+    icon: "📊",
+    title: "Portfolio Backtest",
+    desc: "Simulate strategies and evaluate performance with institutional-grade metrics.",
+  },
+  {
+    icon: "⚡",
+    title: "Consistent Trending",
+    desc: "Identify stocks with stable momentum and sustained directional strength.",
+  },
+  {
+    icon: "📉",
+    title: "Slow Movement",
+    desc: "Capture low-volatility setups for accumulation and positional trades.",
+  },
+  {
+    icon: "💰",
+    title: "Cheap Value",
+    desc: "Discover undervalued stocks trading below intrinsic or relative value.",
+  },
+  {
+    icon: "💎",
+    title: "Best Quality",
+    desc: "Filter fundamentally strong companies with superior balance sheets and returns.",
+  },
+  {
+    icon: "📈",
+    title: "Regime Upside",
+    desc: "Detect bullish market environments using quantitative regime models.",
+  },
+  {
+    icon: "📉",
+    title: "Regime Downside",
+    desc: "Identify bearish regimes to protect capital and manage downside risk.",
+  },
+  {
+    icon: "🟢",
+    title: "Range Bound Upside",
+    desc: "Find upside breakout candidates from consolidation zones.",
+  },
+  {
+    icon: "🔴",
+    title: "Range Bound Downside",
+    desc: "Spot downside breakdown opportunities in range-bound structures.",
+  },
+  {
+    icon: "🟢",
+    title: "Aggressive Call Option Stocks",
+    desc: "Identify stocks showing bullish derivatives demand and upside positioning.",
+  },
+  {
+    icon: "🔴",
+    title: "Aggressive Put Option Stocks",
+    desc: "Identify stocks showing bearish derivatives pressure and downside sentiment.",
+  },
+  {
+    icon: "🟢",
+    title: "Bull Call Spreads",
+    desc: "Deploy structured intraday upside strategies with defined risk.",
+  },
+  {
+    icon: "🔴",
+    title: "Bear Put Spreads",
+    desc: "Deploy structured intraday downside strategies with controlled exposure.",
+  },
+  {
+    icon: "🟢",
+    title: "Upside Trend Stocks",
+    desc: "Track live EMA-based bullish momentum signals during market hours.",
+  },
+  {
+    icon: "🔴",
+    title: "Downside Trend Stocks",
+    desc: "Track live EMA-based bearish momentum signals during market hours.",
+  },
+];
+
 const Auth: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>("login");
   const [phone, setPhone] = useState("");
@@ -19,6 +102,25 @@ const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [visibleCards, setVisibleCards] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const section = document.getElementById("quant-ai-section");
+      if (!section) return;
+
+      const rect = section.getBoundingClientRect();
+
+      if (rect.top < window.innerHeight * 0.75) {
+        setVisibleCards(true);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const heading = useMemo(
     () =>
@@ -134,242 +236,387 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        paddingLeft: "28px",
-        background: "#020617",
-        overflow: "hidden",
-      }}
-    >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
+    <div style={{ background: "#020617", color: "#fff", overflowX: "hidden" }}>
+      <section
         style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          zIndex: 0,
+          minHeight: "100vh",
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          paddingLeft: "28px",
         }}
       >
-        <source src="/videos/login-bg.mp4" type="video/mp4" />
-      </video>
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 0,
+          }}
+        >
+          <source src="/videos/login-bg.mp4" type="video/mp4" />
+        </video>
 
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.2) 100%)",
-          zIndex: 1,
-        }}
-      />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.2) 100%)",
+            zIndex: 1,
+          }}
+        />
 
-      <div
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            width: "360px",
+            padding: "24px",
+            borderRadius: "20px",
+            background: "rgba(10,10,10,0.78)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,215,0,0.25)",
+            boxShadow:
+              "0 10px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.08)",
+            transform: "translateY(-8px)",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "28px",
+              fontWeight: 800,
+              color: "#ffffff",
+              marginBottom: "6px",
+            }}
+          >
+            Lightninbull
+          </h1>
+
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#9ca3af",
+              marginBottom: "20px",
+            }}
+          >
+            {heading}
+          </p>
+
+          <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                resetMessages();
+              }}
+              style={{
+                flex: 1,
+                padding: "8px",
+                borderRadius: "10px",
+                border:
+                  mode === "login"
+                    ? "1px solid rgba(255,215,0,0.4)"
+                    : "1px solid rgba(255,255,255,0.1)",
+                background:
+                  mode === "login"
+                    ? "linear-gradient(90deg, #facc15, #f59e0b)"
+                    : "transparent",
+                color: mode === "login" ? "#000" : "#fff",
+                fontSize: "14px",
+                fontWeight: mode === "login" ? 700 : 600,
+                cursor: "pointer",
+              }}
+            >
+              Login
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                resetMessages();
+              }}
+              style={{
+                flex: 1,
+                padding: "8px",
+                borderRadius: "10px",
+                border:
+                  mode === "signup"
+                    ? "1px solid rgba(255,215,0,0.4)"
+                    : "1px solid rgba(255,255,255,0.1)",
+                background:
+                  mode === "signup"
+                    ? "linear-gradient(90deg, #facc15, #f59e0b)"
+                    : "transparent",
+                color: mode === "signup" ? "#000" : "#fff",
+                fontSize: "14px",
+                fontWeight: mode === "signup" ? 700 : 600,
+                cursor: "pointer",
+              }}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {errorMessage ? (
+            <div
+              style={{
+                marginBottom: "12px",
+                padding: "10px 12px",
+                borderRadius: "12px",
+                background: "rgba(220, 38, 38, 0.18)",
+                border: "1px solid rgba(248, 113, 113, 0.45)",
+                color: "#fecaca",
+                fontSize: "13px",
+              }}
+            >
+              {errorMessage}
+            </div>
+          ) : null}
+
+          {successMessage ? (
+            <div
+              style={{
+                marginBottom: "12px",
+                padding: "10px 12px",
+                borderRadius: "12px",
+                background: "rgba(22, 163, 74, 0.18)",
+                border: "1px solid rgba(74, 222, 128, 0.45)",
+                color: "#bbf7d0",
+                fontSize: "13px",
+              }}
+            >
+              {successMessage}
+            </div>
+          ) : null}
+
+          {mode === "login" ? (
+            <form onSubmit={handleLogin}>
+              <input
+                placeholder="Phone Number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                style={sharedInputStyle}
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  ...sharedInputStyle,
+                  marginBottom: "16px",
+                }}
+              />
+
+              <button type="submit" disabled={loading} style={primaryButtonStyle}>
+                {loading ? "Loading..." : "Login"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister}>
+              <input
+                placeholder="Full Name"
+                value={signUpForm.name}
+                onChange={handleSignUpChange("name")}
+                style={sharedInputStyle}
+              />
+
+              <input
+                type="email"
+                placeholder="Email"
+                value={signUpForm.email}
+                onChange={handleSignUpChange("email")}
+                style={sharedInputStyle}
+              />
+
+              <input
+                placeholder="Phone Number"
+                value={signUpForm.phone}
+                onChange={handleSignUpChange("phone")}
+                style={sharedInputStyle}
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={signUpForm.password}
+                onChange={handleSignUpChange("password")}
+                style={sharedInputStyle}
+              />
+
+              <input
+                type="password"
+                placeholder="Confirm Password"
+                value={signUpForm.confirmPassword}
+                onChange={handleSignUpChange("confirmPassword")}
+                style={{
+                  ...sharedInputStyle,
+                  marginBottom: "16px",
+                }}
+              />
+
+              <button type="submit" disabled={loading} style={primaryButtonStyle}>
+                {loading ? "Creating account..." : "Create Account"}
+              </button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      <section
+        id="quant-ai-section"
         style={{
           position: "relative",
-          zIndex: 2,
-          width: "360px",
-          padding: "24px",
-          borderRadius: "20px",
-          background: "rgba(10,10,10,0.78)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,215,0,0.25)",
-          boxShadow:
-            "0 10px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.08)",
-          transform: "translateY(-8px)",
+          padding: "120px 42px",
+          background:
+            "radial-gradient(circle at top, rgba(250,204,21,0.16), transparent 35%), #020617",
+          borderTop: "1px solid rgba(250,204,21,0.16)",
+          overflow: "hidden",
         }}
       >
-        <h1
+        <div
           style={{
-            fontSize: "28px",
-            fontWeight: 800,
-            color: "#ffffff",
-            marginBottom: "6px",
+            position: "absolute",
+            top: "-140px",
+            right: "-140px",
+            width: "320px",
+            height: "320px",
+            borderRadius: "50%",
+            background: "rgba(250,204,21,0.12)",
+            filter: "blur(70px)",
           }}
-        >
-          Lightninbull
-        </h1>
+        />
 
-        <p
+        <div
           style={{
-            fontSize: "14px",
-            color: "#9ca3af",
-            marginBottom: "20px",
+            position: "absolute",
+            bottom: "-120px",
+            left: "-120px",
+            width: "300px",
+            height: "300px",
+            borderRadius: "50%",
+            background: "rgba(245,158,11,0.1)",
+            filter: "blur(70px)",
           }}
-        >
-          {heading}
-        </p>
+        />
 
-        <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              resetMessages();
-            }}
+        <div style={{ maxWidth: "1180px", margin: "0 auto", position: "relative" }}>
+          <div
             style={{
-              flex: 1,
-              padding: "8px",
-              borderRadius: "10px",
-              border:
-                mode === "login"
-                  ? "1px solid rgba(255,215,0,0.4)"
-                  : "1px solid rgba(255,255,255,0.1)",
-              background:
-                mode === "login"
-                  ? "linear-gradient(90deg, #facc15, #f59e0b)"
-                  : "transparent",
-              color: mode === "login" ? "#000" : "#fff",
-              fontSize: "14px",
-              fontWeight: mode === "login" ? 700 : 600,
-              cursor: "pointer",
+              textAlign: "center",
+              marginBottom: "64px",
+              opacity: visibleCards ? 1 : 0,
+              transform: visibleCards ? "translateY(0)" : "translateY(35px)",
+              transition: "all 0.8s ease",
             }}
           >
-            Login
-          </button>
+            <p
+              style={{
+                color: "#facc15",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "2.5px",
+                textTransform: "uppercase",
+                marginBottom: "14px",
+              }}
+            >
+              Lightninbull Intelligence Layer
+            </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode("signup");
-              resetMessages();
-            }}
+            <h1
+              style={{
+                fontSize: "clamp(38px, 6vw, 74px)",
+                lineHeight: 1,
+                fontWeight: 950,
+                color: "#ffffff",
+                margin: "0 0 22px",
+              }}
+            >
+              Quant AI Fund Manager
+            </h1>
+
+            <p
+              style={{
+                maxWidth: "850px",
+                margin: "0 auto",
+                color: "#cbd5e1",
+                fontSize: "clamp(16px, 2vw, 21px)",
+                lineHeight: 1.7,
+              }}
+            >
+              A next-generation Quant AI Fund Manager that combines portfolio
+              analytics, factor modeling, regime intelligence, derivatives
+              insights, and real-time trading signals into a single adaptive
+              platform.
+            </p>
+          </div>
+
+          <div
             style={{
-              flex: 1,
-              padding: "8px",
-              borderRadius: "10px",
-              border:
-                mode === "signup"
-                  ? "1px solid rgba(255,215,0,0.4)"
-                  : "1px solid rgba(255,255,255,0.1)",
-              background:
-                mode === "signup"
-                  ? "linear-gradient(90deg, #facc15, #f59e0b)"
-                  : "transparent",
-              color: mode === "signup" ? "#000" : "#fff",
-              fontSize: "14px",
-              fontWeight: mode === "signup" ? 700 : 600,
-              cursor: "pointer",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+              gap: "22px",
             }}
           >
-            Sign Up
-          </button>
+            {quantFeatures.map((feature, index) => (
+              <div
+                key={feature.title}
+                style={{
+                  minHeight: "175px",
+                  padding: "24px",
+                  borderRadius: "24px",
+                  background:
+                    "linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.025))",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  boxShadow:
+                    "0 20px 45px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  opacity: visibleCards ? 1 : 0,
+                  transform: visibleCards
+                    ? "translateY(0) scale(1)"
+                    : "translateY(42px) scale(0.98)",
+                  transition: `all 0.75s ease ${index * 0.08}s`,
+                }}
+              >
+                <div style={{ fontSize: "30px", marginBottom: "18px" }}>
+                  {feature.icon}
+                </div>
+
+                <h3
+                  style={{
+                    fontSize: "18px",
+                    color: "#f8d76b",
+                    margin: "0 0 10px",
+                    fontWeight: 850,
+                  }}
+                >
+                  {feature.title}
+                </h3>
+
+                <p
+                  style={{
+                    color: "#94a3b8",
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    margin: 0,
+                  }}
+                >
+                  {feature.desc}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
-
-        {errorMessage ? (
-          <div
-            style={{
-              marginBottom: "12px",
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(220, 38, 38, 0.18)",
-              border: "1px solid rgba(248, 113, 113, 0.45)",
-              color: "#fecaca",
-              fontSize: "13px",
-            }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        {successMessage ? (
-          <div
-            style={{
-              marginBottom: "12px",
-              padding: "10px 12px",
-              borderRadius: "12px",
-              background: "rgba(22, 163, 74, 0.18)",
-              border: "1px solid rgba(74, 222, 128, 0.45)",
-              color: "#bbf7d0",
-              fontSize: "13px",
-            }}
-          >
-            {successMessage}
-          </div>
-        ) : null}
-
-        {mode === "login" ? (
-          <form onSubmit={handleLogin}>
-            <input
-              placeholder="Phone Number"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={sharedInputStyle}
-            />
-
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                ...sharedInputStyle,
-                marginBottom: "16px",
-              }}
-            />
-
-            <button type="submit" disabled={loading} style={primaryButtonStyle}>
-              {loading ? "Loading..." : "Login"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleRegister}>
-            <input
-              placeholder="Full Name"
-              value={signUpForm.name}
-              onChange={handleSignUpChange("name")}
-              style={sharedInputStyle}
-            />
-
-            <input
-              type="email"
-              placeholder="Email"
-              value={signUpForm.email}
-              onChange={handleSignUpChange("email")}
-              style={sharedInputStyle}
-            />
-
-            <input
-              placeholder="Phone Number"
-              value={signUpForm.phone}
-              onChange={handleSignUpChange("phone")}
-              style={sharedInputStyle}
-            />
-
-            <input
-              type="password"
-              placeholder="Password"
-              value={signUpForm.password}
-              onChange={handleSignUpChange("password")}
-              style={sharedInputStyle}
-            />
-
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              value={signUpForm.confirmPassword}
-              onChange={handleSignUpChange("confirmPassword")}
-              style={{
-                ...sharedInputStyle,
-                marginBottom: "16px",
-              }}
-            />
-
-            <button type="submit" disabled={loading} style={primaryButtonStyle}>
-              {loading ? "Creating account..." : "Create Account"}
-            </button>
-          </form>
-        )}
-      </div>
+      </section>
     </div>
   );
 };
