@@ -240,7 +240,7 @@ def load_creds() -> dict:
     }
 
 
-def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
+def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] = (200, 400)) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_pe.columns)
     if missing:
@@ -569,7 +569,7 @@ class AlphaBearPutSensex:
 
         log_and_print(f"QD 2: df_pe rows={len(df_pe)}")
 
-        option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(100, 200))
+        option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(200, 400))
         if option_chain_pe is None or option_chain_pe.empty:
             raise ValueError("No valid Sensex bear put spread candidates found in local chain")
 
