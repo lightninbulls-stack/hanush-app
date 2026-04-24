@@ -105,7 +105,7 @@ def wait_until_market_open(publish_wait_state) -> None:
                 progress_text=f"Start in {remaining} seconds",
                 is_loading=True,
             )
-        time.sleep(1)
+        time.sleep(2)
 
 
 def load_creds() -> dict:
