@@ -50,11 +50,14 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 ltp_data = kite.ltp(quote_key)
 
                 if quote_key not in ltp_data:
-                    logger.error("DS LTP FAIL: %s missing in ltp response=%s", quote_key, ltp_data)
+                    logger.error(
+                        "DS LTP FAIL: %s missing in ltp response=%s",
+                        quote_key,
+                        ltp_data,
+                    )
                     continue
 
                 ltp = float(ltp_data[quote_key]["last_price"])
-
                 ema_fast, ema_slow = update_ema(symbol, ltp)
 
                 logger.info(
@@ -85,7 +88,11 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     min_ltp = float(min_ltp_tracker[symbol])
 
                     points_captured = entry_price - min_ltp
-                    pct_captured = (points_captured / entry_price) * 100 if entry_price else 0.0
+                    pct_captured = (
+                        (points_captured / entry_price) * 100
+                        if entry_price
+                        else 0.0
+                    )
 
                     signals_output.append(
                         {
@@ -95,7 +102,8 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                             "entry_time": active_signals[symbol]["entry_time"],
                             "avg_price": round(entry_price, 2),
                             "current_ltp": round(ltp, 2),
-                            "max_ltp": round(min_ltp, 2),
+                            "min_ltp": round(min_ltp, 2),
+                            "favorable_price": round(min_ltp, 2),
                             "points_captured": round(points_captured, 2),
                             "pct_captured": round(pct_captured, 2),
                         }
