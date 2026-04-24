@@ -57,9 +57,9 @@ def build_payload(
     entered_count = sum(1 for x in signals if x["signal_status"] == "ENTERED")
 
     message = (
-        "Monitoring upside regime stocks for bullish EMA crossover."
+        "Monitoring upside regime stocks for bullish EMA Crossover."
         if side == "UPSIDE"
-        else "Monitoring downside regime stocks for bearish EMA crossover."
+        else "Monitoring downside regime stocks for bearish EMA Crossover."
     )
 
     return {
