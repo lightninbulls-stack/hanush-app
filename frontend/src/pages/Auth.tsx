@@ -1,36 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { loginUser, registerUser, saveAuthToken } from "../api";
-
-type AuthMode = "login" | "signup";
-
-const initialSignUpState = {
-  name: "",
-  email: "",
-  phone: "",
-  password: "",
-  confirmPassword: "",
-};
-
-const quantFeatures = [
-  { icon: "⭐", title: "Watchlist", desc: "Track high-conviction stocks with real-time intelligence and signals." },
-  { icon: "📊", title: "Portfolio Backtest", desc: "Simulate strategies and evaluate performance with institutional-grade metrics." },
-  { icon: "⚡", title: "Consistent Trending", desc: "Identify stocks with stable momentum and sustained directional strength." },
-  { icon: "⚖️", title: "Slow Movement", desc: "Capture low-volatility setups for accumulation and positional trades." },
-  { icon: "💰", title: "Cheap Value", desc: "Discover undervalued stocks trading below intrinsic value." },
-  { icon: "💎", title: "Best Quality", desc: "Filter fundamentally strong companies with superior balance sheets." },
-];
+import React, { useMemo, useState } from "react";
+import { loginUser, saveAuthToken } from "../api";
 
 const Auth: React.FC = () => {
-  const [mode, setMode] = useState<AuthMode>("login");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [signUpForm, setSignUpForm] = useState(initialSignUpState);
   const [loading, setLoading] = useState(false);
 
-  const heading = useMemo(
-    () => (mode === "login" ? "Access your trading dashboard" : "Create your account"),
-    [mode]
-  );
+  const heading = useMemo(() => "Access your trading dashboard", []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,20 +20,10 @@ const Auth: React.FC = () => {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "12px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.08)",
-    color: "#fff",
-    marginBottom: "12px",
-  };
-
   return (
     <div style={{ background: "#000", color: "#fff" }}>
-      
-      {/* ===== LOGIN SECTION ===== */}
+
+      {/* ================= LOGIN VIDEO ================= */}
       <section
         style={{
           height: "70vh",
@@ -88,7 +54,7 @@ const Auth: React.FC = () => {
             width: "360px",
             padding: "24px",
             borderRadius: "20px",
-            background: "rgba(0,0,0,0.8)",
+            background: "rgba(0,0,0,0.85)",
             border: "1px solid rgba(255,215,0,0.25)",
           }}
         >
@@ -126,12 +92,11 @@ const Auth: React.FC = () => {
         </div>
       </section>
 
-      {/* ===== QUANT AI SECTION (FIXED SPACING) ===== */}
+      {/* ================= QUANT AI SECTION ================= */}
       <section
-        id="quant-ai-section"
         style={{
-          marginTop: "40px",          // ✅ FIXED (was negative earlier)
-          padding: "100px 40px 120px", // ✅ Proper spacing
+          marginTop: "-20px",
+          padding: "60px 40px 120px",
           textAlign: "center",
         }}
       >
@@ -139,43 +104,108 @@ const Auth: React.FC = () => {
           LIGHTNINBULL INTELLIGENCE LAYER
         </p>
 
+        {/* 🔥 GLOW PULSE AI */}
         <h1 style={{ fontSize: "64px", fontWeight: 900 }}>
-          Quant <span style={{ color: "#facc15" }}>AI</span> Fund Manager
+          Quant{" "}
+          <span className="ai-glow">
+            AI
+          </span>{" "}
+          Fund Manager
         </h1>
 
         <p style={{ maxWidth: "800px", margin: "20px auto", color: "#ccc" }}>
           A next-generation Quant AI Fund Manager combining portfolio analytics,
-          factor modeling, regime intelligence, and real-time trading signals.
+          factor modeling, regime intelligence, derivatives insights, and real-time trading signals.
         </p>
 
-        {/* ===== FEATURES ===== */}
+        {/* ===== FULL FEATURE GRID ===== */}
         <div
           style={{
-            marginTop: "60px",
+            marginTop: "50px",
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(250px,1fr))",
             gap: "20px",
           }}
         >
-          {quantFeatures.map((f) => (
+          {[
+            "Watchlist",
+            "Portfolio Backtest",
+            "Consistent Trending",
+            "Slow Movement",
+            "Cheap Value",
+            "Best Quality",
+            "Regime Upside",
+            "Regime Downside",
+            "Range Bound Upside",
+            "Range Bound Downside",
+            "Aggressive Call Option Stocks",
+            "Aggressive Put Option Stocks",
+            "Intraday Bull Call Spreads",
+            "Intraday Bear Put Spreads",
+            "Upside Trend Stocks",
+            "Downside Trend Stocks",
+          ].map((title) => (
             <div
-              key={f.title}
+              key={title}
               style={{
                 padding: "20px",
                 borderRadius: "20px",
                 border: "1px solid rgba(255,215,0,0.2)",
                 background: "rgba(255,255,255,0.02)",
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.transform = "translateY(-5px)";
+                (e.currentTarget as HTMLElement).style.boxShadow =
+                  "0 0 20px rgba(250,204,21,0.2)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.transform = "none";
+                (e.currentTarget as HTMLElement).style.boxShadow = "none";
               }}
             >
-              <div style={{ fontSize: "30px" }}>{f.icon}</div>
-              <h3 style={{ color: "#facc15" }}>{f.title}</h3>
-              <p style={{ color: "#aaa" }}>{f.desc}</p>
+              <h3 style={{ color: "#facc15" }}>{title}</h3>
+              <p style={{ color: "#aaa" }}>
+                Advanced quant-driven insights for smarter trading decisions.
+              </p>
             </div>
           ))}
         </div>
       </section>
+
+      {/* ================= AI GLOW CSS ================= */}
+      <style>
+        {`
+          .ai-glow {
+            color: #facc15;
+            animation: glowPulse 1.5s infinite alternate;
+          }
+
+          @keyframes glowPulse {
+            0% {
+              text-shadow: 0 0 5px #facc15;
+            }
+            100% {
+              text-shadow:
+                0 0 10px #facc15,
+                0 0 20px #facc15,
+                0 0 30px #f59e0b;
+            }
+          }
+        `}
+      </style>
     </div>
   );
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px",
+  borderRadius: "12px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.08)",
+  color: "#fff",
+  marginBottom: "12px",
 };
 
 export default Auth;
