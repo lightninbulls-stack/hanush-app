@@ -2,7 +2,8 @@ name: Downside Stock Signal Scheduler
 
 on:
   schedule:
-    - cron: "25 9 * * 1-5"
+    # 9:25 AM IST = 3:55 AM UTC
+    - cron: "55 3 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -12,4 +13,5 @@ jobs:
     steps:
       - name: Trigger Render downside stock signal
         run: |
+          echo "Triggering Downside Stock Signal at $(date)"
           curl -X POST "https://hanush-backend-service1.onrender.com/api/downside-stock-signal-strategy/start"
