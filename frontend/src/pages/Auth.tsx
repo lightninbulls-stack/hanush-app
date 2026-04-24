@@ -85,12 +85,12 @@ const quantFeatures = [
   {
     icon: "🟢",
     title: "Upside Trend Stocks",
-    desc: "Track live  bullish momentum signals during market hours.",
+    desc: "Track live bullish momentum signals during market hours.",
   },
   {
     icon: "🔴",
     title: "Downside Trend Stocks",
-    desc: "Track live  bearish momentum signals during market hours.",
+    desc: "Track live bearish momentum signals during market hours.",
   },
 ];
 
@@ -478,8 +478,8 @@ const Auth: React.FC = () => {
         id="quant-ai-section"
         style={{
           position: "relative",
-          marginTop: "-40px",
-          padding: "70px 42px 120px",
+          marginTop: "-110px",
+          padding: "45px 42px 120px",
           background:
             "radial-gradient(circle at top, rgba(255,215,0,0.08), transparent 30%), #000000",
           borderTop: "1px solid rgba(255,215,0,0.14)",
@@ -552,7 +552,7 @@ const Auth: React.FC = () => {
                 textShadow: "0 18px 60px rgba(255,215,0,0.12)",
               }}
             >
-              Quant AI Fund Manager
+              Quant <span style={{ color: "#facc15" }}>AI</span> Fund Manager
             </h1>
 
             <p
