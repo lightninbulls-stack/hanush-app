@@ -25,24 +25,24 @@ SPREAD_TYPE = "put_debit"
 STRATEGY_NAME = "ALPHA_BEAR_PAPER"
 
 NIFTY_SPOT_TOKEN = 256265
-NIFTY_SPOT_SYMBOL = "NSE:NIFTY 50"
+NIFTY_SPOT_SYMBOLS = ["NSE:NIFTY 50", "NSE:NIFTY50"]
 NIFTY_EXCHANGE_SEGMENT = "NFO"
 STRIKE_STEP = 100
 STRIKE_WINDOW = 500
 
 PRELOAD_DAYS = 2
-QUANTITY = 50
+QUANTITY = 65
 
 STOP_LOSS_AMOUNT = -1500.0
 TARGET_AMOUNT = 3000.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 23
-MARKET_CLOSE_MINUTE = 59
+MARKET_CLOSE_HOUR = 15
+MARKET_CLOSE_MINUTE = 30
 
 NIFTY_EXPIRY_WEEKS_AHEAD = int(os.getenv("NIFTY_EXPIRY_WEEKS_AHEAD", "0"))
-LOG_FILE_NAME = "nifty_bear_put_spread.log"
+LOG_FILE_NAME = "bear_put_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -54,7 +54,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout),
     ],
 )
-logger = logging.getLogger("alpha_bear_nifty_strategy")
+logger = logging.getLogger("alpha_bear_strategy")
 
 
 def log_and_print(msg: str, level: str = "info") -> None:
@@ -116,10 +116,10 @@ def build_spread_payload(
         status = "NO_POSITION"
 
     if status == "OPEN":
-        message = "NIFTY bear put spread is live."
+        message = "Bear put spread is live."
         is_loading = False
     elif status == "CLOSED":
-        message = "NIFTY bear put spread closed."
+        message = "Bear put spread closed."
         is_loading = False
     else:
         message = "Monitoring market conditions for bearish entry trigger..."
@@ -220,15 +220,33 @@ def wait_until_market_open() -> None:
 
 
 def resolve_nifty_weekly_expiry() -> str:
+    """
+    NIFTY weekly expiry rule:
+
+    Monday    -> Tuesday same week
+    Tuesday   -> next Tuesday
+    Wednesday -> next Tuesday
+    Thursday  -> next Tuesday
+    Friday    -> next Tuesday
+    """
     today = current_ist().date()
-    days_ahead = (3 - today.weekday()) % 7  # Thursday
-    expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
+    weekday = today.weekday()
+
+    if weekday == 1:
+        expiry = today + timedelta(days=7)
+    else:
+        days_ahead = (1 - weekday) % 7
+        expiry = today + timedelta(days=days_ahead)
+
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
+
+    log_and_print(f"EXPIRY RESOLVED | NIFTY Tuesday expiry={expiry.strftime('%Y-%m-%d')}")
+
     return expiry.strftime("%Y%m%d")
 
 
 def parse_yyyymmdd_to_date(value: str) -> date:
-    return datetime.strptime(value, "%Y%m%d").date()
+    return datetime.strptime(value, "%Y%m%d").date
 
 
 def load_creds() -> dict:
@@ -267,6 +285,7 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
 
             buy_price = float(buy_row["last_price_y"])
             sell_price = float(sell_row["last_price_y"])
+
             net_debit = buy_price - sell_price
             width = higher_strike - lower_strike
             max_profit = width - net_debit
@@ -276,6 +295,7 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
                 continue
 
             rr = max_profit / max_loss if max_loss > 0 else None
+
             candidates.append(
                 {
                     "buy_strike": higher_strike,
@@ -300,13 +320,19 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
 
 
 def get_spot_ltp(kite: KiteConnect) -> float:
-    quote = kite.ltp([NIFTY_SPOT_SYMBOL])
-    if NIFTY_SPOT_SYMBOL not in quote:
-        raise ValueError(f"Spot quote missing for {NIFTY_SPOT_SYMBOL}")
-    ltp = quote[NIFTY_SPOT_SYMBOL].get("last_price")
-    if ltp is None or float(ltp) <= 0:
-        raise ValueError(f"Invalid spot LTP for {NIFTY_SPOT_SYMBOL}: {ltp}")
-    return float(ltp)
+    last_error = None
+    for symbol in NIFTY_SPOT_SYMBOLS:
+        try:
+            quote = kite.ltp([symbol])
+            if symbol in quote:
+                ltp = quote[symbol].get("last_price")
+                if ltp is not None and float(ltp) > 0:
+                    log_and_print(f"Spot symbol resolved: {symbol} | LTP={float(ltp):.2f}")
+                    return float(ltp)
+        except Exception as e:
+            last_error = e
+
+    raise ValueError(f"Unable to fetch valid NIFTY spot LTP. Last error={last_error}")
 
 
 def round_to_step(value: float, step: int) -> int:
@@ -328,15 +354,21 @@ def load_nifty_option_instruments(kite: KiteConnect, expiry_str: str, option_typ
         raise ValueError(f"Instrument dump missing columns: {missing}")
 
     df = all_instruments.copy()
-    df["expiry"] = pd.to_datetime(df["expiry"]).dt.date
+    df["expiry"] = pd.to_datetime(df["expiry"], errors="coerce").dt.date
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
 
+    valid_names = {"NIFTY", "NIFTY 50"}
+
     df = df[
-        (df["name"].astype(str).str.upper() == "NIFTY")
+        (df["name"].astype(str).str.upper().isin(valid_names))
         & (df["instrument_type"].astype(str).str.upper() == option_type.upper())
         & (df["expiry"] == expiry_date)
         & (df["strike"].notna())
     ].copy()
+
+    log_and_print(
+        f"Instrument filter | option_type={option_type} | expiry={expiry_str} | rows={len(df)}"
+    )
 
     if df.empty:
         raise ValueError(f"No NIFTY {option_type} instruments found for expiry {expiry_str}")
@@ -360,9 +392,12 @@ def build_local_nifty_chain_with_ltp(
     log_and_print(f"Current NIFTY Spot: {spot:.2f}")
     log_and_print(f"Detected ATM Strike: {atm}")
     log_and_print(f"Strike Range: {lower_strike} to {upper_strike}")
+    log_and_print(f"Using expiry: {expiry_str}")
 
     df = load_nifty_option_instruments(kite, expiry_str, option_type)
     df = df[(df["strike"] >= lower_strike) & (df["strike"] <= upper_strike)].copy()
+
+    log_and_print(f"Post strike-range filter rows={len(df)}")
 
     if df.empty:
         raise ValueError(f"No NIFTY {option_type} instruments inside strike range {lower_strike}-{upper_strike}")
@@ -372,10 +407,20 @@ def build_local_nifty_chain_with_ltp(
     if not quote_symbols:
         raise ValueError(f"Quote symbol list is empty for NIFTY {option_type}")
 
-    quotes = kite.ltp(quote_symbols)
-    df["last_price_y"] = df["quote_symbol"].map(lambda s: float(quotes.get(s, {}).get("last_price", 0.0)))
+    log_and_print(f"LTP fetch symbol count={len(quote_symbols)}")
+
+    try:
+        quotes = kite.ltp(quote_symbols)
+    except Exception as e:
+        raise ValueError(f"NIFTY {option_type} ltp fetch failed: {e}") from e
+
+    df["last_price_y"] = df["quote_symbol"].map(
+        lambda s: float(quotes.get(s, {}).get("last_price", 0.0))
+    )
 
     df = df[df["last_price_y"] > 0].copy()
+    log_and_print(f"Post LTP filter rows={len(df)}")
+
     if df.empty:
         raise ValueError(f"All fetched LTPs are invalid/zero for NIFTY {option_type}")
 
@@ -613,7 +658,7 @@ class AlphaBearPut:
             log_and_print("PO 1: trade already initialized, skipping place_orders")
             return
 
-        log_and_print("PO 2: placing BUY order")
+        log_and_print("PO 2: placing BUY PE order")
         self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_pe,
@@ -627,7 +672,7 @@ class AlphaBearPut:
             trading_symbol=self.buy_leg_symbol,
         )
 
-        log_and_print("PO 3: placing SELL order")
+        log_and_print("PO 3: placing SELL PE order")
         self.paper_book.place_order(
             strategy_name=STRATEGY_NAME,
             symbol=self.symbol_pe,
@@ -776,7 +821,7 @@ class EMACrossover1Min:
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
         signal_condition = True
-        log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
+        log_and_print("⚠️ TEST MODE ACTIVE - FORCING BEAR SIGNAL")
 
         log_and_print(
             f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
@@ -903,7 +948,7 @@ def main():
 
     try:
         cred = load_creds()
-        log_and_print("MAIN 3: creds loaded")
+        log_and_print(f"MAIN 3: creds loaded | expiry={cred['i_expiry_date_nifty']}")
 
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
