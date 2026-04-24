@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
     navigate("/", { replace: true });
   };
 
-  const [activeTab, setActiveTab] = useState("Consistent Trending");
+  const [activeTab, setActiveTab] = useState("Watchlist");
   const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
