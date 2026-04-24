@@ -83,3 +83,38 @@ def run_upside_strategy(kite, universe_df, logger):
         )
 
         time.sleep(1)
+
+def main() -> None:
+    from kiteconnect import KiteConnect
+
+    from .config import UPSIDE_CONFIG
+    from .data_loader import build_signal_universe
+    from .utils import load_creds, setup_logger
+
+    logger = setup_logger(
+        "lightnin_bull_upside_intraday_signal",
+        UPSIDE_CONFIG["log_file_name"],
+    )
+
+    logger.info("🚀 LIGHTNIN BULL UPSIDE main() started")
+
+    cred = load_creds()
+
+    kite = KiteConnect(api_key=cred["z_api_key"])
+    kite.set_access_token(cred["z_access_token"])
+
+    universe_df = build_signal_universe(
+        regime_file_path=UPSIDE_CONFIG["regime_file_path"],
+    )
+
+    logger.info("✅ Upside universe loaded: %s stocks", len(universe_df))
+
+    run_upside_strategy(
+        kite=kite,
+        universe_df=universe_df,
+        logger=logger,
+    )
+
+
+if __name__ == "__main__":
+    main()
