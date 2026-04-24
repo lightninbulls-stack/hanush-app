@@ -118,6 +118,25 @@ const Dashboard: React.FC = () => {
   );
 
   useEffect(() => {
+    const elements = document.querySelectorAll(".quant-reveal");
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+
+    elements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [activeTab]);
+
+  useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
       setIsMobile(mobile);
@@ -446,57 +465,95 @@ const Dashboard: React.FC = () => {
           </div>
 
           {!activeTab ? (
-            <div
-              style={{
-                minHeight: "70vh",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-                color: "#fff",
-                padding: "24px",
-              }}
-            >
-              <div>
-                <h1
-                  style={{
-                    color: "#f4d06f",
-                    marginBottom: 12,
-                    fontSize: isMobile ? "2rem" : "2.6rem",
-                  }}
-                >
-                  Welcome to Lightninbull
+            <div className="quant-home-section">
+              <div className="quant-reveal">
+                <h1 className="quant-title">
+                  <span className="typing-text">AI Quant Fund Manager</span>
                 </h1>
-                <p
-                  style={{
-                    color: "#cbd5e1",
-                    fontSize: isMobile ? "1rem" : "1.1rem",
-                    maxWidth: 560,
-                    margin: "0 auto",
-                  }}
-                >
-                  Please select any feature from the sidebar to continue.
+
+                <p className="quant-text">
+                  A high-performance AI quant engine that discovers outperforming
+                  stocks, classifies them into intelligent investment buckets, and
+                  converts them into actionable portfolio ideas.
                 </p>
 
-                {isMobile && (
-                  <button
-                    onClick={() => setMobileSidebarOpen(true)}
-                    style={{
-                      marginTop: 20,
-                      padding: "12px 18px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255, 215, 0, 0.55)",
-                      background:
-                        "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
-                      color: "#000",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Open Menu
-                  </button>
-                )}
+                <p className="quant-text">
+                  The system uses advanced quantitative models across momentum,
+                  regime detection, quality, value, volatility, and risk-adjusted
+                  allocation to help you build a smarter watchlist and test it like
+                  a professional fund manager.
+                </p>
               </div>
+
+              <div className="quant-card-grid">
+                <div className="quant-card quant-reveal">
+                  <h3>Stock Discovery</h3>
+                  <p>
+                    Finds high-conviction stocks using quant models and classifies
+                    them into outperforming buckets.
+                  </p>
+                </div>
+
+                <div className="quant-card quant-reveal">
+                  <h3>Watchlist Engine</h3>
+                  <p>
+                    Selected stocks are added into your Watchlist so you can track
+                    strong ideas in real time.
+                  </p>
+                </div>
+
+                <div className="quant-card quant-reveal">
+                  <h3>Portfolio Backtest</h3>
+                  <p>
+                    Test portfolios using Equal Weight and MVO allocation with
+                    active rebalancing logic.
+                  </p>
+                </div>
+
+                <div className="quant-card quant-reveal">
+                  <h3>Risk Rebalancing</h3>
+                  <ul>
+                    <li>Rebalance every 2 weeks</li>
+                    <li>Rebalance if portfolio falls 3%</li>
+                    <li>Rebalance if portfolio gains 5%</li>
+                  </ul>
+                </div>
+
+                <div className="quant-card quant-reveal">
+                  <h3>Advanced Quant Models</h3>
+                  <p>
+                    Uses factor ranking, volatility filters, regime classification,
+                    momentum scoring, and optimization models.
+                  </p>
+                </div>
+
+                <div className="quant-card quant-reveal">
+                  <h3>Fund Manager Workflow</h3>
+                  <p>
+                    Combines alpha generation, risk control, and portfolio
+                    construction into one interactive dashboard.
+                  </p>
+                </div>
+              </div>
+
+              {isMobile && (
+                <button
+                  onClick={() => setMobileSidebarOpen(true)}
+                  style={{
+                    marginTop: 28,
+                    padding: "12px 18px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255, 215, 0, 0.55)",
+                    background:
+                      "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
+                    color: "#000",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Open Menu
+                </button>
+              )}
             </div>
           ) : selectedStock ? (
             <>
