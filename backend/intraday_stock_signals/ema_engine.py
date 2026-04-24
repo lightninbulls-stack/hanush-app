@@ -22,6 +22,7 @@ class EMAState:
         else:
             self.prev_fast_ema = self.fast_ema
             self.fast_ema = (price * self.fast_alpha) + (self.fast_ema * (1 - self.fast_alpha))
+            # 
 
         if self.slow_ema is None:
             self.slow_ema = price
