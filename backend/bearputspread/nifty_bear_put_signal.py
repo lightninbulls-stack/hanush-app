@@ -259,8 +259,8 @@ def load_creds() -> dict:
 
 def build_bear_put_candidates(
     df_pe: pd.DataFrame,
-    strike_gaps: tuple[int, ...] = (-100, -50, 50, 100, 150, 200, 250, 300),
-    min_rr: float = 1.70,
+    strike_gaps: tuple[int, ...] = (150, 200),
+    rr_target: float = 1.70,
 ) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_pe.columns)
@@ -277,16 +277,11 @@ def build_bear_put_candidates(
     strikes = temp["strike"].tolist()
     strike_to_row = {int(row["strike"]): row for _, row in temp.iterrows()}
 
-    for buy_strike in strikes:
+    for sell_strike in strikes:
         for gap in strike_gaps:
-            sell_strike = buy_strike - gap
+            buy_strike = sell_strike + gap
 
-            if sell_strike not in strike_to_row:
-                continue
-
-            # Bear put debit spread rule:
-            # BUY higher strike PE, SELL lower strike PE
-            if sell_strike >= buy_strike:
+            if buy_strike not in strike_to_row:
                 continue
 
             buy_row = strike_to_row[buy_strike]
@@ -295,18 +290,20 @@ def build_bear_put_candidates(
             buy_price = float(buy_row["last_price_y"])
             sell_price = float(sell_row["last_price_y"])
 
+            spread_width = buy_strike - sell_strike
             net_debit = buy_price - sell_price
-            width = buy_strike - sell_strike
-            max_profit = width - net_debit
-            max_loss = net_debit
 
-            if net_debit <= 0 or max_profit <= 0:
+            if net_debit <= 0:
+                continue
+
+            max_loss = net_debit
+            max_profit = spread_width - net_debit
+
+            if max_profit <= 0:
                 continue
 
             rr = max_profit / max_loss
-
-            if rr < min_rr:
-                continue
+            rr_distance = abs(rr - rr_target)
 
             candidates.append(
                 {
@@ -315,10 +312,11 @@ def build_bear_put_candidates(
                     "buy_price": buy_price,
                     "sell_price": sell_price,
                     "net_debit": net_debit,
-                    "spread_width": width,
+                    "spread_width": spread_width,
                     "max_profit": max_profit,
                     "max_loss": max_loss,
                     "rr": rr,
+                    "rr_distance": rr_distance,
                     "gap": gap,
                 }
             )
@@ -327,8 +325,8 @@ def build_bear_put_candidates(
         return pd.DataFrame()
 
     return pd.DataFrame(candidates).sort_values(
-        by=["rr", "spread_width", "max_profit", "net_debit"],
-        ascending=[False, False, False, True],
+        by=["rr_distance", "rr", "spread_width"],
+        ascending=[True, False, False],
     ).reset_index(drop=True)
 
 def get_spot_ltp(kite: KiteConnect) -> float:
