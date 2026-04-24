@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key={logoBurst}
             type="button"
             className="logo-trigger lightning-active"
-            onClick={() => triggerCategory("Watchlist")}
+            onClick={() => triggerCategory("")}
             aria-label="Lightninbull Home"
             style={{
               background: "transparent",
@@ -193,9 +193,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             {section.items.map((item) => (
               <div
                 key={item.name}
-                className={`nav-item-link ${activeCategory === item.name ? "active" : ""} ${
-                  shockItem === item.name ? "electric-active" : ""
-                }`}
+                className={`nav-item-link ${
+                  activeCategory === item.name ? "active" : ""
+                } ${shockItem === item.name ? "electric-active" : ""}`}
                 onClick={() => triggerCategory(item.name)}
               >
                 <span className="nav-electric-line"></span>
