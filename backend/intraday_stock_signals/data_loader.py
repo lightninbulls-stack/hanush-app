@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import os
 from typing import Iterable
-
 import pandas as pd
 
 from .config import INSTRUMENT_FILE_CANDIDATES
 
 
 # -------------------------------------------------------
-# STEP 1 — Resolve Instrument File (FIXED)
+# STEP 1 — Resolve Instrument File (FIXED PATH ISSUE)
 # -------------------------------------------------------
 def resolve_instrument_file(candidates: Iterable[str] = INSTRUMENT_FILE_CANDIDATES) -> str:
     checked_paths = []
@@ -82,7 +81,7 @@ def load_regime_symbols(regime_file_path: str) -> list[str]:
 
 
 # -------------------------------------------------------
-# STEP 4 — Load Instruments (SMART FILTER)
+# STEP 4 — Load Instruments (FIXED EQ FALLBACK)
 # -------------------------------------------------------
 def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
     if not os.path.exists(instrument_file_path):
@@ -112,17 +111,16 @@ def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
     inst_df["segment"] = inst_df["segment"].astype(str).str.strip().str.upper()
     inst_df["instrument_type"] = inst_df["instrument_type"].astype(str).str.strip().str.upper()
 
-    # 🔥 IMPORTANT FIX:
-    # If EQ exists → use EQ
-    # Else fallback to ALL rows (for your current NFO file situation)
+    # Try EQ first
     equity_df = inst_df[
         (inst_df["exchange"] == "NSE")
         & (inst_df["segment"] == "NSE")
         & (inst_df["instrument_type"] == "EQ")
     ].copy()
 
+    # 🔥 FIX: fallback if EQ missing
     if equity_df.empty:
-        print("⚠️ No EQ found — falling back to ALL NSE instruments")
+        print("⚠️ No EQ found — fallback to ALL NSE rows")
         equity_df = inst_df[inst_df["exchange"] == "NSE"].copy()
 
     print(f"✅ INSTRUMENT ROWS USED: {len(equity_df)}")
@@ -131,7 +129,7 @@ def load_equity_instruments(instrument_file_path: str) -> pd.DataFrame:
 
 
 # -------------------------------------------------------
-# STEP 5 — Build Signal Universe (FINAL MATCH)
+# STEP 5 — Build Signal Universe (FIXED MATCHING)
 # -------------------------------------------------------
 def build_signal_universe(
     regime_file_path: str,
@@ -143,17 +141,32 @@ def build_signal_universe(
     regime_symbols = load_regime_symbols(regime_file_path)
     equity_df = load_equity_instruments(instrument_path)
 
-    matched_df = equity_df[equity_df["tradingsymbol"].isin(regime_symbols)].copy()
+    # 🔥 CRITICAL FIX — normalize again
+    equity_df["tradingsymbol"] = equity_df["tradingsymbol"].str.strip().str.upper()
+    regime_symbols = [s.strip().upper() for s in regime_symbols]
 
-    print(f"✅ MATCHED SYMBOLS: {len(matched_df)}")
+    matched_df = equity_df[
+        equity_df["tradingsymbol"].isin(regime_symbols)
+    ].copy()
+
+    print(f"✅ EXACT MATCH COUNT: {len(matched_df)}")
+
+    # 🔥 FALLBACK MATCH (handles hidden mismatches)
+    if matched_df.empty:
+        print("❌ EXACT MATCH FAILED")
+        print("Sample regime:", regime_symbols[:10])
+        print("Sample instruments:", equity_df["tradingsymbol"].head(10).tolist())
+
+        matched_df = equity_df[
+            equity_df["tradingsymbol"].apply(
+                lambda x: any(sym in x for sym in regime_symbols)
+            )
+        ].copy()
+
+        print(f"⚠️ PARTIAL MATCH COUNT: {len(matched_df)}")
 
     if matched_df.empty:
-        print("❌ DEBUG SAMPLE REGIME:", regime_symbols[:10])
-        print("❌ DEBUG SAMPLE INSTRUMENT:", equity_df["tradingsymbol"].head(10).tolist())
-
-        raise ValueError(
-            "No matching symbols found between regime file and instrument file."
-        )
+        raise ValueError("No matching symbols found even after fallback.")
 
     matched_df = matched_df[
         [
