@@ -16,16 +16,28 @@ STRATEGY_NAME = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL"
 
 
 def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
-    logger.info("🚀 Upside Strategy Started")
+    logger.info("US RUN 1: Upside Strategy Started")
 
-    active_signals = {}
-    max_ltp_tracker = {}
+    active_signals: dict[str, dict] = {}
+    max_ltp_tracker: dict[str, float] = {}
 
     while True:
         now = datetime.now()
 
         if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
-            logger.info("🛑 Market closed — stopping upside strategy")
+            logger.info("US RUN STOP: Market closed — stopping upside strategy")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                ui_state="STOPPED",
+                message="Market closed. Upside stock signal stopped.",
+                progress_text="Stopped after 3:30 PM",
+                is_loading=False,
+                extra={
+                    "signals": [],
+                    "entered_count": len(active_signals),
+                    "total_count": int(len(universe_df)),
+                },
+            )
             break
 
         signals_output = []
@@ -34,17 +46,31 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
             symbol = str(row["symbol"]).strip().upper()
 
             try:
-                ltp_data = kite.ltp(f"NSE:{symbol}")
-                ltp = float(ltp_data[f"NSE:{symbol}"]["last_price"])
+                quote_key = f"NSE:{symbol}"
+                ltp_data = kite.ltp(quote_key)
+
+                if quote_key not in ltp_data:
+                    logger.error("US LTP FAIL: %s missing in ltp response=%s", quote_key, ltp_data)
+                    continue
+
+                ltp = float(ltp_data[quote_key]["last_price"])
 
                 ema_fast, ema_slow = update_ema(symbol, ltp)
+
+                logger.info(
+                    "US TICK | symbol=%s | ltp=%.2f | ema_fast=%s | ema_slow=%s",
+                    symbol,
+                    ltp,
+                    round(ema_fast, 4) if ema_fast is not None else None,
+                    round(ema_slow, 4) if ema_slow is not None else None,
+                )
 
                 if ema_fast is None or ema_slow is None:
                     continue
 
                 if is_bullish(symbol):
                     if symbol not in active_signals:
-                        logger.info(f"✅ UPSIDE SIGNAL: {symbol} @ {ltp}")
+                        logger.info("US SIGNAL ENTERED | %s @ %.2f", symbol, ltp)
 
                         active_signals[symbol] = {
                             "entry_price": ltp,
@@ -55,8 +81,8 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     max_ltp_tracker[symbol] = max(max_ltp_tracker[symbol], ltp)
 
                 if symbol in active_signals:
-                    entry_price = active_signals[symbol]["entry_price"]
-                    max_ltp = max_ltp_tracker[symbol]
+                    entry_price = float(active_signals[symbol]["entry_price"])
+                    max_ltp = float(max_ltp_tracker[symbol])
 
                     signals_output.append(
                         {
@@ -77,7 +103,7 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     )
 
             except Exception as exc:
-                logger.error(f"Stock signal error | {symbol}: {exc}")
+                logger.exception("US STOCK ERROR | symbol=%s | error=%s", symbol, exc)
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -101,7 +127,7 @@ def main() -> None:
         UPSIDE_CONFIG["log_file_name"],
     )
 
-    logger.info("🚀 LIGHTNIN BULL UPSIDE main() started")
+    logger.info("US MAIN 1: LIGHTNIN BULL UPSIDE main() started")
 
     publish_strategy_state(
         strategy_name=STRATEGY_NAME,
@@ -117,18 +143,29 @@ def main() -> None:
     )
 
     try:
+        logger.info("US MAIN 2: loading credentials")
         cred = load_creds()
+        logger.info("US MAIN 3: credentials loaded")
 
         kite = KiteConnect(api_key=cred["z_api_key"])
         kite.set_access_token(cred["z_access_token"])
+        logger.info("US MAIN 4: Kite authenticated")
 
-        logger.info("✅ Kite authenticated")
-
+        logger.info("US MAIN 5: building signal universe")
         universe_df = build_signal_universe(
             regime_file_path=UPSIDE_CONFIG["regime_file_path"],
         )
 
-        logger.info(f"✅ Upside universe loaded: {len(universe_df)} stocks")
+        logger.info("US MAIN 6: Upside universe loaded: %s stocks", len(universe_df))
+
+        if universe_df.empty:
+            raise ValueError("US MAIN FAIL: universe_df is empty")
+
+        logger.info("US MAIN 7: universe columns=%s", universe_df.columns.tolist())
+        logger.info(
+            "US MAIN 8: universe sample=%s",
+            universe_df.head(10).to_dict("records"),
+        )
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -143,6 +180,8 @@ def main() -> None:
             },
         )
 
+        logger.info("US MAIN 9: entering run_upside_strategy loop")
+
         run_upside_strategy(
             kite=kite,
             universe_df=universe_df,
@@ -150,18 +189,20 @@ def main() -> None:
         )
 
     except Exception as exc:
-        logger.exception(f"❌ Upside strategy failed: {exc}")
+        error_msg = f"Upside strategy failed: {exc}"
+        logger.exception("US MAIN ERROR: %s", error_msg)
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             ui_state="ERROR",
-            message=f"Upside strategy failed: {str(exc)}",
+            message=error_msg,
             progress_text="Check Render logs",
             is_loading=False,
             extra={
                 "signals": [],
                 "entered_count": 0,
                 "total_count": 0,
+                "error": str(exc),
             },
         )
 
