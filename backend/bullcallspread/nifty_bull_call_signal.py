@@ -203,12 +203,6 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
     return now_ist > market_close
 
 
-def is_after_nfo_cutoff(ref: Optional[datetime] = None) -> bool:
-    now_ist = ref or current_ist()
-    cutoff = now_ist.replace(hour=15, minute=30, second=0, microsecond=0)
-    return now_ist >= cutoff
-
-
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
@@ -225,17 +219,33 @@ def wait_until_market_open() -> None:
     time.sleep(sleep_seconds)
 
 
+
 def resolve_nifty_weekly_expiry() -> str:
-    now = current_ist()
-    today = now.date()
+    """
+    NIFTY weekly expiry rule:
 
-    days_ahead = (3 - today.weekday()) % 7  # Thursday
-    expiry = today if days_ahead == 0 else today + timedelta(days=days_ahead)
+    Monday    -> Tuesday same week
+    Tuesday   -> next Tuesday
+    Wednesday -> next Tuesday
+    Thursday  -> next Tuesday
+    Friday    -> next Tuesday
+    """
+    today = current_ist().date()
 
-    if expiry == today and is_after_nfo_cutoff(now):
-        expiry = expiry + timedelta(days=7)
+    # Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4
+    weekday = today.weekday()
+
+    if weekday == 1:
+        # Tuesday: do not trade same-day expiry
+        expiry = today + timedelta(days=7)
+    else:
+        days_ahead = (1 - weekday) % 7
+        expiry = today + timedelta(days=days_ahead)
 
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
+
+    log_and_print(f"EXPIRY RESOLVED | NIFTY Tuesday expiry={expiry.strftime('%Y-%m-%d')}")
+
     return expiry.strftime("%Y%m%d")
 
 
