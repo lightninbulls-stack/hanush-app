@@ -16,14 +16,14 @@ from sqlalchemy.orm import Session
 
 from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
 
-
 from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
-
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 
 from bearputspread.nifty_bear_put_signal import main as bear_put_main
 from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
 
+from intraday_stock_signals.upside_strategy import main as upside_stock_signal_main
+from intraday_stock_signals.downside_strategy import main as downside_stock_signal_main
 
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
@@ -56,6 +56,12 @@ _bear_put_strategy_lock = threading.Lock()
 
 _bear_put_sensex_strategy_thread: threading.Thread | None = None
 _bear_put_sensex_strategy_lock = threading.Lock()
+
+_upside_stock_signal_thread: threading.Thread | None = None
+_upside_stock_signal_lock = threading.Lock()
+
+_downside_stock_signal_thread: threading.Thread | None = None
+_downside_stock_signal_lock = threading.Lock()
 
 
 def start_bull_call_strategy() -> bool:
@@ -174,6 +180,64 @@ def start_bear_put_sensex_strategy() -> bool:
         return True
 
 
+def start_upside_stock_signal_strategy() -> bool:
+    global _upside_stock_signal_thread
+
+    with _upside_stock_signal_lock:
+        if (
+            _upside_stock_signal_thread is not None
+            and _upside_stock_signal_thread.is_alive()
+        ):
+            logger.info("⚠️ Upside stock signal strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Upside stock signal strategy thread started.")
+                upside_stock_signal_main()
+            except Exception as exc:
+                logger.error("❌ Upside stock signal strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Upside stock signal strategy thread finished.")
+
+        _upside_stock_signal_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="upside-stock-signal-strategy-thread",
+        )
+        _upside_stock_signal_thread.start()
+        return True
+
+
+def start_downside_stock_signal_strategy() -> bool:
+    global _downside_stock_signal_thread
+
+    with _downside_stock_signal_lock:
+        if (
+            _downside_stock_signal_thread is not None
+            and _downside_stock_signal_thread.is_alive()
+        ):
+            logger.info("⚠️ Downside stock signal strategy thread already running.")
+            return False
+
+        def run() -> None:
+            try:
+                logger.info("✅ Downside stock signal strategy thread started.")
+                downside_stock_signal_main()
+            except Exception as exc:
+                logger.error("❌ Downside stock signal strategy crashed: %s", exc, exc_info=True)
+            finally:
+                logger.info("ℹ️ Downside stock signal strategy thread finished.")
+
+        _downside_stock_signal_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="downside-stock-signal-strategy-thread",
+        )
+        _downside_stock_signal_thread.start()
+        return True
+
+
 def is_strategy_running() -> bool:
     return (
         _bull_call_strategy_thread is not None
@@ -199,6 +263,20 @@ def is_bear_put_sensex_strategy_running() -> bool:
     return (
         _bear_put_sensex_strategy_thread is not None
         and _bear_put_sensex_strategy_thread.is_alive()
+    )
+
+
+def is_upside_stock_signal_strategy_running() -> bool:
+    return (
+        _upside_stock_signal_thread is not None
+        and _upside_stock_signal_thread.is_alive()
+    )
+
+
+def is_downside_stock_signal_strategy_running() -> bool:
+    return (
+        _downside_stock_signal_thread is not None
+        and _downside_stock_signal_thread.is_alive()
     )
 
 
@@ -355,6 +433,8 @@ def health():
         "bull_call_sensex_strategy_running": is_bull_call_sensex_strategy_running(),
         "bear_put_strategy_running": is_bear_put_strategy_running(),
         "bear_put_sensex_strategy_running": is_bear_put_sensex_strategy_running(),
+        "upside_stock_signal_strategy_running": is_upside_stock_signal_strategy_running(),
+        "downside_stock_signal_strategy_running": is_downside_stock_signal_strategy_running(),
     }
 
 
@@ -646,6 +726,48 @@ def start_bear_put_sensex():
 def bear_put_sensex_strategy_status():
     return {
         "strategy_running": is_bear_put_sensex_strategy_running(),
+    }
+
+
+@app.post("/api/upside-stock-signal-strategy/start")
+def start_upside_stock_signal():
+    started = start_upside_stock_signal_strategy()
+    return {
+        "started": started,
+        "strategy_running": is_upside_stock_signal_strategy_running(),
+        "message": (
+            "Upside stock signal strategy started."
+            if started
+            else "Upside stock signal strategy already running."
+        ),
+    }
+
+
+@app.get("/api/upside-stock-signal-strategy/status")
+def upside_stock_signal_strategy_status():
+    return {
+        "strategy_running": is_upside_stock_signal_strategy_running(),
+    }
+
+
+@app.post("/api/downside-stock-signal-strategy/start")
+def start_downside_stock_signal():
+    started = start_downside_stock_signal_strategy()
+    return {
+        "started": started,
+        "strategy_running": is_downside_stock_signal_strategy_running(),
+        "message": (
+            "Downside stock signal strategy started."
+            if started
+            else "Downside stock signal strategy already running."
+        ),
+    }
+
+
+@app.get("/api/downside-stock-signal-strategy/status")
+def downside_stock_signal_strategy_status():
+    return {
+        "strategy_running": is_downside_stock_signal_strategy_running(),
     }
 
 
