@@ -257,8 +257,11 @@ def load_creds() -> dict:
         "i_inst_name_nifty": "NIFTY",
     }
 
-
-def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
+def build_bear_put_candidates(
+    df_pe: pd.DataFrame,
+    strike_gaps: tuple[int, ...] = (-100, -50, 50, 100, 150, 200, 250, 300),
+    min_rr: float = 1.70,
+) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_pe.columns)
     if missing:
@@ -274,32 +277,41 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
     strikes = temp["strike"].tolist()
     strike_to_row = {int(row["strike"]): row for _, row in temp.iterrows()}
 
-    for lower_strike in strikes:
+    for buy_strike in strikes:
         for gap in strike_gaps:
-            higher_strike = lower_strike + gap
-            if higher_strike not in strike_to_row:
+            sell_strike = buy_strike - gap
+
+            if sell_strike not in strike_to_row:
                 continue
 
-            sell_row = strike_to_row[lower_strike]
-            buy_row = strike_to_row[higher_strike]
+            # Bear put debit spread rule:
+            # BUY higher strike PE, SELL lower strike PE
+            if sell_strike >= buy_strike:
+                continue
+
+            buy_row = strike_to_row[buy_strike]
+            sell_row = strike_to_row[sell_strike]
 
             buy_price = float(buy_row["last_price_y"])
             sell_price = float(sell_row["last_price_y"])
 
             net_debit = buy_price - sell_price
-            width = higher_strike - lower_strike
+            width = buy_strike - sell_strike
             max_profit = width - net_debit
             max_loss = net_debit
 
             if net_debit <= 0 or max_profit <= 0:
                 continue
 
-            rr = max_profit / max_loss if max_loss > 0 else None
+            rr = max_profit / max_loss
+
+            if rr < min_rr:
+                continue
 
             candidates.append(
                 {
-                    "buy_strike": higher_strike,
-                    "sell_strike": lower_strike,
+                    "buy_strike": buy_strike,
+                    "sell_strike": sell_strike,
                     "buy_price": buy_price,
                     "sell_price": sell_price,
                     "net_debit": net_debit,
@@ -307,6 +319,7 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
                     "max_profit": max_profit,
                     "max_loss": max_loss,
                     "rr": rr,
+                    "gap": gap,
                 }
             )
 
@@ -314,10 +327,9 @@ def build_bear_put_candidates(df_pe: pd.DataFrame, strike_gaps: tuple[int, ...] 
         return pd.DataFrame()
 
     return pd.DataFrame(candidates).sort_values(
-        by=["rr", "max_profit", "net_debit"],
-        ascending=[False, False, True],
+        by=["rr", "spread_width", "max_profit", "net_debit"],
+        ascending=[False, False, False, True],
     ).reset_index(drop=True)
-
 
 def get_spot_ltp(kite: KiteConnect) -> float:
     last_error = None
@@ -613,8 +625,11 @@ class AlphaBearPut:
             raise ValueError("Local NIFTY PE chain is empty")
 
         log_and_print(f"QD 2: df_pe rows={len(df_pe)}")
-
-        option_chain_pe = build_bear_put_candidates(df_pe=df_pe, strike_gaps=(100, 200))
+        option_chain_pe = build_bear_put_candidates(
+            df_pe=df_pe,
+            strike_gaps=(-100, -50, 50, 100, 150, 200, 250, 300),
+            min_rr=1.70,
+        )
         if option_chain_pe is None or option_chain_pe.empty:
             raise ValueError("No valid NIFTY bear put spread candidates found in local chain")
 
