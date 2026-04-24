@@ -89,7 +89,7 @@ def main() -> None:
         publish_strategy_state(
             strategy_name=strategy_name,
             ui_state="STOPPED",
-            message="Downside strategy stopped manually.",
+            message="Downside strategy stopped Manually.",
             is_loading=False,
         )
 
