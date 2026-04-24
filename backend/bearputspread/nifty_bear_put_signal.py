@@ -625,8 +625,8 @@ class AlphaBearPut:
         log_and_print(f"QD 2: df_pe rows={len(df_pe)}")
         option_chain_pe = build_bear_put_candidates(
             df_pe=df_pe,
-            strike_gaps=(-100, -50, 50, 100, 150, 200, 250, 300),
-            min_rr=1.70,
+            strike_gaps=(150, 200),
+            rr_target=1.70,
         )
         if option_chain_pe is None or option_chain_pe.empty:
             raise ValueError("No valid NIFTY bear put spread candidates found in local chain")
