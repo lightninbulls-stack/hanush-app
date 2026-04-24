@@ -246,7 +246,7 @@ def resolve_nifty_weekly_expiry() -> str:
 
 
 def parse_yyyymmdd_to_date(value: str) -> date:
-    return datetime.strptime(value, "%Y%m%d").date
+    return datetime.strptime(value, "%Y%m%d").date()
 
 
 def load_creds() -> dict:
