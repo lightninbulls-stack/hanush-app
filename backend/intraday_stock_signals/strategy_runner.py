@@ -219,6 +219,7 @@ class IntradayStockSignalRunner:
                 is_loading=False,
                 extra=self._build_frontend_payload(),
             )
+            # 
 
         def on_close(ws, code, reason):
             self.log_and_print(f"WebSocket closed: {code} - {reason}", "warning")
