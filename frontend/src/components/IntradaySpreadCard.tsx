@@ -37,11 +37,25 @@ function getSpreadTitle(spread: IntradaySpread): string {
     return `${spread.index} Call Debit Spread`;
   }
 
-  if (spread.spread_type === "bear_put") {
+  if (spread.spread_type === "bear_put" || spread.spread_type === "put_debit") {
     return `${spread.index} Put Debit Spread`;
   }
 
   return `${spread.index} Intraday Spread`;
+}
+
+function getQtyLotText(spread: IntradaySpread): string {
+  const indexName = String(spread.index || "").toUpperCase();
+
+  if (indexName === "SENSEX") {
+    return "Qty: 30 / 1 Lot";
+  }
+
+  if (indexName === "NIFTY") {
+    return "Qty: 65 / 1 Lot";
+  }
+
+  return "Qty: --";
 }
 
 function SpreadLegRow({ leg }: { leg: SpreadLeg }) {
@@ -218,6 +232,19 @@ const IntradaySpreadCard: React.FC<Props> = ({ spread }) => {
           {spread.updated_at
             ? new Date(spread.updated_at).toLocaleTimeString()
             : "--"}
+        </div>
+
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "12px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            color: "#facc15",
+            fontWeight: 700,
+          }}
+        >
+          {getQtyLotText(spread)}
         </div>
       </div>
     </div>
