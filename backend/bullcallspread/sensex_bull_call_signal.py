@@ -245,7 +245,7 @@ def load_creds() -> dict:
     }
 
 
-def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (100, 200)) -> pd.DataFrame:
+def build_bull_call_candidates(df_ce: pd.DataFrame, strike_gaps: tuple[int, ...] = (200, 400)) -> pd.DataFrame:
     required_cols = {"strike", "tradingsymbol", "instrument_token", "last_price_y"}
     missing = required_cols - set(df_ce.columns)
     if missing:
@@ -587,7 +587,7 @@ class AlphaBullCallSensex:
 
         log_and_print(f"QD 2: df_ce rows={len(df_ce)}")
 
-        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(100, 200))
+        option_chain_ce = build_bull_call_candidates(df_ce=df_ce, strike_gaps=(200, 400))
         if option_chain_ce is None or option_chain_ce.empty:
             raise ValueError("No valid Sensex bull call spread candidates found in local chain")
 
