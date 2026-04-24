@@ -103,8 +103,8 @@ const Dashboard: React.FC = () => {
     navigate("/", { replace: true });
   };
 
-  const [activeTab, setActiveTab] = useState("Watchlist");
-  const [previousTab, setPreviousTab] = useState("Watchlist");
+  const [activeTab, setActiveTab] = useState("");
+  const [previousTab, setPreviousTab] = useState("");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
   const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
@@ -113,7 +113,9 @@ const Dashboard: React.FC = () => {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
   );
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+  );
 
   useEffect(() => {
     const handleResize = () => {
@@ -152,6 +154,12 @@ const Dashboard: React.FC = () => {
 
     const getStocks = async () => {
       if (!watchlistBootstrapped) {
+        return;
+      }
+
+      if (!activeTab) {
+        setStocks([]);
+        setLoading(false);
         return;
       }
 
@@ -309,11 +317,11 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    setActiveTab("Watchlist");
+    setActiveTab("");
   };
 
   const showFeatureBackButton =
-    !selectedStock && !NON_FEATURE_TABS.includes(activeTab);
+    !selectedStock && activeTab && !NON_FEATURE_TABS.includes(activeTab);
 
   return (
     <div
@@ -395,10 +403,30 @@ const Dashboard: React.FC = () => {
           <div
             style={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: 16,
+              gap: 12,
             }}
           >
+            {isMobile ? (
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(148,163,184,0.2)",
+                  background: "#0f172a",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                ☰ Menu
+              </button>
+            ) : (
+              <div />
+            )}
+
             <button
               onClick={handleLogout}
               style={{
@@ -417,24 +445,60 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
 
-          {isMobile && (
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
+          {!activeTab ? (
+            <div
               style={{
-                marginBottom: 16,
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid rgba(148,163,184,0.2)",
-                background: "#0f172a",
+                minHeight: "70vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
                 color: "#fff",
-                cursor: "pointer",
+                padding: "24px",
               }}
             >
-              ☰ Menu
-            </button>
-          )}
+              <div>
+                <h1
+                  style={{
+                    color: "#f4d06f",
+                    marginBottom: 12,
+                    fontSize: isMobile ? "2rem" : "2.6rem",
+                  }}
+                >
+                  Welcome to Lightninbull
+                </h1>
+                <p
+                  style={{
+                    color: "#cbd5e1",
+                    fontSize: isMobile ? "1rem" : "1.1rem",
+                    maxWidth: 560,
+                    margin: "0 auto",
+                  }}
+                >
+                  Please select any feature from the sidebar to continue.
+                </p>
 
-          {selectedStock ? (
+                {isMobile && (
+                  <button
+                    onClick={() => setMobileSidebarOpen(true)}
+                    style={{
+                      marginTop: 20,
+                      padding: "12px 18px",
+                      borderRadius: 14,
+                      border: "1px solid rgba(255, 215, 0, 0.55)",
+                      background:
+                        "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
+                      color: "#000",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Open Menu
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : selectedStock ? (
             <>
               <button
                 onClick={handleBackToDashboard}
