@@ -28,7 +28,7 @@ const quantFeatures = [
     desc: "Identify stocks with stable momentum and sustained directional strength.",
   },
   {
-    icon: "📉",
+    icon: "⚖️",
     title: "Slow Movement",
     desc: "Capture low-volatility setups for accumulation and positional trades.",
   },
@@ -85,12 +85,12 @@ const quantFeatures = [
   {
     icon: "🟢",
     title: "Upside Trend Stocks",
-    desc: "Track live EMA-based bullish momentum signals during market hours.",
+    desc: "Track live  bullish momentum signals during market hours.",
   },
   {
     icon: "🔴",
     title: "Downside Trend Stocks",
-    desc: "Track live EMA-based bearish momentum signals during market hours.",
+    desc: "Track live  bearish momentum signals during market hours.",
   },
 ];
 
@@ -236,15 +236,16 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div style={{ background: "#020617", color: "#fff", overflowX: "hidden" }}>
+    <div style={{ background: "#000000", color: "#fff", overflowX: "hidden" }}>
       <section
         style={{
-          minHeight: "100vh",
+          minHeight: "68vh",
           position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-start",
           paddingLeft: "28px",
+          background: "#000000",
         }}
       >
         <video
@@ -269,7 +270,7 @@ const Auth: React.FC = () => {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.2) 100%)",
+              "linear-gradient(90deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.62) 32%, rgba(0,0,0,0.2) 100%)",
             zIndex: 1,
           }}
         />
@@ -281,11 +282,11 @@ const Auth: React.FC = () => {
             width: "360px",
             padding: "24px",
             borderRadius: "20px",
-            background: "rgba(10,10,10,0.78)",
+            background: "rgba(8,8,8,0.78)",
             backdropFilter: "blur(12px)",
             border: "1px solid rgba(255,215,0,0.25)",
             boxShadow:
-              "0 10px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.08)",
+              "0 10px 40px rgba(0,0,0,0.75), 0 0 24px rgba(255,215,0,0.09)",
             transform: "translateY(-8px)",
           }}
         >
@@ -477,23 +478,24 @@ const Auth: React.FC = () => {
         id="quant-ai-section"
         style={{
           position: "relative",
-          padding: "120px 42px",
+          marginTop: "-40px",
+          padding: "70px 42px 120px",
           background:
-            "radial-gradient(circle at top, rgba(250,204,21,0.16), transparent 35%), #020617",
-          borderTop: "1px solid rgba(250,204,21,0.16)",
+            "radial-gradient(circle at top, rgba(255,215,0,0.08), transparent 30%), #000000",
+          borderTop: "1px solid rgba(255,215,0,0.14)",
           overflow: "hidden",
         }}
       >
         <div
           style={{
             position: "absolute",
-            top: "-140px",
-            right: "-140px",
-            width: "320px",
-            height: "320px",
+            top: "-120px",
+            right: "-120px",
+            width: "280px",
+            height: "280px",
             borderRadius: "50%",
-            background: "rgba(250,204,21,0.12)",
-            filter: "blur(70px)",
+            background: "rgba(255,215,0,0.06)",
+            filter: "blur(80px)",
           }}
         />
 
@@ -502,19 +504,25 @@ const Auth: React.FC = () => {
             position: "absolute",
             bottom: "-120px",
             left: "-120px",
-            width: "300px",
-            height: "300px",
+            width: "260px",
+            height: "260px",
             borderRadius: "50%",
-            background: "rgba(245,158,11,0.1)",
-            filter: "blur(70px)",
+            background: "rgba(255,140,0,0.05)",
+            filter: "blur(80px)",
           }}
         />
 
-        <div style={{ maxWidth: "1180px", margin: "0 auto", position: "relative" }}>
+        <div
+          style={{
+            maxWidth: "1180px",
+            margin: "0 auto",
+            position: "relative",
+          }}
+        >
           <div
             style={{
               textAlign: "center",
-              marginBottom: "64px",
+              marginBottom: "58px",
               opacity: visibleCards ? 1 : 0,
               transform: visibleCards ? "translateY(0)" : "translateY(35px)",
               transition: "all 0.8s ease",
@@ -524,8 +532,8 @@ const Auth: React.FC = () => {
               style={{
                 color: "#facc15",
                 fontSize: "13px",
-                fontWeight: 800,
-                letterSpacing: "2.5px",
+                fontWeight: 900,
+                letterSpacing: "3px",
                 textTransform: "uppercase",
                 marginBottom: "14px",
               }}
@@ -538,8 +546,10 @@ const Auth: React.FC = () => {
                 fontSize: "clamp(38px, 6vw, 74px)",
                 lineHeight: 1,
                 fontWeight: 950,
-                color: "#ffffff",
+                color: "#f8fafc",
+                letterSpacing: "-1px",
                 margin: "0 0 22px",
+                textShadow: "0 18px 60px rgba(255,215,0,0.12)",
               }}
             >
               Quant AI Fund Manager
@@ -549,7 +559,7 @@ const Auth: React.FC = () => {
               style={{
                 maxWidth: "850px",
                 margin: "0 auto",
-                color: "#cbd5e1",
+                color: "#d1d5db",
                 fontSize: "clamp(16px, 2vw, 21px)",
                 lineHeight: 1.7,
               }}
@@ -571,23 +581,42 @@ const Auth: React.FC = () => {
             {quantFeatures.map((feature, index) => (
               <div
                 key={feature.title}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform =
+                    "translateY(-8px) scale(1.02)";
+                  e.currentTarget.style.border =
+                    "1px solid rgba(255,215,0,0.4)";
+                  e.currentTarget.style.boxShadow =
+                    "0 30px 75px rgba(0,0,0,0.85), 0 0 35px rgba(255,215,0,0.08), inset 0 1px 0 rgba(255,255,255,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = visibleCards
+                    ? "translateY(0) scale(1)"
+                    : "translateY(42px) scale(0.98)";
+                  e.currentTarget.style.border =
+                    "1px solid rgba(255,215,0,0.12)";
+                  e.currentTarget.style.boxShadow =
+                    "0 25px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)";
+                }}
                 style={{
                   minHeight: "175px",
-                  padding: "24px",
-                  borderRadius: "24px",
+                  padding: "26px",
+                  borderRadius: "22px",
                   background:
-                    "linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.025))",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                    "linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))",
+                  border: "1px solid rgba(255,215,0,0.12)",
+                  backdropFilter: "blur(10px)",
                   boxShadow:
-                    "0 20px 45px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                    "0 25px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)",
                   opacity: visibleCards ? 1 : 0,
                   transform: visibleCards
                     ? "translateY(0) scale(1)"
                     : "translateY(42px) scale(0.98)",
                   transition: `all 0.75s ease ${index * 0.08}s`,
+                  cursor: "default",
                 }}
               >
-                <div style={{ fontSize: "30px", marginBottom: "18px" }}>
+                <div style={{ fontSize: "31px", marginBottom: "18px" }}>
                   {feature.icon}
                 </div>
 
@@ -604,9 +633,9 @@ const Auth: React.FC = () => {
 
                 <p
                   style={{
-                    color: "#94a3b8",
+                    color: "#a1a1aa",
                     fontSize: "14px",
-                    lineHeight: 1.6,
+                    lineHeight: 1.65,
                     margin: 0,
                   }}
                 >
