@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
@@ -95,6 +96,13 @@ const buildWatchlistStocks = (
 };
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/", { replace: true });
+  };
+
   const [activeTab, setActiveTab] = useState("Consistent Trending");
   const [previousTab, setPreviousTab] = useState("Watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -384,6 +392,31 @@ const Dashboard: React.FC = () => {
             boxSizing: "border-box",
           }}
         >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: 16,
+            }}
+          >
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "10px 18px",
+                borderRadius: 14,
+                border: "1px solid rgba(255, 215, 0, 0.55)",
+                background: "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
+                color: "#000000",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 4px 18px rgba(255, 215, 0, 0.35)",
+              }}
+            >
+              Logout
+            </button>
+          </div>
+
           {isMobile && (
             <button
               onClick={() => setMobileSidebarOpen(true)}
