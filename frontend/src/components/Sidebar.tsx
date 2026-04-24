@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             key={logoBurst}
             type="button"
             className="logo-trigger lightning-active"
-            onClick={() => triggerCategory("Consistent Trending")}
+            onClick={() => triggerCategory("Watchlist")}
             aria-label="Lightninbull Home"
             style={{
               background: "transparent",
