@@ -27,26 +27,37 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
 }) => {
   const [logoBurst, setLogoBurst] = useState(0);
-  const [flashItem, setFlashItem] = useState<string | null>(null);
+  const [shockItem, setShockItem] = useState<string | null>(null);
 
   const triggerCategory = (category: string) => {
     setActiveCategory(category);
     setLogoBurst((prev) => prev + 1);
-    setFlashItem(category);
-    if (onCloseMobile) onCloseMobile();
+    setShockItem(category);
+
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
   };
 
   useEffect(() => {
-    if (!flashItem) return;
-    const timer = window.setTimeout(() => setFlashItem(null), 850);
+    if (!shockItem) return;
+
+    const timer = window.setTimeout(() => {
+      setShockItem(null);
+    }, 850);
+
     return () => window.clearTimeout(timer);
-  }, [flashItem]);
+  }, [shockItem]);
 
   const sections: NavSection[] = [
     {
       title: "Navigation",
       items: [
-        { name: "Watchlist", icon: "⭐", badge: starredCount > 0 ? starredCount : null },
+        {
+          name: "Watchlist",
+          icon: "⭐",
+          badge: starredCount > 0 ? starredCount : null,
+        },
         { name: "Portfolio Backtest", icon: "📊" },
       ],
     },
@@ -106,44 +117,49 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile backdrop */}
       <div
-        className={`lb-sidebar-backdrop${isMobileOpen ? " visible" : ""}`}
+        className={`sidebar-backdrop ${isMobileOpen ? "visible" : ""}`}
         onClick={onCloseMobile}
-        aria-hidden="true"
       />
 
-      <nav
-        className={`lb-sidebar${isMobileOpen ? " mobile-open" : ""}`}
-        aria-label="Main navigation"
-      >
-        {/* Logo */}
-        <div className="lb-sidebar-logo">
+      <div className={`sidebar ${isMobileOpen ? "mobile-open" : ""}`}>
+        <div
+          className="sidebar-logo"
+          style={{
+            padding: "0 24px 34px",
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+          }}
+        >
           <button
             key={logoBurst}
             type="button"
+            className="logo-trigger lightning-active"
             onClick={() => triggerCategory("")}
-            aria-label="LightninBull Home"
+            aria-label="Lightninbull Home"
             style={{
               background: "transparent",
               border: "none",
               padding: 0,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
             }}
           >
+            <span className="logo-flash-ring ring-one"></span>
+            <span className="logo-flash-ring ring-two"></span>
+            <span className="logo-lightning-bolt bolt-one"></span>
+            <span className="logo-lightning-bolt bolt-two"></span>
+            <span className="logo-lightning-arc arc-left"></span>
+            <span className="logo-lightning-arc arc-right"></span>
+
             <img
               src="/lightninbull-bull.png"
-              alt="LightninBull"
+              alt="Lightninbull"
+              className="logo-image"
               style={{
-                width: 42,
-                height: 42,
-                borderRadius: 10,
+                width: "52px",
+                height: "52px",
+                borderRadius: "10px",
                 objectFit: "cover",
-                border: "1px solid rgba(250,204,21,0.3)",
-                boxShadow: "0 0 14px rgba(250,204,21,0.2)",
               }}
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -151,66 +167,49 @@ const Sidebar: React.FC<SidebarProps> = ({
             />
           </button>
 
-          <h1 className="lb-sidebar-brand">Lightninbull</h1>
+          <h1
+            style={{
+              fontSize: "1.3rem",
+              fontWeight: 900,
+              color: "#f4d06f",
+              letterSpacing: "0.2px",
+              margin: 0,
+            }}
+          >
+            Lightninbull
+          </h1>
 
           {onCloseMobile && (
-            <button
-              className="lb-sidebar-close"
-              onClick={onCloseMobile}
-              aria-label="Close sidebar"
-            >
+            <button className="sidebar-close-btn" onClick={onCloseMobile}>
               ✕
             </button>
           )}
         </div>
 
-        {/* Nav sections */}
         {sections.map((section) => (
-          <div key={section.title} className="lb-nav-section">
-            <div className="lb-nav-section-title">{section.title}</div>
+          <div key={section.title} className="nav-section">
+            <div className="nav-section-title">{section.title}</div>
 
-            {section.items.map((item) => {
-              const isActive = activeCategory === item.name;
-              const isFlash = flashItem === item.name;
+            {section.items.map((item) => (
+              <div
+                key={item.name}
+                className={`nav-item-link ${
+                  activeCategory === item.name ? "active" : ""
+                } ${shockItem === item.name ? "electric-active" : ""}`}
+                onClick={() => triggerCategory(item.name)}
+              >
+                <span className="nav-electric-line"></span>
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-text">{item.name}</span>
 
-              return (
-                <div
-                  key={item.name}
-                  role="button"
-                  tabIndex={0}
-                  className={[
-                    "lb-nav-item",
-                    isActive ? "active" : "",
-                    isFlash ? "electric-flash" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() => triggerCategory(item.name)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      triggerCategory(item.name);
-                    }
-                  }}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <span className="nav-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span style={{ flex: 1 }}>{item.name}</span>
-
-                  {item.badge != null && (
-                    <span className="lb-nav-badge">{item.badge}</span>
-                  )}
-                </div>
-              );
-            })}
+                {item.badge !== undefined && item.badge !== null && (
+                  <span className="nav-badge">{item.badge}</span>
+                )}
+              </div>
+            ))}
           </div>
         ))}
-
-        {/* Bottom padding */}
-        <div style={{ height: 32 }} />
-      </nav>
+      </div>
     </>
   );
 };
