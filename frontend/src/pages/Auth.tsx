@@ -27,144 +27,192 @@ const features: FeatureInfo[] = [
     icon: "◈",
     tag: "TRACK",
     what: "Watchlist is the central command layer where selected stocks, strategy signals, model outputs, and high-conviction trading ideas are tracked in one place.",
-    model: "The watchlist acts as an execution-ready monitoring layer. It receives outputs from momentum, regime, value, quality, range-bound, option, and intraday signal models, allowing the user to monitor shortlisted opportunities without switching between different screens.",
-    why: "It helps traders reduce decision noise. Instead of randomly scanning the market, the watchlist keeps only model-filtered opportunities visible, making the trading process more disciplined and systematic.",
-    example: "A trader can add Consistent Trending stocks, Regime Upside names, and Intraday Bull Call Spread signals into one watchlist before taking action during market hours.",
+    model:
+      "The Watchlist works as an execution-ready monitoring layer. It receives outputs from momentum, regime, value, quality, range-bound, option, and intraday signal models. Instead of manually scanning the market, the user sees only shortlisted opportunities filtered by systematic rules.",
+    why:
+      "It reduces decision noise and helps traders stay disciplined. A good quant workflow starts with filtering the universe, and the Watchlist keeps those filtered ideas ready for monitoring or execution.",
+    example:
+      "A trader can add Consistent Trending stocks, Regime Upside names, and Intraday Bull Call Spread signals into one watchlist before taking action during market hours.",
   },
   {
     name: "Portfolio Backtest",
     icon: "◉",
     tag: "TEST",
     what: "Portfolio Backtest allows users to test how a strategy or stock basket would have performed historically before deploying real capital.",
-    model: "The backtest engine evaluates portfolio returns, calendar-year performance, drawdowns, Sharpe ratio, volatility, turnover, rebalancing impact, equal-weight allocation, and mean-variance optimization behaviour across historical market regimes.",
-    why: "It helps traders and investors validate whether a strategy has survived different market conditions. A model is useful only if it can be tested across bull, bear, sideways, high-volatility, and low-volatility phases.",
-    example: "You can test a 20-stock momentum portfolio with monthly rebalancing and compare equal weight versus MVO allocation to understand risk-adjusted performance.",
+    model:
+      "The backtest engine evaluates portfolio returns, calendar-year performance, drawdowns, volatility, Sharpe ratio, turnover, equal-weight allocation, and mean-variance optimization behaviour across different market regimes.",
+    why:
+      "It helps validate whether a strategy has survived bull, bear, sideways, high-volatility, and low-volatility phases. A model should not be trusted only because it looks good today; it must be tested historically.",
+    example:
+      "You can test a 20-stock momentum portfolio with monthly rebalancing and compare equal weight versus MVO allocation to understand risk-adjusted performance.",
   },
   {
     name: "Consistent Trending",
     icon: "◆",
     tag: "MOMENTUM",
     what: "Consistent Trending is a quant momentum model that identifies stocks showing persistent and stable price strength across multiple lookback windows.",
-    model: "The model focuses on repeatable momentum behaviour, trend persistence, smoother price participation, and reduced noise. Instead of selecting one-day spike stocks, it prefers stocks where momentum is visible across short, medium, and longer lookback periods.",
-    why: "It helps traders avoid false breakouts and random spikes. For portfolio construction, it is useful for selecting stocks that have stronger continuation probability and cleaner trend structure.",
-    example: "A stock that steadily outperforms the market over multiple periods, shows controlled pullbacks, and repeatedly participates in upside moves can qualify as a Consistent Trending candidate.",
+    model:
+      "The model focuses on repeatable momentum behaviour, trend persistence, smoother price participation, and reduced noise. Instead of selecting one-day spike stocks, it prefers stocks where momentum is visible across short, medium, and longer lookback periods.",
+    why:
+      "It helps traders avoid false breakouts and random spikes. For portfolio construction, it is useful for selecting stocks that have stronger continuation probability, cleaner trend structure, and better consistency of returns.",
+    example:
+      "A stock that steadily outperforms the market over multiple periods, shows controlled pullbacks, and repeatedly participates in upside moves can qualify as a Consistent Trending candidate.",
   },
   {
     name: "Slow Movement",
     icon: "◇",
     tag: "STABILITY",
     what: "Slow Movement identifies stocks that move gradually with lower volatility and more controlled price behaviour.",
-    model: "The model filters for stocks with smoother price movement, lower noise, controlled volatility, and stable directional drift. It avoids stocks with erratic spikes, unstable candles, and excessive gap behaviour.",
-    why: "This is useful for investors who prefer stable trend participation over aggressive momentum. It can also be useful for conservative portfolios where lower volatility and smoother NAV behaviour matter.",
-    example: "A stock that rises slowly but consistently over several weeks with limited drawdowns may be selected as a Slow Movement candidate.",
+    model:
+      "The model filters for smoother price drift, lower noise, controlled volatility, and stable directional behaviour. It avoids stocks with erratic spikes, unstable candles, frequent gaps, or excessive intraday whipsaws.",
+    why:
+      "This is useful for investors who prefer stable trend participation over aggressive momentum. It can also be useful for conservative portfolios where lower volatility and smoother NAV behaviour matter.",
+    example:
+      "A stock that rises slowly but consistently over several weeks with limited drawdowns may be selected as a Slow Movement candidate.",
   },
   {
     name: "Cheap Value",
     icon: "◐",
     tag: "VALUE",
     what: "Cheap Value identifies stocks that appear undervalued relative to their price behaviour, valuation characteristics, and market opportunity.",
-    model: "The model combines value-style ranking with price and trend confirmation. Instead of selecting only statistically cheap stocks, it looks for value names that also show early signs of market recognition.",
-    why: "Pure value stocks can remain cheap for years. This model helps identify value opportunities where the probability of re-rating or mean reversion is higher.",
-    example: "A stock trading at relatively attractive valuations while also showing improving trend behaviour can enter the Cheap Value bucket.",
+    model:
+      "The model combines value-style ranking with price and trend confirmation. Instead of selecting only statistically cheap stocks, it looks for value names that also show early signs of market recognition or improving structure.",
+    why:
+      "Pure value stocks can remain cheap for years. This model helps identify value opportunities where the probability of re-rating, recovery, or mean reversion is higher.",
+    example:
+      "A stock trading at relatively attractive valuations while also showing improving trend behaviour can enter the Cheap Value bucket.",
   },
   {
     name: "Best Quality",
     icon: "◑",
     tag: "QUALITY",
     what: "Best Quality filters companies with stronger quality characteristics, cleaner market behaviour, and more stable performance patterns.",
-    model: "The model focuses on consistency, lower behavioural noise, cleaner trend structure, stronger relative stability, and better survivability across market regimes.",
-    why: "It helps avoid weak or unstable stocks that may appear attractive only for a short period. Quality filtering improves the base universe before applying momentum, value, or portfolio models.",
-    example: "Before creating a long-only portfolio, the Best Quality bucket can be used as a cleaner stock universe for further ranking.",
+    model:
+      "The model focuses on consistency, lower behavioural noise, cleaner trend structure, relative stability, and better survivability across different market regimes. It acts like a quality filter before deeper strategy selection.",
+    why:
+      "It helps avoid weak or unstable stocks that may appear attractive only for a short period. Quality filtering improves the base universe before applying momentum, value, or portfolio construction models.",
+    example:
+      "Before creating a long-only portfolio, the Best Quality bucket can be used as a cleaner stock universe for further ranking.",
   },
   {
     name: "Regime Upside",
     icon: "▲",
     tag: "RISK-ON",
     what: "Regime Upside identifies stocks that perform better when the broader market environment is bullish, risk-on, or trending upward.",
-    model: "The model studies how stocks behave during positive market regimes. It looks for names that participate strongly when index breadth, trend, and market structure are supportive.",
-    why: "It helps align long trades with the broader market environment. When the market is risk-on, high-participation stocks usually offer better upside probability.",
-    example: "When Nifty is strong and market breadth is improving, Regime Upside helps shortlist stocks likely to outperform during that phase.",
+    model:
+      "The model studies how stocks behave during positive market regimes. It looks for names that participate strongly when index trend, market breadth, sector rotation, and risk appetite are supportive.",
+    why:
+      "It helps align long trades with the broader market environment. When the market is risk-on, high-participation stocks usually offer better upside probability.",
+    example:
+      "When Nifty is strong and market breadth is improving, Regime Upside helps shortlist stocks likely to outperform during that phase.",
   },
   {
     name: "Regime Downside",
     icon: "▼",
     tag: "RISK-OFF",
     what: "Regime Downside identifies stocks that become weak or vulnerable when the market regime turns bearish or risk-off.",
-    model: "The model tracks stocks that underperform during weak market phases, falling breadth, rising volatility, and negative index structure.",
-    why: "It helps traders prepare defensive, bearish, or short-side opportunities instead of holding weak names during unfavourable market regimes.",
-    example: "If Nifty breaks down and volatility rises, Regime Downside can highlight stocks that are likely to fall faster than the broader market.",
+    model:
+      "The model tracks stocks that underperform during weak market phases, falling breadth, rising volatility, and negative index structure. It studies downside participation and weakness persistence.",
+    why:
+      "It helps traders prepare defensive, bearish, or short-side opportunities instead of holding weak names during unfavourable market regimes.",
+    example:
+      "If Nifty breaks down and volatility rises, Regime Downside can highlight stocks that are likely to fall faster than the broader market.",
   },
   {
     name: "Range Bound Upside",
     icon: "◭",
     tag: "RANGE",
     what: "Range Bound Upside identifies stocks trading inside a range but showing upside pressure near support, accumulation zones, or breakout areas.",
-    model: "The model looks for sideways stocks where buyers are repeatedly defending lower levels. It studies compression, support behaviour, upside pressure, and potential breakout readiness.",
-    why: "It helps traders catch early accumulation before a full breakout becomes obvious to the market.",
-    example: "A stock moving sideways for many sessions but repeatedly bouncing from support can qualify for Range Bound Upside.",
+    model:
+      "The model looks for sideways stocks where buyers are repeatedly defending lower levels. It studies compression, support behaviour, upside pressure, volatility contraction, and potential breakout readiness.",
+    why:
+      "It helps traders catch early accumulation before a full breakout becomes obvious to the market. This is useful when a stock is not yet trending but is preparing for a directional move.",
+    example:
+      "A stock moving sideways for many sessions but repeatedly bouncing from support can qualify for Range Bound Upside.",
   },
   {
     name: "Range Bound Downside",
     icon: "◮",
     tag: "RANGE",
     what: "Range Bound Downside identifies stocks trading inside a range but showing downside pressure near resistance or breakdown zones.",
-    model: "The model detects distribution-like behaviour, repeated rejection from resistance, weak recovery attempts, and increasing downside pressure inside a consolidation zone.",
-    why: "It helps traders prepare bearish trades before a clean breakdown happens.",
-    example: "A stock repeatedly failing near resistance and showing weak bounce behaviour may qualify for Range Bound Downside.",
+    model:
+      "The model detects distribution-like behaviour, repeated rejection from resistance, weak recovery attempts, compression near support, and increasing downside pressure inside a consolidation zone.",
+    why:
+      "It helps traders prepare bearish trades before a clean breakdown happens. Instead of reacting late, the model highlights stocks where sellers are already gaining control.",
+    example:
+      "A stock repeatedly failing near resistance and showing weak bounce behaviour may qualify for Range Bound Downside.",
   },
   {
     name: "Aggressive Call Option Stocks",
     icon: "⬡",
     tag: "OPTIONS",
     what: "Aggressive Call Option Stocks identifies stocks suitable for bullish option opportunities based on momentum, volatility, and breakout behaviour.",
-    model: "The model filters for stocks with bullish directional strength, expanding volatility, strong price participation, and potential for option premium expansion.",
-    why: "It helps avoid random call buying. Instead, it shortlists stocks where the underlying price movement supports bullish option trades.",
-    example: "A stock breaking out with strong momentum and rising participation may enter the Aggressive Call Option bucket.",
+    model:
+      "The model filters for stocks with bullish directional strength, expanding volatility, strong price participation, breakout behaviour, and potential for option premium expansion.",
+    why:
+      "It helps avoid random call buying. Instead, it shortlists stocks where the underlying price movement supports bullish option trades.",
+    example:
+      "A stock breaking out with strong momentum and rising participation may enter the Aggressive Call Option bucket.",
   },
   {
     name: "Aggressive Put Option Stocks",
     icon: "⬢",
     tag: "OPTIONS",
     what: "Aggressive Put Option Stocks identifies stocks suitable for bearish option opportunities based on weakness, volatility, and breakdown behaviour.",
-    model: "The model filters for stocks with bearish momentum, weak trend structure, rising downside volatility, and possible continuation after breakdown.",
-    why: "It helps traders avoid random put buying and focus on stocks where bearish structure supports option trades.",
-    example: "A stock breaking below support with weak recovery and rising volatility may qualify as an Aggressive Put Option candidate.",
+    model:
+      "The model filters for stocks with bearish momentum, weak trend structure, rising downside volatility, support breakdown, and possible continuation after breakdown.",
+    why:
+      "It helps traders avoid random put buying and focus on stocks where bearish structure supports option trades.",
+    example:
+      "A stock breaking below support with weak recovery and rising volatility may qualify as an Aggressive Put Option candidate.",
   },
   {
     name: "Intraday Bull Call Spreads",
     icon: "◈",
     tag: "INTRADAY",
     what: "Intraday Bull Call Spreads identifies defined-risk bullish option spread opportunities during market hours.",
-    model: "The model focuses on intraday upside confirmation, trend strength, index direction, strike selection, and risk-defined spread construction.",
-    why: "It helps traders participate in upside moves while limiting risk compared to naked option buying or futures exposure.",
-    example: "If Nifty confirms intraday upside momentum, the system can identify a bull call spread with defined risk and reward.",
+    model:
+      "The model focuses on intraday upside confirmation, trend strength, index direction, strike selection, option premium behaviour, and risk-defined spread construction.",
+    why:
+      "It helps traders participate in upside moves while limiting risk compared to naked option buying or futures exposure.",
+    example:
+      "If Nifty confirms intraday upside momentum, the system can identify a bull call spread with defined risk and reward.",
   },
   {
     name: "Intraday Bear Put Spreads",
     icon: "◇",
     tag: "INTRADAY",
     what: "Intraday Bear Put Spreads identifies defined-risk bearish option spread opportunities during market hours.",
-    model: "The model focuses on intraday downside confirmation, index weakness, option spread structure, strike selection, and controlled risk exposure.",
-    why: "It helps traders express bearish views without taking unlimited or unstructured directional exposure.",
-    example: "If BankNifty confirms intraday downside momentum, the system can identify a bear put spread with limited downside risk.",
+    model:
+      "The model focuses on intraday downside confirmation, index weakness, option spread structure, strike selection, premium behaviour, and controlled risk exposure.",
+    why:
+      "It helps traders express bearish views without taking unlimited or unstructured directional exposure.",
+    example:
+      "If BankNifty confirms intraday downside momentum, the system can identify a bear put spread with limited downside risk.",
   },
   {
     name: "Upside Trend Stocks",
     icon: "◆",
     tag: "LIVE",
     what: "Upside Trend Stocks shows live intraday stocks where upside momentum is active.",
-    model: "The model uses live price behaviour, trend continuation, momentum confirmation, and signal persistence to identify stocks currently showing upside strength.",
-    why: "It helps traders monitor active intraday long opportunities instead of manually scanning hundreds of stocks.",
-    example: "During market hours, a stock showing strong upside continuation can appear in the Upside Trend Stocks panel for monitoring.",
+    model:
+      "The model uses live price behaviour, trend continuation, momentum confirmation, and signal persistence to identify stocks currently showing upside strength.",
+    why:
+      "It helps traders monitor active intraday long opportunities instead of manually scanning hundreds of stocks.",
+    example:
+      "During market hours, a stock showing strong upside continuation can appear in the Upside Trend Stocks panel for monitoring.",
   },
   {
     name: "Downside Trend Stocks",
     icon: "◉",
     tag: "LIVE",
     what: "Downside Trend Stocks shows live intraday stocks where downside momentum is active.",
-    model: "The model tracks live weakness, downside continuation, trend breakdown, and selling pressure to identify stocks currently showing bearish momentum.",
-    why: "It helps traders monitor active downside opportunities and weak stocks during market hours.",
-    example: "A stock breaking intraday support with continued selling pressure can appear in the Downside Trend Stocks panel.",
+    model:
+      "The model tracks live weakness, downside continuation, trend breakdown, and selling pressure to identify stocks currently showing bearish momentum.",
+    why:
+      "It helps traders monitor active downside opportunities and weak stocks during market hours.",
+    example:
+      "A stock breaking intraday support with continued selling pressure can appear in the Downside Trend Stocks panel.",
   },
 ];
 
@@ -184,12 +232,13 @@ const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [selectedFeature, setSelectedFeature] = useState<FeatureInfo>(features[2]);
+  const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(null);
 
   const authCardRef = useRef<HTMLDivElement | null>(null);
   const intelligenceRef = useRef<HTMLElement | null>(null);
   const aboutRef = useRef<HTMLElement | null>(null);
   const contactRef = useRef<HTMLElement | null>(null);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
   const heading = useMemo(
     () =>
@@ -211,9 +260,24 @@ const Auth: React.FC = () => {
   const openSignUp = () => {
     setMode("signup");
     resetMessages();
+
     setTimeout(() => {
-      authCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      authCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
     }, 50);
+  };
+
+  const handleFeatureClick = (feature: FeatureInfo) => {
+    setSelectedFeature(feature);
+
+    setTimeout(() => {
+      detailPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -238,6 +302,7 @@ const Auth: React.FC = () => {
     (field: keyof typeof initialSignUpState) =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const { value } = event.target;
+
       setSignUpForm((prev) => ({
         ...prev,
         [field]: value,
@@ -320,8 +385,10 @@ const Auth: React.FC = () => {
             <p className="eyebrow-label">INSTITUTIONAL QUANT INTELLIGENCE</p>
 
             <h1 className="hero-headline">
-              Invest and trade<br />
-              with the <span className="headline-gold">precision</span><br />
+              Invest and trade
+              <br />
+              with the <span className="headline-gold">precision</span>
+              <br />
               of algorithms.
             </h1>
 
@@ -519,15 +586,16 @@ const Auth: React.FC = () => {
               type="button"
               key={feature.name}
               className={`feature-card ${
-                selectedFeature.name === feature.name ? "selected" : ""
+                selectedFeature?.name === feature.name ? "selected" : ""
               }`}
               style={{ animationDelay: `${index * 0.035}s` }}
-              onClick={() => setSelectedFeature(feature)}
+              onClick={() => handleFeatureClick(feature)}
             >
               <div className="feature-topline">
                 <span className="card-icon">{feature.icon}</span>
                 <span className="feature-tag">{feature.tag}</span>
               </div>
+
               <h3 className="card-title">{feature.name}</h3>
               <p className="card-desc">{feature.what}</p>
               <span className="feature-action">View details →</span>
@@ -536,30 +604,32 @@ const Auth: React.FC = () => {
           ))}
         </div>
 
-        <div className="feature-detail-panel">
-          <div className="detail-left">
-            <p className="detail-kicker">{selectedFeature.tag}</p>
-            <h3>{selectedFeature.name}</h3>
-            <p>{selectedFeature.what}</p>
+        {selectedFeature ? (
+          <div ref={detailPanelRef} className="feature-detail-panel">
+            <div className="detail-left">
+              <p className="detail-kicker">{selectedFeature.tag}</p>
+              <h3>{selectedFeature.name}</h3>
+              <p>{selectedFeature.what}</p>
+            </div>
+
+            <div className="detail-right">
+              <div className="detail-box">
+                <span>QUANT MODEL LOGIC</span>
+                <p>{selectedFeature.model}</p>
+              </div>
+
+              <div className="detail-box">
+                <span>WHY IT HELPS</span>
+                <p>{selectedFeature.why}</p>
+              </div>
+
+              <div className="detail-box">
+                <span>EXAMPLE USE CASE</span>
+                <p>{selectedFeature.example}</p>
+              </div>
+            </div>
           </div>
-
-          <div className="detail-right">
-            <div className="detail-box">
-              <span>QUANT MODEL LOGIC</span>
-              <p>{selectedFeature.model}</p>
-            </div>
-
-            <div className="detail-box">
-              <span>WHY IT HELPS</span>
-              <p>{selectedFeature.why}</p>
-            </div>
-
-            <div className="detail-box">
-              <span>EXAMPLE USE CASE</span>
-              <p>{selectedFeature.example}</p>
-            </div>
-          </div>
-        </div>
+        ) : null}
       </section>
 
       <section ref={aboutRef} className="about-section">
@@ -636,6 +706,7 @@ const Auth: React.FC = () => {
             © {new Date().getFullYear()} LightninBull. Institutional Quant Intelligence. All
             rights reserved.
           </span>
+
           <button type="button" onClick={openSignUp}>
             Join LightninBull →
           </button>
@@ -657,7 +728,7 @@ const Auth: React.FC = () => {
           overflow-x: hidden;
         }
 
-        button {
+        .auth-page button {
           font: inherit;
         }
 
