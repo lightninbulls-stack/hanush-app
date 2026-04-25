@@ -28,191 +28,191 @@ const features: FeatureInfo[] = [
     tag: "TRACK",
     what: "Watchlist is the central command layer where selected stocks, strategy signals, model outputs, and high-conviction trading ideas are tracked in one place.",
     model:
-      "The Watchlist works as an execution-ready monitoring layer. It receives outputs from momentum, regime, value, quality, range-bound, option, and intraday signal models. Instead of manually scanning the market, the user sees only shortlisted opportunities filtered by systematic rules.",
+      "The Watchlist operates as an execution-ready monitoring layer that receives curated outputs from momentum, regime, value, quality, range-bound, options, and intraday signal models. It applies systematic filtering rules to reduce the tradeable universe from thousands of stocks to a focused, signal-backed shortlist. Each entry in the watchlist is tagged by strategy type, signal strength, and model source so the trader always knows why a stock is being tracked.",
     why:
-      "It reduces decision noise and helps traders stay disciplined. A good quant workflow starts with filtering the universe, and the Watchlist keeps those filtered ideas ready for monitoring or execution.",
+      "Manual market scanning introduces cognitive overload, confirmation bias, and missed opportunities. The Watchlist removes decision noise by ensuring only model-validated ideas enter the trader's field of attention. It enforces discipline by separating the stock selection process from the execution process, which is a critical distinction in systematic trading.",
     example:
-      "A trader can add Consistent Trending stocks, Regime Upside names, and Intraday Bull Call Spread signals into one watchlist before taking action during market hours.",
+      "Before market open, a trader populates the Watchlist with Consistent Trending momentum names, Regime Upside stocks, and Intraday Bull Call Spread signals. During market hours, monitoring is restricted to this filtered list, avoiding impulsive trades on stocks outside the systematic framework.",
   },
   {
     name: "Portfolio Backtest",
     icon: "◉",
     tag: "TEST",
-    what: "Portfolio Backtest allows users to test how a strategy or stock basket would have performed historically before deploying real capital.",
+    what: "Portfolio Backtest allows users to rigorously test how a strategy or stock basket would have performed historically across different market environments before committing real capital.",
     model:
-      "The backtest engine evaluates portfolio returns, calendar-year performance, drawdowns, volatility, Sharpe ratio, turnover, equal-weight allocation, and mean-variance optimization behaviour across different market regimes.",
+      "The backtest engine evaluates portfolio-level metrics including annualised returns, calendar-year performance breakdown, maximum drawdown, volatility, Sharpe ratio, Sortino ratio, portfolio turnover, and hit rate. It supports equal-weight allocation and mean-variance optimisation (MVO) to compare risk-adjusted outcomes. The engine segments performance across bull, bear, sideways, high-volatility, and low-volatility regimes to stress-test strategy behaviour.",
     why:
-      "It helps validate whether a strategy has survived bull, bear, sideways, high-volatility, and low-volatility phases. A model should not be trusted only because it looks good today; it must be tested historically.",
+      "A strategy that performs well in recent markets may be a product of regime luck rather than structural edge. Backtesting across multiple market cycles provides statistical evidence of whether a strategy has genuine alpha, acceptable drawdown characteristics, and consistent behaviour across varying conditions. It prevents the common mistake of deploying untested capital based on short-term recency bias.",
     example:
-      "You can test a 20-stock momentum portfolio with monthly rebalancing and compare equal weight versus MVO allocation to understand risk-adjusted performance.",
+      "A trader builds a 20-stock momentum portfolio with monthly rebalancing. The backtest compares equal-weight allocation versus MVO across the last five years, revealing that MVO reduced maximum drawdown by 18% while maintaining comparable annualised returns, making it the preferred construction method.",
   },
   {
     name: "Consistent Trending",
     icon: "◆",
     tag: "MOMENTUM",
-    what: "Consistent Trending is a quant momentum model that identifies stocks showing persistent and stable price strength across multiple lookback windows.",
+    what: "Consistent Trending is a quant momentum model that identifies stocks showing persistent and stable price strength across multiple lookback windows, filtering for repeatable trend behaviour rather than short-lived spikes.",
     model:
-      "The model focuses on repeatable momentum behaviour, trend persistence, smoother price participation, and reduced noise. Instead of selecting one-day spike stocks, it prefers stocks where momentum is visible across short, medium, and longer lookback periods.",
+      "The model evaluates price momentum across short, medium, and longer lookback periods simultaneously and scores stocks on the consistency of their outperformance across all windows. It penalises stocks with erratic momentum — strong in one period but weak in another — and rewards names where trend participation is smooth, drawdowns are controlled, and upside continuation is statistically persistent. This multi-window consistency score forms the primary ranking factor.",
     why:
-      "It helps traders avoid false breakouts and random spikes. For portfolio construction, it is useful for selecting stocks that have stronger continuation probability, cleaner trend structure, and better consistency of returns.",
+      "Single-period momentum strategies are susceptible to mean reversion after sharp one-directional moves. By requiring consistency across multiple timeframes, this model selects stocks where price strength is structural rather than episodic. This improves the probability of trend continuation post-entry and reduces exposure to false breakouts driven by noise or temporary sector rotations.",
     example:
-      "A stock that steadily outperforms the market over multiple periods, shows controlled pullbacks, and repeatedly participates in upside moves can qualify as a Consistent Trending candidate.",
+      "A stock that ranks in the top decile of 1-month, 3-month, and 6-month momentum simultaneously, shows controlled retracements below 8%, and has participated in the last four consecutive market upswings qualifies as a Consistent Trending candidate suitable for a momentum portfolio allocation.",
   },
   {
     name: "Slow Movement",
     icon: "◇",
     tag: "STABILITY",
-    what: "Slow Movement identifies stocks that move gradually with lower volatility and more controlled price behaviour.",
+    what: "Slow Movement identifies stocks that exhibit gradual, low-volatility directional drift with controlled intraday behaviour, minimal gap risk, and stable trend participation over extended periods.",
     model:
-      "The model filters for smoother price drift, lower noise, controlled volatility, and stable directional behaviour. It avoids stocks with erratic spikes, unstable candles, frequent gaps, or excessive intraday whipsaws.",
+      "The model filters for low realised volatility, smooth intraday candle structure, absence of erratic gaps, and consistent directional drift. It ranks stocks by the ratio of directional price change to total price movement — a high ratio indicates efficient, low-noise trending. Stocks with frequent whipsaws, wide daily ranges relative to trend progress, or unstable beta are systematically excluded.",
     why:
-      "This is useful for investors who prefer stable trend participation over aggressive momentum. It can also be useful for conservative portfolios where lower volatility and smoother NAV behaviour matter.",
+      "For conservative portfolios and long-term compounders, low-volatility stable trends are preferable to aggressive momentum because they produce smoother NAV curves, lower drawdown depth, and reduced behavioural pressure to exit positions prematurely. Slow Movement names also tend to have better Sharpe ratios over long holding periods compared to high-beta momentum stocks.",
     example:
-      "A stock that rises slowly but consistently over several weeks with limited drawdowns may be selected as a Slow Movement candidate.",
+      "A defensive sector stock rising 18% over 12 weeks with daily moves averaging 0.4%, no gaps above 1%, and consistent buying volume qualifies as a Slow Movement candidate suitable for a low-volatility income or retirement portfolio sleeve.",
   },
   {
     name: "Cheap Value",
     icon: "◐",
     tag: "VALUE",
-    what: "Cheap Value identifies stocks that appear undervalued relative to their price behaviour, valuation characteristics, and market opportunity.",
+    what: "Cheap Value identifies stocks that appear undervalued relative to their fundamental and price-based characteristics while also showing early signs of market recognition or structural improvement.",
     model:
-      "The model combines value-style ranking with price and trend confirmation. Instead of selecting only statistically cheap stocks, it looks for value names that also show early signs of market recognition or improving structure.",
+      "The model blends valuation-style ranking with price trend confirmation. It screens for stocks trading at relative discounts across multiple valuation dimensions and then applies a price-based filter to identify names where the market is beginning to recognise the mispricing. This dual-confirmation approach avoids the classic value trap where cheap stocks remain cheap indefinitely without a catalyst for re-rating.",
     why:
-      "Pure value stocks can remain cheap for years. This model helps identify value opportunities where the probability of re-rating, recovery, or mean reversion is higher.",
+      "Pure statistical value screens frequently identify distressed or structurally impaired businesses that deserve their low valuations. Adding price-based confirmation ensures the model selects value stocks where an actual re-rating process has begun. This improves timing precision and distinguishes genuine value opportunities from permanent impairments masquerading as cheap stocks.",
     example:
-      "A stock trading at relatively attractive valuations while also showing improving trend behaviour can enter the Cheap Value bucket.",
+      "A stock trading at a significant discount to its sector peers on price-to-earnings and price-to-book metrics, while also showing improving price structure and rising relative strength over the past six weeks, enters the Cheap Value bucket as a candidate for a value-plus-momentum blended strategy.",
   },
   {
     name: "Best Quality",
     icon: "◑",
     tag: "QUALITY",
-    what: "Best Quality filters companies with stronger quality characteristics, cleaner market behaviour, and more stable performance patterns.",
+    what: "Best Quality filters for companies exhibiting superior stability, cleaner market behaviour, lower return volatility, and more predictable trend structure relative to the broader market universe.",
     model:
-      "The model focuses on consistency, lower behavioural noise, cleaner trend structure, relative stability, and better survivability across different market regimes. It acts like a quality filter before deeper strategy selection.",
+      "The model evaluates stocks on a composite quality score that rewards consistency of price behaviour, lower beta to index movements, stable relative performance across multiple market regimes, and absence of structural weakness signals. It acts as a pre-filter for portfolio construction by establishing a clean, higher-quality sub-universe before applying momentum, value, or other factor overlays.",
     why:
-      "It helps avoid weak or unstable stocks that may appear attractive only for a short period. Quality filtering improves the base universe before applying momentum, value, or portfolio construction models.",
+      "Lower-quality stocks — characterised by high volatility, unstable trends, and weak survivability across regimes — can appear attractive in isolation but dilute portfolio-level risk-adjusted returns when included in factor strategies. Quality filtering at the universe level is one of the most effective ways to improve the overall robustness of a systematic strategy without sacrificing return potential.",
     example:
-      "Before creating a long-only portfolio, the Best Quality bucket can be used as a cleaner stock universe for further ranking.",
+      "Before constructing a long-only momentum portfolio, a portfolio manager applies the Best Quality filter to reduce the universe from 500 stocks to the top 150 by quality score. This pre-filtered universe is then ranked by momentum, producing a final 20-stock portfolio with significantly lower historical drawdown than an unfiltered momentum approach.",
   },
   {
     name: "Regime Upside",
     icon: "▲",
     tag: "RISK-ON",
-    what: "Regime Upside identifies stocks that perform better when the broader market environment is bullish, risk-on, or trending upward.",
+    what: "Regime Upside identifies stocks with the highest beta to positive market regimes — stocks that participate most strongly when index trend, market breadth, and risk appetite are collectively supportive.",
     model:
-      "The model studies how stocks behave during positive market regimes. It looks for names that participate strongly when index trend, market breadth, sector rotation, and risk appetite are supportive.",
+      "The model analyses each stock's historical return behaviour during bullish market regime periods — defined by index uptrend, expanding breadth, positive sector rotation, and improving risk sentiment. It scores stocks by their average excess return, consistency of outperformance, and drawdown behaviour specifically during these regime windows, identifying names that reliably amplify upside when conditions are favourable.",
     why:
-      "It helps align long trades with the broader market environment. When the market is risk-on, high-participation stocks usually offer better upside probability.",
+      "Not all stocks participate equally in bull phases. Some structurally underperform even during strong markets due to sector positioning, factor headwinds, or poor earnings momentum. Regime Upside ensures long exposures are concentrated in stocks with the highest probability of capturing the current upside move, improving the efficiency of risk deployment in favourable market environments.",
     example:
-      "When Nifty is strong and market breadth is improving, Regime Upside helps shortlist stocks likely to outperform during that phase.",
+      "When Nifty 50 is in a confirmed uptrend with breadth above 65% and FII flows are net positive, Regime Upside highlights high-beta, high-participation names in sectors aligned with the current rotation, enabling the trader to concentrate long exposure where the risk-reward is most asymmetric.",
   },
   {
     name: "Regime Downside",
     icon: "▼",
     tag: "RISK-OFF",
-    what: "Regime Downside identifies stocks that become weak or vulnerable when the market regime turns bearish or risk-off.",
+    what: "Regime Downside identifies stocks that become most vulnerable and underperform most severely when market conditions shift to a bearish, risk-off, or high-volatility regime.",
     model:
-      "The model tracks stocks that underperform during weak market phases, falling breadth, rising volatility, and negative index structure. It studies downside participation and weakness persistence.",
+      "The model examines each stock's historical behaviour during negative regime periods — characterised by index downtrends, contracting breadth, rising VIX, and risk-off sector rotation. It identifies stocks with persistently elevated downside beta, weak recovery behaviour after market bounces, and tendency to lead market declines. These names are ranked by their regime-specific weakness score.",
     why:
-      "It helps traders prepare defensive, bearish, or short-side opportunities instead of holding weak names during unfavourable market regimes.",
+      "During risk-off regimes, holding weak names causes disproportionate portfolio damage because they fall faster and recover slower than the index. Regime Downside helps traders identify which positions to exit, hedge, or short during unfavourable market environments. It also supports building a systematic short book by targeting structurally weak stocks with the highest downside participation probability.",
     example:
-      "If Nifty breaks down and volatility rises, Regime Downside can highlight stocks that are likely to fall faster than the broader market.",
+      "When Nifty 50 breaks below its 50-day moving average with breadth below 35% and FII selling accelerates, Regime Downside highlights the stocks most likely to fall 20-40% from current levels, enabling defensive repositioning or short-side trade construction before the broader market fully prices the risk.",
   },
   {
     name: "Range Bound Upside",
     icon: "◭",
     tag: "RANGE",
-    what: "Range Bound Upside identifies stocks trading inside a range but showing upside pressure near support, accumulation zones, or breakout areas.",
+    what: "Range Bound Upside identifies stocks trading within a defined price range but exhibiting upside pressure near support zones, showing accumulation behaviour and breakout readiness characteristics.",
     model:
-      "The model looks for sideways stocks where buyers are repeatedly defending lower levels. It studies compression, support behaviour, upside pressure, volatility contraction, and potential breakout readiness.",
+      "The model detects sideways consolidation structures where buyers are repeatedly defending lower price levels. It analyses support strength, volume behaviour at range lows, compression of volatility, upside pressure indicators, and breadth of accumulation to score stocks by their breakout probability and potential magnitude. It specifically avoids selecting range-bound stocks where the upside pressure is weak or where distribution patterns dominate.",
     why:
-      "It helps traders catch early accumulation before a full breakout becomes obvious to the market. This is useful when a stock is not yet trending but is preparing for a directional move.",
+      "The highest-risk-reward entries often occur before a trend becomes fully visible. By identifying accumulation inside a range before the breakout is obvious, traders can enter at lower prices with defined risk relative to the range support. This early positioning provides a better reward-to-risk ratio than chasing stocks after they have already broken out and attracted widespread attention.",
     example:
-      "A stock moving sideways for many sessions but repeatedly bouncing from support can qualify for Range Bound Upside.",
+      "A large-cap stock consolidating between 1,200 and 1,380 for 14 weeks, repeatedly bouncing from 1,210 with increasing volume at each touch of support and narrowing price swings, enters Range Bound Upside as a pre-breakout accumulation candidate with defined risk at the range low.",
   },
   {
     name: "Range Bound Downside",
     icon: "◮",
     tag: "RANGE",
-    what: "Range Bound Downside identifies stocks trading inside a range but showing downside pressure near resistance or breakdown zones.",
+    what: "Range Bound Downside identifies stocks in sideways consolidation that are exhibiting distribution behaviour, repeated rejection at resistance, and increasing downside pressure suggesting an impending breakdown.",
     model:
-      "The model detects distribution-like behaviour, repeated rejection from resistance, weak recovery attempts, compression near support, and increasing downside pressure inside a consolidation zone.",
+      "The model detects distribution-like structures within consolidation ranges — repeated failures at resistance, weak recovery attempts after each bounce, declining volume on upside moves and increasing volume on downside moves, and compression of price action near the lower boundary of the range. It ranks stocks by the strength of bearish pressure and breakdown probability within the range structure.",
     why:
-      "It helps traders prepare bearish trades before a clean breakdown happens. Instead of reacting late, the model highlights stocks where sellers are already gaining control.",
+      "Waiting for a confirmed breakdown before entering bearish trades often means missing a significant portion of the move. By identifying distribution behaviour inside a range before the breakdown is confirmed, traders can position in advance with defined risk relative to the resistance level, improving entry quality and potential reward-to-risk significantly.",
     example:
-      "A stock repeatedly failing near resistance and showing weak bounce behaviour may qualify for Range Bound Downside.",
+      "A mid-cap stock oscillating between 540 and 620, failing at 615 on each attempt with declining volume and showing progressively weaker bounces from 545, enters Range Bound Downside as a pre-breakdown distribution candidate with defined risk at the range high.",
   },
   {
     name: "Aggressive Call Option Stocks",
     icon: "⬡",
     tag: "OPTIONS",
-    what: "Aggressive Call Option Stocks identifies stocks suitable for bullish option opportunities based on momentum, volatility, and breakout behaviour.",
+    what: "Aggressive Call Option Stocks identifies underlying stocks where directional strength, volatility expansion, and breakout behaviour combine to create high-probability bullish option trade setups.",
     model:
-      "The model filters for stocks with bullish directional strength, expanding volatility, strong price participation, breakout behaviour, and potential for option premium expansion.",
+      "The model filters for stocks exhibiting strong upside momentum, expanding realised volatility relative to implied volatility, breakout confirmation from key technical levels, high options open interest in call strikes, and premium expansion behaviour that supports bullish option strategies. It prioritises underlyings where the directional move is likely to be large enough to overcome time decay and justify an aggressive options structure.",
     why:
-      "It helps avoid random call buying. Instead, it shortlists stocks where the underlying price movement supports bullish option trades.",
+      "Randomly buying call options on momentum stocks without underlying model confirmation leads to high loss rates due to time decay, IV crush post-event, and poor entry timing. This model ensures that bullish options trades are placed only on stocks where the underlying price structure, volatility dynamics, and breakout characteristics collectively support premium expansion and directional conviction.",
     example:
-      "A stock breaking out with strong momentum and rising participation may enter the Aggressive Call Option bucket.",
+      "A stock breaking out of a 10-week base with 3x average volume, expanding ATR, rising open interest in near-month calls, and sector tailwinds enters the Aggressive Call Option bucket as a candidate for an ATM or slightly OTM call with 3-4 week expiry.",
   },
   {
     name: "Aggressive Put Option Stocks",
     icon: "⬢",
     tag: "OPTIONS",
-    what: "Aggressive Put Option Stocks identifies stocks suitable for bearish option opportunities based on weakness, volatility, and breakdown behaviour.",
+    what: "Aggressive Put Option Stocks identifies underlying stocks where structural weakness, volatility expansion, and breakdown behaviour create high-probability bearish option trade setups.",
     model:
-      "The model filters for stocks with bearish momentum, weak trend structure, rising downside volatility, support breakdown, and possible continuation after breakdown.",
+      "The model filters for stocks with confirmed bearish momentum, breakdown from key support levels, rising realised volatility, elevated put open interest, and premium expansion behaviour consistent with bearish option strategies. It avoids stocks where volatility is already extremely elevated — reducing the risk of entering bearish options into already-priced disasters — and focuses on early-stage breakdowns where premium has not yet been fully priced.",
     why:
-      "It helps traders avoid random put buying and focus on stocks where bearish structure supports option trades.",
+      "Buying puts on randomly weak stocks fails because elevated implied volatility often already prices the expected move, and any stabilisation causes rapid premium erosion. This model identifies situations where the underlying breakdown is structural, volatility expansion is in its early phase, and the risk-reward for put holders is asymmetric before the broader market fully recognises the weakness.",
     example:
-      "A stock breaking below support with weak recovery and rising volatility may qualify as an Aggressive Put Option candidate.",
+      "A stock breaking below a 6-month support level with increasing sell volume, rising put OI in near-month strikes, and a weakening sector backdrop enters the Aggressive Put Option bucket as a candidate for an ATM put position ahead of continued downside.",
   },
   {
     name: "Intraday Bull Call Spreads",
     icon: "◈",
     tag: "INTRADAY",
-    what: "Intraday Bull Call Spreads identifies defined-risk bullish option spread opportunities during market hours.",
+    what: "Intraday Bull Call Spreads identifies defined-risk, limited-capital bullish options spread opportunities during market hours, combining index direction confirmation with stock-level upside momentum.",
     model:
-      "The model focuses on intraday upside confirmation, trend strength, index direction, strike selection, option premium behaviour, and risk-defined spread construction.",
+      "The model integrates intraday index trend confirmation, real-time breadth data, sector rotation signals, and stock-level upside momentum to identify bull call spread candidates. It evaluates optimal strike selection based on premium-to-risk ratios, near-expiry time decay characteristics, and intraday support levels that define stop discipline for spread holders. The model targets structures with a reward-to-risk of at least 2:1 at expiry.",
     why:
-      "It helps traders participate in upside moves while limiting risk compared to naked option buying or futures exposure.",
+      "Naked call buying exposes traders to full premium loss on any adverse move. A bull call spread reduces the capital at risk while maintaining meaningful directional exposure in a confirmed upside environment. This structure is particularly effective for intraday traders who want to participate in momentum moves without carrying unlimited time decay risk or excessive notional exposure.",
     example:
-      "If Nifty confirms intraday upside momentum, the system can identify a bull call spread with defined risk and reward.",
+      "When Nifty confirms intraday upside above a key resistance with improving breadth and a specific stock shows a clean bull flag on the 15-minute chart, the model identifies a bull call spread — buy the ATM call and sell the next OTM strike — as a defined-risk trade with a 2.5:1 reward-to-risk profile.",
   },
   {
     name: "Intraday Bear Put Spreads",
     icon: "◇",
     tag: "INTRADAY",
-    what: "Intraday Bear Put Spreads identifies defined-risk bearish option spread opportunities during market hours.",
+    what: "Intraday Bear Put Spreads identifies defined-risk, limited-capital bearish options spread opportunities during market hours, combining index weakness confirmation with stock-level downside momentum.",
     model:
-      "The model focuses on intraday downside confirmation, index weakness, option spread structure, strike selection, premium behaviour, and controlled risk exposure.",
+      "The model combines intraday index downtrend signals, contracting breadth, sector weakness data, and stock-level bearish momentum to identify bear put spread candidates. It analyses premium-to-risk ratios for put spread structures, optimal strike spacing given current implied volatility levels, intraday resistance levels that define stop logic, and expiry selection to balance time decay against anticipated move duration.",
     why:
-      "It helps traders express bearish views without taking unlimited or unstructured directional exposure.",
+      "Bear put spreads allow traders to express high-conviction bearish intraday views with precisely defined maximum loss. Unlike naked put buying — where full premium loss occurs on any bounce — the spread structure converts time value into a defined cost of trade. This is critical during intraday sessions where unexpected reversals can rapidly erode option premium.",
     example:
-      "If BankNifty confirms intraday downside momentum, the system can identify a bear put spread with limited downside risk.",
+      "When BankNifty breaks intraday support with declining breadth and a banking sector stock shows a confirmed distribution breakdown on the 15-minute chart, the model constructs a bear put spread with defined risk, targeting a 2:1 to 3:1 reward-to-risk outcome by end of session.",
   },
   {
     name: "Upside Trend Stocks",
     icon: "◆",
     tag: "LIVE",
-    what: "Upside Trend Stocks shows live intraday stocks where upside momentum is active.",
+    what: "Upside Trend Stocks delivers a real-time feed of stocks exhibiting confirmed intraday upside momentum, allowing traders to monitor active long opportunities without manual market scanning.",
     model:
-      "The model uses live price behaviour, trend continuation, momentum confirmation, and signal persistence to identify stocks currently showing upside strength.",
+      "The model processes live price feeds, intraday trend direction, momentum persistence indicators, volume confirmation, and relative strength versus the index to identify stocks where upside momentum is structurally active rather than a temporary spike. It filters out noise by requiring multiple confirmation factors — trend direction, volume support, and momentum persistence — before flagging a stock as an active Upside Trend candidate.",
     why:
-      "It helps traders monitor active intraday long opportunities instead of manually scanning hundreds of stocks.",
+      "Manual intraday scanning of hundreds of stocks is operationally impossible and introduces significant selection bias. Upside Trend Stocks eliminates this problem by delivering a systematically filtered live list of stocks where upside momentum is confirmed in real time. This allows traders to focus entirely on execution and risk management rather than scanning.",
     example:
-      "During market hours, a stock showing strong upside continuation can appear in the Upside Trend Stocks panel for monitoring.",
+      "During market hours, a stock breaking above its intraday range high with 2x average volume and positive relative strength versus Nifty appears in the Upside Trend Stocks panel. The trader monitors it for a pullback entry or momentum continuation trade without needing to scan the full market.",
   },
   {
     name: "Downside Trend Stocks",
     icon: "◉",
     tag: "LIVE",
-    what: "Downside Trend Stocks shows live intraday stocks where downside momentum is active.",
+    what: "Downside Trend Stocks delivers a real-time feed of stocks exhibiting confirmed intraday downside momentum, enabling traders to monitor active short or defensive opportunities without manual scanning.",
     model:
-      "The model tracks live weakness, downside continuation, trend breakdown, and selling pressure to identify stocks currently showing bearish momentum.",
+      "The model processes live price behaviour, intraday breakdown confirmations, selling volume characteristics, momentum decay indicators, and relative weakness versus the index to identify stocks where bearish momentum is structurally active. It distinguishes between brief intraday dips and confirmed downside trend continuations by requiring multiple signal confirmations before inclusion in the live panel.",
     why:
-      "It helps traders monitor active downside opportunities and weak stocks during market hours.",
+      "Identifying genuine intraday weakness in real time versus false breakdowns driven by temporary selling pressure requires systematic signal confirmation. Downside Trend Stocks removes this ambiguity by presenting only stocks where bearish momentum is multi-factor confirmed. This helps traders avoid shorting temporary dips while capturing genuine intraday breakdown opportunities.",
     example:
-      "A stock breaking intraday support with continued selling pressure can appear in the Downside Trend Stocks panel.",
+      "A stock breaking intraday support with rising sell volume, negative relative strength versus BankNifty, and a confirmed downside trend on multiple timeframes appears in the Downside Trend Stocks panel. The trader uses this as a signal to exit existing longs in that name or construct a short-side position with defined risk.",
   },
 ];
 
@@ -911,12 +911,13 @@ const Auth: React.FC = () => {
           background: rgba(255,255,255,0.08);
         }
 
+        /* CHANGE 1 — Smaller login card */
         .login-card {
           position: relative;
           z-index: 10;
           flex-shrink: 0;
-          width: 390px;
-          padding: 28px;
+          width: 360px;
+          padding: 22px 24px;
           border-radius: 4px;
           background: rgba(8, 9, 12, 0.92);
           border: 1px solid rgba(250, 204, 21, 0.18);
@@ -939,7 +940,7 @@ const Auth: React.FC = () => {
         }
 
         .card-header {
-          margin-bottom: 18px;
+          margin-bottom: 14px;
         }
 
         .card-logo {
@@ -951,9 +952,9 @@ const Auth: React.FC = () => {
         }
 
         .card-sub {
-          margin-top: 9px;
+          margin-top: 7px;
           font-family: 'DM Mono', monospace;
-          font-size: 11px;
+          font-size: 10px;
           letter-spacing: 1px;
           color: rgba(255,255,255,0.36);
           text-transform: lowercase;
@@ -962,13 +963,13 @@ const Auth: React.FC = () => {
         .card-divider {
           height: 1px;
           background: rgba(255,255,255,0.07);
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
 
         .login-form {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
         }
 
         .signup-grid {
@@ -980,7 +981,7 @@ const Auth: React.FC = () => {
         .input-group {
           display: flex;
           flex-direction: column;
-          gap: 7px;
+          gap: 6px;
         }
 
         .input-label {
@@ -992,7 +993,7 @@ const Auth: React.FC = () => {
 
         .input {
           width: 100%;
-          padding: 12px 14px;
+          padding: 10px 12px;
           border-radius: 3px;
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.045);
@@ -1015,7 +1016,7 @@ const Auth: React.FC = () => {
 
         .btn {
           width: 100%;
-          padding: 13px;
+          padding: 12px;
           border-radius: 3px;
           background: linear-gradient(90deg, #facc15 0%, #d6a21f 100%);
           border: none;
@@ -1025,7 +1026,7 @@ const Auth: React.FC = () => {
           letter-spacing: 3px;
           color: #050608;
           cursor: pointer;
-          margin-top: 4px;
+          margin-top: 2px;
           transition: opacity 0.2s, transform 0.15s;
           position: relative;
           overflow: hidden;
@@ -1079,7 +1080,7 @@ const Auth: React.FC = () => {
 
         .signup-ghost-btn {
           width: 100%;
-          padding: 11px;
+          padding: 10px;
           border-radius: 3px;
           background: transparent;
           border: 1px solid rgba(250,204,21,0.22);
@@ -1117,8 +1118,8 @@ const Auth: React.FC = () => {
         }
 
         .auth-alert {
-          margin-bottom: 16px;
-          padding: 11px 13px;
+          margin-bottom: 12px;
+          padding: 10px 12px;
           border-radius: 3px;
           font-family: 'DM Mono', monospace;
           font-size: 10px;
@@ -1658,7 +1659,7 @@ const Auth: React.FC = () => {
 
           .login-card {
             width: 100%;
-            max-width: 440px;
+            max-width: 400px;
           }
 
           .hero-stats {
@@ -1731,12 +1732,12 @@ const Auth: React.FC = () => {
           }
 
           .login-card {
-            padding: 24px;
+            padding: 20px;
           }
 
           .signup-grid {
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 10px;
           }
 
           .scroll-indicator {
