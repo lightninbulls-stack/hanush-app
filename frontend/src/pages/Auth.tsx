@@ -2,22 +2,22 @@ import React, { useMemo, useState } from "react";
 import { loginUser, saveAuthToken } from "../api";
 
 const features = [
-  { name: "Watchlist", icon: "◈" },
-  { name: "Portfolio Backtest", icon: "◉" },
-  { name: "Consistent Trending", icon: "◆" },
-  { name: "Slow Movement", icon: "◇" },
-  { name: "Cheap Value", icon: "◐" },
-  { name: "Best Quality", icon: "◑" },
-  { name: "Regime Upside", icon: "▲" },
-  { name: "Regime Downside", icon: "▼" },
-  { name: "Range Bound Upside", icon: "◭" },
-  { name: "Range Bound Downside", icon: "◮" },
-  { name: "Aggressive Call Option Stocks", icon: "⬡" },
-  { name: "Aggressive Put Option Stocks", icon: "⬢" },
-  { name: "Intraday Bull Call Spreads", icon: "◈" },
-  { name: "Intraday Bear Put Spreads", icon: "◇" },
-  { name: "Upside Trend Stocks", icon: "◆" },
-  { name: "Downside Trend Stocks", icon: "◉" },
+  { name: "Watchlist", tag: "PORTFOLIO" },
+  { name: "Portfolio Backtest", tag: "ANALYTICS" },
+  { name: "Consistent Trending", tag: "SIGNALS" },
+  { name: "Slow Movement", tag: "SIGNALS" },
+  { name: "Cheap Value", tag: "FACTOR" },
+  { name: "Best Quality", tag: "FACTOR" },
+  { name: "Regime Upside", tag: "REGIME" },
+  { name: "Regime Downside", tag: "REGIME" },
+  { name: "Range Bound Upside", tag: "RANGE" },
+  { name: "Range Bound Downside", tag: "RANGE" },
+  { name: "Aggressive Call Option Stocks", tag: "OPTIONS" },
+  { name: "Aggressive Put Option Stocks", tag: "OPTIONS" },
+  { name: "Intraday Bull Call Spreads", tag: "INTRADAY" },
+  { name: "Intraday Bear Put Spreads", tag: "INTRADAY" },
+  { name: "Upside Trend Stocks", tag: "TREND" },
+  { name: "Downside Trend Stocks", tag: "TREND" },
 ];
 
 const Auth: React.FC = () => {
@@ -25,7 +25,7 @@ const Auth: React.FC = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const heading = useMemo(() => "Access your trading dashboard", []);
+  const heading = useMemo(() => "access your trading dashboard", []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,756 +40,753 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div style={{ background: "#050608", color: "#fff" }}>
-
-      {/* ===== HERO / LOGIN SECTION ===== */}
-      <section className="hero-section">
-        <video autoPlay muted loop className="bg-video">
-          <source src="/videos/login-bg.mp4" />
-        </video>
-
-        {/* Gradient overlay */}
-        <div className="video-overlay" />
-
-        {/* Noise texture overlay */}
-        <div className="noise-overlay" />
-
-        {/* Top nav bar */}
-        <nav className="top-nav">
-          <span className="nav-logo">
-            <span className="logo-bolt">⚡</span> LIGHTNINBULL
-          </span>
-          <div className="nav-links">
-            <span>Markets</span>
-            <span>Intelligence</span>
-            <span>Research</span>
-          </div>
-        </nav>
-
-        {/* Floating horizontal rule */}
-        <div className="hero-content">
-          {/* Left: headline copy */}
-          <div className="hero-left">
-            <p className="eyebrow-label">INSTITUTIONAL-GRADE QUANT PLATFORM</p>
-            <h1 className="hero-headline">
-              Trade with the<br />
-              <span className="headline-gold">precision</span><br />
-              of algorithms.
-            </h1>
-            <p className="hero-subtext">
-              Real-time signals. Deep factor analytics.<br />
-              Built for professionals who demand an edge.
-            </p>
-            <div className="hero-stats">
-              <div className="stat">
-                <span className="stat-num">16+</span>
-                <span className="stat-label">AI Modules</span>
-              </div>
-              <div className="stat-divider" />
-              <div className="stat">
-                <span className="stat-num">Real-Time</span>
-                <span className="stat-label">Signal Engine</span>
-              </div>
-              <div className="stat-divider" />
-              <div className="stat">
-                <span className="stat-num">Quant</span>
-                <span className="stat-label">Factor Models</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: login card */}
-          <div className="login-card">
-            <div className="card-header">
-              <span className="card-logo">⚡ LIGHTNINBULL</span>
-              <p className="card-sub">{heading}</p>
-            </div>
-
-            <div className="card-divider" />
-
-            <form onSubmit={handleLogin} className="login-form">
-              <div className="input-group">
-                <label className="input-label">PHONE NUMBER</label>
-                <input
-                  placeholder="+91 00000 00000"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="input"
-                />
-              </div>
-
-              <div className="input-group">
-                <label className="input-label">PASSWORD</label>
-                <input
-                  type="password"
-                  placeholder="••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input"
-                />
-              </div>
-
-              <button className="btn" disabled={loading}>
-                {loading ? (
-                  <span className="btn-loading">
-                    <span className="spinner" /> Authenticating...
-                  </span>
-                ) : (
-                  <span>Access Dashboard →</span>
-                )}
-              </button>
-
-              <p className="forgot-link">Forgot credentials? <a href="#">Contact support</a></p>
-            </form>
-          </div>
-        </div>
-
-        {/* Bottom scroll indicator */}
-        <div className="scroll-indicator">
-          <span>SCROLL TO EXPLORE</span>
-          <div className="scroll-line" />
-        </div>
-      </section>
-
-      {/* ===== INTELLIGENCE SECTION ===== */}
-      <section className="intelligence-section">
-        {/* Section label */}
-        <div className="section-label-row">
-          <div className="label-line" />
-          <p className="section-label">LIGHTNINBULL INTELLIGENCE LAYER</p>
-          <div className="label-line" />
-        </div>
-
-        <h2 className="section-title">
-          Quant <em className="ai-word">AI</em> Fund Manager
-        </h2>
-
-        <p className="section-desc">
-          A next-generation quantitative platform combining portfolio analytics, factor modeling,
-          regime intelligence, derivatives insights, and real-time trading signals — all in one
-          unified intelligence layer.
-        </p>
-
-        {/* Feature grid */}
-        <div className="feature-grid">
-          {features.map((f, i) => (
-            <div key={f.name} className="feature-card" style={{ animationDelay: `${i * 0.04}s` }}>
-              <div className="card-icon">{f.icon}</div>
-              <h3 className="card-title">{f.name}</h3>
-              <p className="card-desc">Advanced quant-driven insights for smarter trading decisions.</p>
-              <div className="card-corner" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ===== FOOTER STRIP ===== */}
-      <footer className="footer-strip">
-        <span className="footer-logo">⚡ LIGHTNINBULL</span>
-        <span className="footer-copy">© {new Date().getFullYear()} Institutional Quant Intelligence. All rights reserved.</span>
-      </footer>
-
-      {/* ===== ALL STYLES ===== */}
+    <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap');
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* ============================================================
-           HERO
-        ============================================================ */
-        .hero-section {
-          position: relative;
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          font-family: 'Syne', sans-serif;
+        :root {
+          --black:   #09090b;
+          --surface: #111114;
+          --border:  #1e1e22;
+          --gold:    #c9a84c;
+          --gold-dim: rgba(201,168,76,0.18);
+          --cream:   #e8e3d8;
+          --muted:   rgba(232,227,216,0.38);
+          --tiny:    rgba(232,227,216,0.18);
+          --font-serif: 'Instrument Serif', Georgia, serif;
+          --font-sans:  'DM Sans', sans-serif;
+          --font-mono:  'DM Mono', monospace;
         }
 
-        .bg-video {
+        body { background: var(--black); }
+
+        /* ─── NAV ─── */
+        .lb-nav {
+          position: fixed;
+          top: 0; left: 0; right: 0;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 56px;
+          height: 64px;
+          border-bottom: 1px solid var(--border);
+          background: rgba(9,9,11,0.82);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+
+        .lb-nav-logo {
+          font-family: var(--font-mono);
+          font-size: 11px;
+          letter-spacing: 4px;
+          color: var(--cream);
+          text-transform: uppercase;
+        }
+
+        .lb-nav-logo span { color: var(--gold); margin-right: 6px; }
+
+        .lb-nav-links {
+          display: flex;
+          gap: 36px;
+        }
+
+        .lb-nav-links a {
+          font-family: var(--font-sans);
+          font-size: 12px;
+          font-weight: 400;
+          letter-spacing: 0.5px;
+          color: var(--muted);
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+
+        .lb-nav-links a:hover { color: var(--cream); }
+
+        /* ─── HERO SECTION ─── */
+        .lb-hero {
+          position: relative;
+          height: 100vh;
+          min-height: 700px;
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+        }
+
+        .lb-hero-video {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
           object-fit: cover;
-          opacity: 0.35;
+          opacity: 0.22;
+          filter: grayscale(20%);
         }
 
-        .video-overlay {
+        /* Multi-layer overlay — exactly like CRED's dark vignette */
+        .lb-hero-overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(
-            135deg,
-            rgba(5, 6, 8, 0.92) 0%,
-            rgba(5, 6, 8, 0.65) 50%,
-            rgba(5, 6, 8, 0.88) 100%
-          );
-          z-index: 1;
+          background:
+            linear-gradient(to right, rgba(9,9,11,0.96) 42%, rgba(9,9,11,0.55) 70%, rgba(9,9,11,0.85) 100%),
+            linear-gradient(to top, rgba(9,9,11,0.7) 0%, transparent 50%);
         }
 
-        .noise-overlay {
+        /* Subtle gold edge glow top-left */
+        .lb-hero-glow {
           position: absolute;
-          inset: 0;
-          z-index: 2;
-          opacity: 0.035;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-          background-size: 180px;
+          top: -200px; left: -200px;
+          width: 700px; height: 700px;
+          background: radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%);
           pointer-events: none;
         }
 
-        /* ---- NAV ---- */
-        .top-nav {
+        .lb-hero-inner {
           position: relative;
-          z-index: 10;
+          z-index: 2;
+          width: 100%;
+          padding: 0 56px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 28px 60px;
-          border-bottom: 1px solid rgba(250, 204, 21, 0.08);
+          gap: 48px;
+          padding-top: 64px; /* nav offset */
         }
 
-        .nav-logo {
-          font-family: 'Syne', sans-serif;
-          font-weight: 800;
-          font-size: 15px;
-          letter-spacing: 3px;
-          color: #fff;
-        }
-
-        .logo-bolt {
-          color: #facc15;
-          margin-right: 4px;
-        }
-
-        .nav-links {
-          display: flex;
-          gap: 40px;
-          font-family: 'DM Mono', monospace;
-          font-size: 11px;
-          letter-spacing: 2px;
-          color: rgba(255,255,255,0.45);
-        }
-
-        .nav-links span {
-          cursor: pointer;
-          transition: color 0.2s;
-        }
-
-        .nav-links span:hover {
-          color: #facc15;
-        }
-
-        /* ---- HERO CONTENT ---- */
-        .hero-content {
-          position: relative;
-          z-index: 10;
+        /* ─── HERO LEFT ─── */
+        .lb-hero-left {
           flex: 1;
+          max-width: 560px;
+        }
+
+        .lb-eyebrow {
+          font-family: var(--font-mono);
+          font-size: 9px;
+          letter-spacing: 5px;
+          color: var(--gold);
+          text-transform: uppercase;
+          margin-bottom: 32px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 60px 60px 40px;
-          gap: 60px;
+          gap: 14px;
         }
 
-        /* ---- HERO LEFT ---- */
-        .hero-left {
-          max-width: 580px;
+        .lb-eyebrow::before {
+          content: '';
+          display: block;
+          width: 28px;
+          height: 1px;
+          background: var(--gold);
+          opacity: 0.6;
         }
 
-        .eyebrow-label {
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 4px;
-          color: #facc15;
+        .lb-hero-title {
+          font-family: var(--font-serif);
+          font-size: 76px;
+          font-weight: 400;
+          line-height: 1.0;
+          color: var(--cream);
+          letter-spacing: -1.5px;
           margin-bottom: 28px;
-          opacity: 0.9;
         }
 
-        .hero-headline {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 82px;
-          font-weight: 300;
-          line-height: 1.02;
-          color: #fff;
-          letter-spacing: -1px;
-        }
-
-        .headline-gold {
-          color: #facc15;
+        .lb-hero-title em {
           font-style: italic;
+          color: var(--gold);
+        }
+
+        .lb-hero-sub {
+          font-family: var(--font-sans);
+          font-size: 14px;
           font-weight: 300;
+          line-height: 1.85;
+          color: var(--muted);
+          max-width: 400px;
+          margin-bottom: 52px;
         }
 
-        .hero-subtext {
-          margin-top: 28px;
-          font-family: 'DM Mono', monospace;
-          font-size: 13px;
-          line-height: 1.8;
-          color: rgba(255,255,255,0.45);
-          letter-spacing: 0.5px;
-        }
-
-        .hero-stats {
+        /* Stats row — CRED-style small data strip */
+        .lb-stats {
           display: flex;
           align-items: center;
-          gap: 32px;
-          margin-top: 48px;
-          padding-top: 36px;
-          border-top: 1px solid rgba(255,255,255,0.08);
+          gap: 0;
+          border: 1px solid var(--border);
+          border-radius: 3px;
+          overflow: hidden;
+          max-width: 440px;
         }
 
-        .stat {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
+        .lb-stat {
+          flex: 1;
+          padding: 18px 24px;
+          border-right: 1px solid var(--border);
         }
 
-        .stat-num {
-          font-family: 'Syne', sans-serif;
-          font-size: 18px;
-          font-weight: 700;
-          color: #facc15;
-          letter-spacing: 1px;
+        .lb-stat:last-child { border-right: none; }
+
+        .lb-stat-num {
+          display: block;
+          font-family: var(--font-serif);
+          font-size: 22px;
+          color: var(--cream);
+          letter-spacing: -0.5px;
+          margin-bottom: 3px;
         }
 
-        .stat-label {
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 2px;
-          color: rgba(255,255,255,0.35);
+        .lb-stat-lbl {
+          display: block;
+          font-family: var(--font-mono);
+          font-size: 8px;
+          letter-spacing: 2.5px;
+          color: var(--muted);
           text-transform: uppercase;
         }
 
-        .stat-divider {
-          width: 1px;
-          height: 36px;
-          background: rgba(255,255,255,0.1);
-        }
-
-        /* ---- LOGIN CARD ---- */
-        .login-card {
-          position: relative;
-          z-index: 10;
+        /* ─── LOGIN CARD ─── */
+        .lb-card {
           flex-shrink: 0;
-          width: 380px;
-          padding: 36px;
-          border-radius: 4px;
-          background: rgba(8, 9, 12, 0.92);
-          border: 1px solid rgba(250, 204, 21, 0.18);
-          box-shadow:
-            0 0 0 1px rgba(255,255,255,0.03),
-            0 40px 80px rgba(0,0,0,0.6),
-            0 0 60px rgba(250,204,21,0.04);
-          backdrop-filter: blur(24px);
-        }
-
-        /* Accent top bar */
-        .login-card::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 2px;
-          background: linear-gradient(90deg, transparent, #facc15, transparent);
-          border-radius: 4px 4px 0 0;
-        }
-
-        .card-header {
-          margin-bottom: 24px;
-        }
-
-        .card-logo {
-          font-family: 'Syne', sans-serif;
-          font-size: 13px;
-          font-weight: 800;
-          letter-spacing: 3px;
-          color: #facc15;
-        }
-
-        .card-sub {
-          margin-top: 8px;
-          font-family: 'DM Mono', monospace;
-          font-size: 11px;
-          letter-spacing: 1px;
-          color: rgba(255,255,255,0.35);
-        }
-
-        .card-divider {
-          height: 1px;
-          background: rgba(255,255,255,0.07);
-          margin-bottom: 28px;
-        }
-
-        .login-form {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .input-group {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .input-label {
-          font-family: 'DM Mono', monospace;
-          font-size: 9px;
-          letter-spacing: 3px;
-          color: rgba(255,255,255,0.3);
-        }
-
-        .input {
-          width: 100%;
-          padding: 14px 16px;
-          border-radius: 3px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04);
-          color: #fff;
-          font-family: 'DM Mono', monospace;
-          font-size: 13px;
-          outline: none;
-          transition: border-color 0.2s, background 0.2s;
-          letter-spacing: 0.5px;
-        }
-
-        .input:focus {
-          border-color: rgba(250,204,21,0.4);
-          background: rgba(250,204,21,0.03);
-        }
-
-        .input::placeholder {
-          color: rgba(255,255,255,0.18);
-        }
-
-        .btn {
-          width: 100%;
-          padding: 15px;
-          border-radius: 3px;
-          background: linear-gradient(90deg, #facc15 0%, #f59e0b 100%);
-          border: none;
-          font-family: 'Syne', sans-serif;
-          font-weight: 700;
-          font-size: 12px;
-          letter-spacing: 2px;
-          color: #050608;
-          cursor: pointer;
-          margin-top: 8px;
-          transition: opacity 0.2s, transform 0.15s;
-          position: relative;
+          width: 368px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 2px;
           overflow: hidden;
         }
 
-        .btn::after {
+        /* Gold top accent bar */
+        .lb-card-bar {
+          height: 2px;
+          background: linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.3) 60%, transparent 100%);
+        }
+
+        .lb-card-body {
+          padding: 36px 32px 32px;
+        }
+
+        .lb-card-logo {
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 4px;
+          color: var(--gold);
+          text-transform: uppercase;
+          margin-bottom: 6px;
+          display: block;
+        }
+
+        .lb-card-sub {
+          font-family: var(--font-sans);
+          font-size: 12px;
+          font-weight: 300;
+          color: var(--muted);
+          margin-bottom: 28px;
+          letter-spacing: 0.2px;
+        }
+
+        .lb-card-divider {
+          height: 1px;
+          background: var(--border);
+          margin-bottom: 28px;
+        }
+
+        /* Input */
+        .lb-field {
+          margin-bottom: 16px;
+        }
+
+        .lb-label {
+          display: block;
+          font-family: var(--font-mono);
+          font-size: 8px;
+          letter-spacing: 3px;
+          color: var(--tiny);
+          text-transform: uppercase;
+          margin-bottom: 9px;
+        }
+
+        .lb-input {
+          width: 100%;
+          padding: 13px 16px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid var(--border);
+          border-radius: 2px;
+          color: var(--cream);
+          font-family: var(--font-mono);
+          font-size: 13px;
+          font-weight: 300;
+          outline: none;
+          transition: border-color 0.25s ease, background 0.25s ease;
+          letter-spacing: 0.3px;
+        }
+
+        .lb-input::placeholder {
+          color: rgba(232,227,216,0.12);
+        }
+
+        .lb-input:focus {
+          border-color: rgba(201,168,76,0.45);
+          background: rgba(201,168,76,0.03);
+        }
+
+        /* Submit button */
+        .lb-btn {
+          width: 100%;
+          margin-top: 24px;
+          padding: 14px;
+          background: var(--gold);
+          border: none;
+          border-radius: 2px;
+          cursor: pointer;
+          font-family: var(--font-mono);
+          font-size: 10px;
+          font-weight: 400;
+          letter-spacing: 3px;
+          color: var(--black);
+          text-transform: uppercase;
+          position: relative;
+          overflow: hidden;
+          transition: opacity 0.2s;
+        }
+
+        .lb-btn::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
           transform: translateX(-100%);
-          transition: transform 0.5s ease;
+          transition: transform 0.55s ease;
         }
 
-        .btn:hover::after {
-          transform: translateX(100%);
-        }
+        .lb-btn:hover::after { transform: translateX(100%); }
+        .lb-btn:hover { opacity: 0.88; }
+        .lb-btn:disabled { opacity: 0.5; cursor: default; }
 
-        .btn:hover {
-          opacity: 0.92;
-          transform: translateY(-1px);
-        }
-
-        .btn:disabled {
-          opacity: 0.6;
-          cursor: default;
-          transform: none;
-        }
-
-        .btn-loading {
+        .lb-btn-inner {
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 10px;
         }
 
-        .spinner {
-          display: inline-block;
-          width: 12px;
-          height: 12px;
-          border: 2px solid rgba(5,6,8,0.3);
-          border-top-color: #050608;
+        .lb-spinner {
+          width: 11px; height: 11px;
+          border: 1.5px solid rgba(9,9,11,0.3);
+          border-top-color: var(--black);
           border-radius: 50%;
-          animation: spin 0.7s linear infinite;
+          animation: lb-spin 0.65s linear infinite;
         }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes lb-spin { to { transform: rotate(360deg); } }
 
-        .forgot-link {
+        .lb-forgot {
+          margin-top: 14px;
           text-align: center;
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          color: rgba(255,255,255,0.25);
-          letter-spacing: 0.5px;
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 300;
+          color: var(--tiny);
         }
 
-        .forgot-link a {
-          color: rgba(250,204,21,0.6);
+        .lb-forgot a {
+          color: rgba(201,168,76,0.55);
           text-decoration: none;
           transition: color 0.2s;
         }
 
-        .forgot-link a:hover { color: #facc15; }
+        .lb-forgot a:hover { color: var(--gold); }
 
-        /* ---- SCROLL INDICATOR ---- */
-        .scroll-indicator {
-          position: relative;
-          z-index: 10;
+        /* Scroll cue */
+        .lb-scroll-cue {
+          position: absolute;
+          bottom: 32px;
+          left: 56px;
+          z-index: 2;
           display: flex;
           align-items: center;
-          gap: 20px;
-          padding: 24px 60px;
-          font-family: 'DM Mono', monospace;
-          font-size: 9px;
+          gap: 16px;
+          font-family: var(--font-mono);
+          font-size: 8px;
           letter-spacing: 4px;
-          color: rgba(255,255,255,0.2);
+          color: var(--tiny);
+          text-transform: uppercase;
         }
 
-        .scroll-line {
-          flex: 1;
-          max-width: 80px;
+        .lb-scroll-line {
+          width: 48px;
           height: 1px;
-          background: linear-gradient(90deg, rgba(250,204,21,0.4), transparent);
-          animation: scrollPulse 2s ease-in-out infinite;
+          background: linear-gradient(90deg, var(--gold), transparent);
+          animation: lb-pulse 2.2s ease-in-out infinite;
         }
 
-        @keyframes scrollPulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 1; }
+        @keyframes lb-pulse {
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 0.8; }
         }
 
-        /* ============================================================
-           INTELLIGENCE SECTION
-        ============================================================ */
-        .intelligence-section {
-          padding: 120px 60px 140px;
-          font-family: 'Syne', sans-serif;
-          background:
-            radial-gradient(ellipse 80% 50% at 50% 0%, rgba(250,204,21,0.04) 0%, transparent 70%),
-            #050608;
+        /* ─── INTELLIGENCE SECTION ─── */
+        .lb-intel {
+          background: var(--black);
+          padding: 160px 56px 140px;
         }
 
-        .section-label-row {
+        /* CRED-style centered editorial header */
+        .lb-intel-header {
+          text-align: center;
+          margin-bottom: 100px;
+        }
+
+        .lb-section-tag {
+          font-family: var(--font-mono);
+          font-size: 8px;
+          letter-spacing: 6px;
+          color: var(--gold);
+          text-transform: uppercase;
+          margin-bottom: 36px;
           display: flex;
           align-items: center;
-          gap: 24px;
-          margin-bottom: 48px;
+          justify-content: center;
+          gap: 20px;
         }
 
-        .label-line {
-          flex: 1;
+        .lb-section-tag::before,
+        .lb-section-tag::after {
+          content: '';
+          display: block;
+          width: 60px;
           height: 1px;
-          background: rgba(255,255,255,0.07);
+          background: var(--border);
         }
 
-        .section-label {
-          font-family: 'DM Mono', monospace;
-          font-size: 9px;
-          letter-spacing: 5px;
-          color: rgba(250,204,21,0.7);
-          white-space: nowrap;
+        .lb-intel-title {
+          font-family: var(--font-serif);
+          font-size: 68px;
+          font-weight: 400;
+          color: var(--cream);
+          letter-spacing: -1.5px;
+          line-height: 1.0;
+          margin-bottom: 28px;
         }
 
-        .section-title {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 72px;
-          font-weight: 300;
-          text-align: center;
-          color: #fff;
-          letter-spacing: -1px;
-          line-height: 1;
-        }
-
-        .ai-word {
+        .lb-intel-title em {
           font-style: italic;
-          color: #facc15;
-          font-weight: 300;
-          position: relative;
+          color: var(--gold);
           text-shadow:
-            0 0 40px rgba(250,204,21,0.5),
-            0 0 80px rgba(250,204,21,0.2);
-          animation: subtleGlow 2.5s ease-in-out infinite alternate;
+            0 0 30px rgba(201,168,76,0.4),
+            0 0 80px rgba(201,168,76,0.15);
+          animation: lb-glow 2.8s ease-in-out infinite alternate;
         }
 
-        @keyframes subtleGlow {
-          from {
-            text-shadow: 0 0 20px rgba(250,204,21,0.3), 0 0 60px rgba(250,204,21,0.1);
-          }
-          to {
-            text-shadow: 0 0 40px rgba(250,204,21,0.6), 0 0 100px rgba(250,204,21,0.25);
-          }
+        @keyframes lb-glow {
+          from { text-shadow: 0 0 20px rgba(201,168,76,0.25), 0 0 60px rgba(201,168,76,0.08); }
+          to   { text-shadow: 0 0 40px rgba(201,168,76,0.55), 0 0 100px rgba(201,168,76,0.2); }
         }
 
-        .section-desc {
-          max-width: 680px;
-          margin: 32px auto 80px;
-          font-family: 'DM Mono', monospace;
-          font-size: 13px;
+        .lb-intel-desc {
+          max-width: 620px;
+          margin: 0 auto;
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 300;
           line-height: 2;
-          color: rgba(255,255,255,0.38);
-          text-align: center;
-          letter-spacing: 0.3px;
+          color: var(--muted);
+          letter-spacing: 0.2px;
         }
 
-        /* ---- FEATURE GRID ---- */
-        .feature-grid {
+        /* ─── FEATURE TILES — CRED product-tile grid ─── */
+        .lb-tiles {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 1px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 4px;
+          border: 1px solid var(--border);
+          border-radius: 2px;
           overflow: hidden;
         }
 
-        .feature-card {
+        .lb-tile {
           position: relative;
-          padding: 32px 28px;
-          background: rgba(8, 9, 12, 0.95);
+          padding: 36px 28px 32px;
+          border-right: 1px solid var(--border);
+          border-bottom: 1px solid var(--border);
+          background: var(--black);
           transition: background 0.3s ease;
+          cursor: default;
           overflow: hidden;
-          animation: fadeUp 0.5s ease both;
         }
 
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        /* Remove right border from every 4th */
+        .lb-tile:nth-child(4n) { border-right: none; }
 
-        .feature-card::after {
+        /* Remove bottom border from last row */
+        .lb-tile:nth-last-child(-n+4) { border-bottom: none; }
+
+        /* Radial sweep on hover — CRED's signature */
+        .lb-tile::before {
           content: '';
           position: absolute;
           inset: 0;
-          background: radial-gradient(ellipse at 0% 100%, rgba(250,204,21,0.07), transparent 60%);
+          background: radial-gradient(ellipse at 0% 110%, rgba(201,168,76,0.08) 0%, transparent 65%);
           opacity: 0;
           transition: opacity 0.4s ease;
         }
 
-        .feature-card:hover {
-          background: rgba(14, 15, 18, 1);
-        }
-
-        .feature-card:hover::after {
-          opacity: 1;
-        }
-
-        /* Gold top border on hover */
-        .feature-card::before {
+        /* Gold hairline top on hover */
+        .lb-tile::after {
           content: '';
           position: absolute;
           top: 0; left: 0; right: 0;
           height: 1px;
-          background: linear-gradient(90deg, transparent, #facc15, transparent);
+          background: linear-gradient(90deg, var(--gold), transparent 60%);
           opacity: 0;
-          transition: opacity 0.3s;
+          transition: opacity 0.3s ease;
         }
 
-        .feature-card:hover::before {
+        .lb-tile:hover {
+          background: #0e0e11;
+        }
+
+        .lb-tile:hover::before { opacity: 1; }
+        .lb-tile:hover::after  { opacity: 0.7; }
+
+        .lb-tile-tag {
+          font-family: var(--font-mono);
+          font-size: 8px;
+          letter-spacing: 3px;
+          color: var(--gold);
           opacity: 0.6;
-        }
-
-        .card-icon {
-          font-size: 18px;
-          color: rgba(250,204,21,0.5);
-          margin-bottom: 16px;
+          text-transform: uppercase;
+          margin-bottom: 18px;
           display: block;
-          transition: color 0.3s;
-        }
-
-        .feature-card:hover .card-icon {
-          color: #facc15;
-        }
-
-        .card-title {
-          font-family: 'Syne', sans-serif;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          color: rgba(255,255,255,0.85);
-          margin-bottom: 10px;
-          line-height: 1.4;
-          transition: color 0.3s;
-        }
-
-        .feature-card:hover .card-title {
-          color: #fff;
-        }
-
-        .card-desc {
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          line-height: 1.7;
-          color: rgba(255,255,255,0.25);
-          letter-spacing: 0.2px;
-        }
-
-        /* Corner accent */
-        .card-corner {
-          position: absolute;
-          bottom: 0;
-          right: 0;
-          width: 20px;
-          height: 20px;
-          border-top: 1px solid rgba(250,204,21,0.15);
-          border-left: 1px solid rgba(250,204,21,0.15);
-          opacity: 0;
           transition: opacity 0.3s;
         }
 
-        .feature-card:hover .card-corner {
-          opacity: 1;
+        .lb-tile:hover .lb-tile-tag { opacity: 1; }
+
+        .lb-tile-name {
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 400;
+          color: rgba(232,227,216,0.72);
+          line-height: 1.45;
+          margin-bottom: 14px;
+          transition: color 0.3s;
+          letter-spacing: 0.1px;
         }
 
-        /* ============================================================
-           FOOTER
-        ============================================================ */
-        .footer-strip {
+        .lb-tile:hover .lb-tile-name { color: var(--cream); }
+
+        .lb-tile-arrow {
+          font-family: var(--font-mono);
+          font-size: 11px;
+          color: var(--gold);
+          opacity: 0;
+          transform: translateX(-6px);
+          transition: opacity 0.3s, transform 0.3s;
+          display: inline-block;
+        }
+
+        .lb-tile:hover .lb-tile-arrow {
+          opacity: 0.7;
+          transform: translateX(0);
+        }
+
+        /* ─── FOOTER ─── */
+        .lb-footer {
+          border-top: 1px solid var(--border);
+          padding: 28px 56px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 24px 60px;
-          border-top: 1px solid rgba(255,255,255,0.05);
-          font-family: 'DM Mono', monospace;
+        }
+
+        .lb-footer-logo {
+          font-family: var(--font-mono);
           font-size: 10px;
-          letter-spacing: 2px;
-          color: rgba(255,255,255,0.2);
+          letter-spacing: 3px;
+          color: rgba(201,168,76,0.5);
         }
 
-        .footer-logo {
-          color: rgba(250,204,21,0.5);
-          font-weight: 500;
+        .lb-footer-copy {
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 300;
+          color: var(--tiny);
+          letter-spacing: 0.2px;
         }
 
-        /* ============================================================
-           RESPONSIVE
-        ============================================================ */
-        @media (max-width: 1100px) {
-          .hero-content { flex-direction: column; padding: 40px 32px; align-items: flex-start; }
-          .hero-headline { font-size: 56px; }
-          .login-card { width: 100%; max-width: 440px; }
-          .feature-grid { grid-template-columns: repeat(2, 1fr); }
-          .top-nav { padding: 24px 32px; }
-          .intelligence-section { padding: 80px 32px 100px; }
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 1080px) {
+          .lb-tiles { grid-template-columns: repeat(2, 1fr); }
+          .lb-tile:nth-child(4n) { border-right: 1px solid var(--border); }
+          .lb-tile:nth-child(2n) { border-right: none; }
+          .lb-tile:nth-last-child(-n+4) { border-bottom: 1px solid var(--border); }
+          .lb-tile:nth-last-child(-n+2) { border-bottom: none; }
+          .lb-hero-inner { flex-direction: column; padding-top: 100px; align-items: flex-start; }
+          .lb-card { width: 100%; max-width: 420px; }
+          .lb-hero-title { font-size: 54px; }
+          .lb-nav { padding: 0 28px; }
+          .lb-intel { padding: 100px 28px 100px; }
         }
 
         @media (max-width: 640px) {
-          .hero-headline { font-size: 40px; }
-          .section-title { font-size: 44px; }
-          .feature-grid { grid-template-columns: 1fr; }
-          .top-nav .nav-links { display: none; }
-          .hero-stats { flex-wrap: wrap; gap: 20px; }
-          .footer-strip { flex-direction: column; gap: 10px; text-align: center; }
+          .lb-hero-title { font-size: 38px; }
+          .lb-intel-title { font-size: 42px; }
+          .lb-tiles { grid-template-columns: 1fr; }
+          .lb-tile { border-right: none !important; }
+          .lb-tile:last-child { border-bottom: none !important; }
+          .lb-nav-links { display: none; }
+          .lb-stats { flex-direction: column; }
+          .lb-stat { border-right: none !important; border-bottom: 1px solid var(--border); }
+          .lb-stat:last-child { border-bottom: none; }
+          .lb-footer { flex-direction: column; gap: 10px; text-align: center; }
+          .lb-hero-inner { padding: 100px 20px 0; }
+          .lb-scroll-cue { left: 20px; }
         }
       `}</style>
-    </div>
+
+      <div style={{ background: "var(--black)", color: "var(--cream)", fontFamily: "var(--font-sans)" }}>
+
+        {/* ── NAV ── */}
+        <nav className="lb-nav">
+          <span className="lb-nav-logo"><span>⚡</span>lightninbull</span>
+          <div className="lb-nav-links">
+            <a href="#">markets</a>
+            <a href="#">intelligence</a>
+            <a href="#">research</a>
+          </div>
+        </nav>
+
+        {/* ── HERO ── */}
+        <section className="lb-hero">
+          <video autoPlay muted loop playsInline className="lb-hero-video">
+            <source src="/videos/login-bg.mp4" />
+          </video>
+          <div className="lb-hero-overlay" />
+          <div className="lb-hero-glow" />
+
+          <div className="lb-hero-inner">
+            {/* Left copy */}
+            <div className="lb-hero-left">
+              <p className="lb-eyebrow">institutional quant intelligence</p>
+
+              <h1 className="lb-hero-title">
+                trade with the<br />
+                <em>precision</em><br />
+                of algorithms.
+              </h1>
+
+              <p className="lb-hero-sub">
+                real-time signals. deep factor analytics.<br />
+                built for professionals who demand an edge.
+              </p>
+
+              <div className="lb-stats">
+                <div className="lb-stat">
+                  <span className="lb-stat-num">16+</span>
+                  <span className="lb-stat-lbl">AI modules</span>
+                </div>
+                <div className="lb-stat">
+                  <span className="lb-stat-num">live</span>
+                  <span className="lb-stat-lbl">signal engine</span>
+                </div>
+                <div className="lb-stat">
+                  <span className="lb-stat-num">quant</span>
+                  <span className="lb-stat-lbl">factor models</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Login card */}
+            <div className="lb-card">
+              <div className="lb-card-bar" />
+              <div className="lb-card-body">
+                <span className="lb-card-logo">⚡ lightninbull</span>
+                <p className="lb-card-sub">{heading}</p>
+                <div className="lb-card-divider" />
+
+                <form onSubmit={handleLogin}>
+                  <div className="lb-field">
+                    <label className="lb-label">phone number</label>
+                    <input
+                      className="lb-input"
+                      placeholder="+91 00000 00000"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="lb-field">
+                    <label className="lb-label">password</label>
+                    <input
+                      type="password"
+                      className="lb-input"
+                      placeholder="••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+
+                  <button className="lb-btn" disabled={loading}>
+                    <span className="lb-btn-inner">
+                      {loading ? (
+                        <>
+                          <span className="lb-spinner" />
+                          authenticating
+                        </>
+                      ) : (
+                        "access dashboard →"
+                      )}
+                    </span>
+                  </button>
+                </form>
+
+                <p className="lb-forgot">
+                  forgot credentials?&nbsp;
+                  <a href="#">contact support</a>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lb-scroll-cue">
+            <div className="lb-scroll-line" />
+            scroll to explore
+          </div>
+        </section>
+
+        {/* ── INTELLIGENCE SECTION ── */}
+        <section className="lb-intel">
+          <div className="lb-intel-header">
+            <p className="lb-section-tag">lightninbull intelligence layer</p>
+            <h2 className="lb-intel-title">
+              quant <em>AI</em> fund manager
+            </h2>
+            <p className="lb-intel-desc">
+              a next-generation quantitative platform combining portfolio analytics,
+              factor modeling, regime intelligence, derivatives insights, and
+              real-time trading signals — all in one unified intelligence layer.
+            </p>
+          </div>
+
+          <div className="lb-tiles">
+            {features.map((f) => (
+              <div key={f.name} className="lb-tile">
+                <span className="lb-tile-tag">{f.tag}</span>
+                <p className="lb-tile-name">{f.name}</p>
+                <span className="lb-tile-arrow">→</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── FOOTER ── */}
+        <footer className="lb-footer">
+          <span className="lb-footer-logo">⚡ lightninbull</span>
+          <span className="lb-footer-copy">
+            © {new Date().getFullYear()} lightninbull. institutional quant intelligence.
+          </span>
+        </footer>
+
+      </div>
+    </>
   );
 };
 
