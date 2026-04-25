@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       title: "Factors",
       items: [
         { name: "Consistent Trending", icon: "⚡" },
-        { name: "Slow Movement", icon: "📉" },
+        { name: "Slow Movement", icon: "⚖️" },
         { name: "Cheap Value", icon: "💰" },
         { name: "Best Quality", icon: "💎" },
       ],
