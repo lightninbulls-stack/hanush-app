@@ -23,7 +23,7 @@ import {
   removeWatchlistSymbol,
 } from "../services/watchlistApi";
 
-const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
+const UPSIDE_STOCK_SIGNAL_KEY   = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
 
 const NON_FEATURE_TABS = [
@@ -62,15 +62,10 @@ const buildWatchlistStocks = (
 
   for (const result of results) {
     const categoryStocks: Stock[] = result?.stocks || [];
-
     for (const stock of categoryStocks) {
       const normalized = normalizeSymbol(stock.symbol);
-
       if (!stockMap.has(normalized)) {
-        stockMap.set(normalized, {
-          ...stock,
-          symbol: normalized,
-        });
+        stockMap.set(normalized, { ...stock, symbol: normalized });
       }
     }
   }
@@ -107,425 +102,273 @@ const Dashboard: React.FC = () => {
     navigate("/", { replace: true });
   };
 
-  const [activeTab, setActiveTab] = useState("");
-  const [previousTab, setPreviousTab] = useState("");
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [starredSymbols, setStarredSymbols] = useState<string[]>([]);
+  const [activeTab,            setActiveTab]            = useState("");
+  const [previousTab,          setPreviousTab]          = useState("");
+  const [stocks,               setStocks]               = useState<Stock[]>([]);
+  const [starredSymbols,       setStarredSymbols]       = useState<string[]>([]);
   const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
-  const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedStock,        setSelectedStock]        = useState<string | null>(null);
+  const [loading,              setLoading]              = useState(false);
 
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined"
-      ? window.innerWidth <= MOBILE_BREAKPOINT
-      : false
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
   );
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(
-    typeof window !== "undefined"
-      ? window.innerWidth <= MOBILE_BREAKPOINT
-      : false
-  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  /* ── resize handler ── */
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
       setIsMobile(mobile);
-
-      if (!mobile) {
-        setMobileSidebarOpen(false);
-      }
+      if (!mobile) setMobileSidebarOpen(false);
     };
-
     handleResize();
     window.addEventListener("resize", handleResize);
-
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  /* ── bootstrap watchlist ── */
   useEffect(() => {
     const bootstrapWatchlist = async () => {
       try {
         const symbols = await fetchWatchlistSymbols();
-        setStarredSymbols(symbols.map((symbol) => normalizeSymbol(symbol)));
-      } catch (error) {
-        console.error("Failed to load watchlist from localStorage:", error);
+        setStarredSymbols(symbols.map(normalizeSymbol));
+      } catch {
         setStarredSymbols([]);
       } finally {
         setWatchlistBootstrapped(true);
       }
     };
-
     bootstrapWatchlist();
   }, []);
 
+  /* ── fetch stocks for active tab ── */
   useEffect(() => {
     let cancelled = false;
 
     const getStocks = async () => {
-      if (!watchlistBootstrapped) {
-        return;
-      }
-
-      if (!activeTab) {
-        setStocks([]);
-        setLoading(false);
-        return;
-      }
+      if (!watchlistBootstrapped) return;
+      if (!activeTab) { setStocks([]); setLoading(false); return; }
 
       try {
         if (activeTab === "Watchlist") {
-          if (starredSymbols.length === 0) {
-            setStocks([]);
-            setLoading(false);
-            return;
-          }
+          if (starredSymbols.length === 0) { setStocks([]); setLoading(false); return; }
 
-          const cachedResults = WATCHLIST_SOURCE_CATEGORIES.map((category) =>
-            getCachedStocksByCategory(category)
-          ).filter((result): result is StockCategoryResponse =>
-            Boolean(result)
-          );
+          const cachedResults = WATCHLIST_SOURCE_CATEGORIES
+            .map((cat) => getCachedStocksByCategory(cat))
+            .filter((r): r is StockCategoryResponse => Boolean(r));
 
           if (cachedResults.length > 0) {
             setStocks(buildWatchlistStocks(starredSymbols, cachedResults));
           }
 
           const missingCategories = WATCHLIST_SOURCE_CATEGORIES.filter(
-            (category) => !getCachedStocksByCategory(category)
+            (cat) => !getCachedStocksByCategory(cat)
           );
 
-          if (missingCategories.length === 0) {
-            setLoading(false);
-            return;
-          }
+          if (missingCategories.length === 0) { setLoading(false); return; }
 
           setLoading(cachedResults.length === 0);
 
           const fetchedResults = await Promise.all(
-            missingCategories.map((category) => fetchStocksByCategory(category))
+            missingCategories.map((cat) => fetchStocksByCategory(cat))
           );
 
-          if (cancelled) {
-            return;
-          }
-
-          const combinedResults = [...cachedResults, ...fetchedResults];
-
-          setStocks(buildWatchlistStocks(starredSymbols, combinedResults));
+          if (cancelled) return;
+          setStocks(buildWatchlistStocks(starredSymbols, [...cachedResults, ...fetchedResults]));
           return;
         }
 
         if (
           activeTab === "Portfolio Backtest" ||
-          activeTab === "Bull Call Spreads" ||
-          activeTab === "Bear Put Spreads" ||
+          activeTab === "Bull Call Spreads"   ||
+          activeTab === "Bear Put Spreads"    ||
           activeTab === "Upside Trend Stocks" ||
           activeTab === "Downside Trend Stocks" ||
-          activeTab === "Guide" ||
+          activeTab === "Guide"               ||
           activeTab === "Profile / Settings"
         ) {
-          setStocks([]);
-          setLoading(false);
-          return;
+          setStocks([]); setLoading(false); return;
         }
 
         const cached = getCachedStocksByCategory(activeTab);
-
-        if (cached) {
-          setStocks(cached.stocks || []);
-          setLoading(false);
-          return;
-        }
+        if (cached) { setStocks(cached.stocks || []); setLoading(false); return; }
 
         setLoading(true);
-
         const data = await fetchStocksByCategory(activeTab);
-
-        if (cancelled) {
-          return;
-        }
-
+        if (cancelled) return;
         setStocks(data.stocks || []);
       } catch (error) {
         console.error(`Failed to load ${activeTab} stocks:`, error);
-
-        if (!cancelled) {
-          setStocks([]);
-        }
+        if (!cancelled) setStocks([]);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
     getStocks();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [activeTab, starredSymbols, watchlistBootstrapped]);
 
-  useEffect(() => {
-    setSelectedStock(null);
-  }, [activeTab]);
+  /* ── clear selected stock on tab change ── */
+  useEffect(() => { setSelectedStock(null); }, [activeTab]);
 
   const handleCategoryChange = (nextTab: string) => {
     if (nextTab !== activeTab) {
       setPreviousTab(activeTab);
       setActiveTab(nextTab);
     }
-
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
+    if (isMobile) setMobileSidebarOpen(false);
   };
 
   const handleStarClick = async (symbol: string) => {
-    const normalized = normalizeSymbol(symbol);
-    const wasStarred = starredSymbols.includes(normalized);
-    const previous = [...starredSymbols];
-
-    const optimistic = wasStarred
-      ? starredSymbols.filter((savedSymbol) => savedSymbol !== normalized)
+    const normalized  = normalizeSymbol(symbol);
+    const wasStarred  = starredSymbols.includes(normalized);
+    const previous    = [...starredSymbols];
+    const optimistic  = wasStarred
+      ? starredSymbols.filter((s) => s !== normalized)
       : [...starredSymbols, normalized];
 
     setStarredSymbols(optimistic);
 
     try {
-      const updated = wasStarred
-        ? await removeWatchlistSymbol(normalized)
-        : await addWatchlistSymbol(normalized);
-
-      setStarredSymbols(updated.map((item) => normalizeSymbol(item)));
+      if (wasStarred) {
+        await removeWatchlistSymbol(normalized);
+      } else {
+        await addWatchlistSymbol(normalized);
+      }
     } catch (error) {
-      console.error("Failed to update localStorage watchlist:", error);
+      console.error("Failed to update watchlist:", error);
       setStarredSymbols(previous);
     }
   };
 
   const handleStockClick = (symbol: string) => {
     setSelectedStock(symbol);
-
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
   };
 
   const handleBackToDashboard = () => {
     if (selectedStock) {
       setSelectedStock(null);
-
-      if (isMobile) {
-        setMobileSidebarOpen(true);
-      }
-
+      if (isMobile) { setMobileSidebarOpen(true); }
       return;
     }
-
-    if (isMobile) {
-      setMobileSidebarOpen(true);
-      return;
-    }
-
-    if (previousTab && previousTab !== activeTab) {
-      setActiveTab(previousTab);
-      return;
-    }
-
+    if (isMobile) { setMobileSidebarOpen(true); return; }
+    if (previousTab && previousTab !== activeTab) { setActiveTab(previousTab); return; }
     setActiveTab("");
   };
 
   const showFeatureBackButton =
     !selectedStock && activeTab && !NON_FEATURE_TABS.includes(activeTab);
 
+  /* ─────────────────────────────────────────────────────────────────────── */
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#000000",
-        color: "#ffffff",
-      }}
-    >
+    <div className="lb-dashboard-shell">
+      {/* ── DESKTOP SIDEBAR ── */}
       {!isMobile && (
-        <div
-          style={{
-            width: 320,
-            minWidth: 320,
-            background: "#000000",
-            borderRight: "1px solid rgba(244, 208, 111, 0.25)",
-            flexShrink: 0,
-          }}
-        >
-          <Sidebar
-            activeCategory={activeTab}
-            setActiveCategory={handleCategoryChange}
-            starredCount={starredSymbols.length}
-          />
-        </div>
+        <Sidebar
+          activeCategory={activeTab}
+          setActiveCategory={handleCategoryChange}
+          starredCount={starredSymbols.length}
+        />
       )}
 
-      {isMobile && mobileSidebarOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 50,
-            background: "rgba(0,0,0,0.82)",
-            display: "flex",
-          }}
-        >
-          <div
-            style={{
-              width: 320,
-              maxWidth: "86vw",
-              height: "100%",
-              background: "#000000",
-            }}
-          >
-            <Sidebar
-              activeCategory={activeTab}
-              setActiveCategory={handleCategoryChange}
-              starredCount={starredSymbols.length}
-              isMobileOpen={mobileSidebarOpen}
-              onCloseMobile={() => setMobileSidebarOpen(false)}
-            />
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-            }}
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-        </div>
+      {/* ── MOBILE SIDEBAR ── */}
+      {isMobile && (
+        <Sidebar
+          activeCategory={activeTab}
+          setActiveCategory={handleCategoryChange}
+          starredCount={starredSymbols.length}
+          isMobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+        />
       )}
 
-      <main
-        style={{
-          flex: 1,
-          minHeight: "100vh",
-          background: "#000000",
-          overflowX: "hidden",
-          padding: 0,
-          margin: 0,
-        }}
-      >
+      {/* ── MAIN CONTENT ── */}
+      <main className="lb-dashboard-main">
+        {/* Topbar */}
+        <div className="lb-topbar">
+          {isMobile ? (
+            <button
+              className="lb-ghost-button"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰ Menu
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <button className="lb-gold-button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+
+        {/* Page content */}
         <div
           style={{
-            width: "100%",
-            minHeight: "100vh",
-            background: "#000000",
-            padding: isMobile ? "16px" : "24px 24px 24px 0px",
+            padding: isMobile ? "20px 16px" : "28px 28px 28px 24px",
             boxSizing: "border-box",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 16,
-              gap: 12,
-            }}
-          >
-            {isMobile ? (
-              <button
-                onClick={() => setMobileSidebarOpen(true)}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "1px solid rgba(148,163,184,0.2)",
-                  background: "#0f172a",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                ☰ Menu
-              </button>
-            ) : (
-              <div />
-            )}
-
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 14,
-                border: "1px solid rgba(255, 215, 0, 0.55)",
-                background:
-                  "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
-                color: "#000000",
-                fontSize: "14px",
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: "0 4px 18px rgba(255, 215, 0, 0.35)",
-              }}
-            >
-              Logout
-            </button>
-          </div>
-
+          {/* ── WELCOME ── */}
           {!activeTab ? (
             <DashboardWelcome onNavigate={handleCategoryChange} />
+
+          /* ── STOCK DETAIL ── */
           ) : selectedStock ? (
             <>
               <button
+                className="lb-ghost-button"
                 onClick={handleBackToDashboard}
-                style={{
-                  marginBottom: 16,
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "1px solid rgba(148,163,184,0.2)",
-                  background: "#0f172a",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
+                style={{ marginBottom: 20 }}
               >
-                ← Back to Dashboard
+                ← Back
               </button>
-
               <TradingViewChart symbol={selectedStock} />
-
-              <div
-                style={{
-                  marginTop: 20,
-                }}
-              >
-                <StockStats symbol={selectedStock} />
-              </div>
+              <StockStats symbol={selectedStock} />
             </>
-          ) : activeTab === "Guide" ? (
-            <div
-              style={{
-                color: "#fff",
-              }}
-            >
-              <h2>User Guide</h2>
 
-              <p>
+          /* ── GUIDE ── */
+          ) : activeTab === "Guide" ? (
+            <div className="lb-card" style={{ maxWidth: 720 }}>
+              <div className="lb-eyebrow" style={{ marginBottom: 16 }}>Guide</div>
+              <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
+                User Guide
+              </h2>
+              <p className="lb-text">
                 Welcome to Lightninbull Financial Analytics. This section helps
                 you understand the metrics and strategies used in the platform.
               </p>
             </div>
-          ) : activeTab === "Profile / Settings" ? (
-            <div
-              style={{
-                color: "#fff",
-              }}
-            >
-              <h2>Profile & Settings</h2>
 
-              <p>Manage your account preferences and application settings here.</p>
+          /* ── PROFILE ── */
+          ) : activeTab === "Profile / Settings" ? (
+            <div className="lb-card" style={{ maxWidth: 720 }}>
+              <div className="lb-eyebrow" style={{ marginBottom: 16 }}>Account</div>
+              <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
+                Profile &amp; Settings
+              </h2>
+              <p className="lb-text">
+                Manage your account preferences and application settings here.
+              </p>
             </div>
+
+          /* ── PORTFOLIO BACKTEST ── */
           ) : activeTab === "Portfolio Backtest" ? (
             <PortfolioBacktestPanel />
+
+          /* ── BULL CALL SPREADS ── */
           ) : activeTab === "Bull Call Spreads" ? (
             <IntradaySpreadsPanel spreadType="bull_call" />
+
+          /* ── BEAR PUT SPREADS ── */
           ) : activeTab === "Bear Put Spreads" ? (
             <IntradaySpreadsPanel spreadType="put_debit" />
+
+          /* ── UPSIDE TREND STOCKS ── */
           ) : activeTab === "Upside Trend Stocks" ? (
             <IntradayStockSignalsPanel
               strategyName={UPSIDE_STOCK_SIGNAL_KEY}
@@ -533,6 +376,8 @@ const Dashboard: React.FC = () => {
               subtitle="Live intraday NSE cash-equity upside trend signals."
               emptyMessage="No upside trend stock signals available yet."
             />
+
+          /* ── DOWNSIDE TREND STOCKS ── */
           ) : activeTab === "Downside Trend Stocks" ? (
             <IntradayStockSignalsPanel
               strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
@@ -540,56 +385,52 @@ const Dashboard: React.FC = () => {
               subtitle="Live intraday NSE cash-equity downside trend signals."
               emptyMessage="No downside trend stock signals available yet."
             />
+
+          /* ── STOCK CATEGORY SCREENER ── */
           ) : (
             <>
               {showFeatureBackButton && (
                 <button
+                  className="lb-ghost-button"
                   onClick={handleBackToDashboard}
-                  style={{
-                    marginBottom: 16,
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(148,163,184,0.2)",
-                    background: "#0f172a",
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
+                  style={{ marginBottom: 20 }}
                 >
-                  ← Back to Dashboard
+                  ← Back
                 </button>
               )}
 
-              <div
-                style={{
-                  marginBottom: 18,
-                  color: "#fff",
-                }}
-              >
+              <div style={{ marginBottom: 24 }}>
+                <div className="lb-eyebrow" style={{ marginBottom: 8 }}>
+                  Quant Screener
+                </div>
                 <h2
-                  style={{
-                    marginBottom: 6,
-                  }}
+                  className="lb-title"
+                  style={{ fontSize: 28, marginBottom: 6 }}
                 >
-                  {activeTab} Screener
+                  {activeTab}
                 </h2>
-
                 <p
                   style={{
-                    color: "#cbd5e1",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.38)",
+                    margin: 0,
                   }}
                 >
-                  Live insights and professional quantitative metrics for{" "}
-                  {activeTab}
+                  Live quantitative metrics &amp; model insights for {activeTab}
                 </p>
               </div>
 
               {loading ? (
                 <div
                   style={{
-                    color: "#cbd5e1",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 13,
+                    color: "rgba(255,255,255,0.4)",
+                    padding: "40px 0",
                   }}
                 >
-                  Loading {activeTab} data...
+                  Loading {activeTab} data…
                 </div>
               ) : (
                 <StockTable
