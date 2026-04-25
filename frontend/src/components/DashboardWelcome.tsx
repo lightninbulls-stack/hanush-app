@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 
 interface DashboardWelcomeProps {
   onNavigate: (category: string) => void;
@@ -71,7 +71,9 @@ const modelCards = [
   },
 ];
 
-const fadeUp = {
+const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const fadeUp: Variants = {
   hidden: {
     opacity: 0,
     y: 34,
@@ -81,12 +83,12 @@ const fadeUp = {
     y: 0,
     transition: {
       duration: 0.7,
-      ease: "easeOut",
+      ease: EASE_OUT,
     },
   },
 };
 
-const stagger = {
+const stagger: Variants = {
   hidden: {},
   visible: {
     transition: {
@@ -264,10 +266,12 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
             <strong>2W</strong>
             <span>Time-based rebalance every 2 weeks</span>
           </motion.div>
+
           <motion.div whileHover={{ y: -5 }}>
             <strong>-3%</strong>
             <span>Rebalance if portfolio declines by 3%</span>
           </motion.div>
+
           <motion.div whileHover={{ y: -5 }}>
             <strong>+5%</strong>
             <span>Rebalance when portfolio gains 5%</span>
@@ -280,7 +284,7 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
         initial={{ opacity: 0, y: 34 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.7 }}
+        transition={{ duration: 0.7, ease: EASE_OUT }}
       >
         <p>YOUR DASHBOARD IS NOT JUST A SCREENER</p>
         <h2>
