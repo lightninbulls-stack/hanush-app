@@ -8,6 +8,7 @@ type FeatureInfo = {
   icon: string;
   tag: string;
   what: string;
+  model: string;
   why: string;
   example: string;
 };
@@ -25,133 +26,155 @@ const features: FeatureInfo[] = [
     name: "Watchlist",
     icon: "◈",
     tag: "TRACK",
-    what: "Track selected stocks, signals, model outputs, and high-conviction ideas in one clean dashboard.",
-    why: "It helps you avoid jumping between multiple tools and keeps your important opportunities in one focused view.",
-    example: "Add Regime Upside stocks, intraday signals, and portfolio candidates into one watchlist before execution.",
+    what: "Watchlist is the central command layer where selected stocks, strategy signals, model outputs, and high-conviction trading ideas are tracked in one place.",
+    model: "The watchlist acts as an execution-ready monitoring layer. It receives outputs from momentum, regime, value, quality, range-bound, option, and intraday signal models, allowing the user to monitor shortlisted opportunities without switching between different screens.",
+    why: "It helps traders reduce decision noise. Instead of randomly scanning the market, the watchlist keeps only model-filtered opportunities visible, making the trading process more disciplined and systematic.",
+    example: "A trader can add Consistent Trending stocks, Regime Upside names, and Intraday Bull Call Spread signals into one watchlist before taking action during market hours.",
   },
   {
     name: "Portfolio Backtest",
     icon: "◉",
     tag: "TEST",
-    what: "Test portfolio performance historically using equal weight, MVO allocation, drawdown metrics, returns, Sharpe, and yearly performance.",
-    why: "It helps you understand whether a strategy survives different market conditions before deploying capital.",
-    example: "Backtest a 20-stock momentum portfolio with monthly rebalancing and compare it against Nifty 50.",
+    what: "Portfolio Backtest allows users to test how a strategy or stock basket would have performed historically before deploying real capital.",
+    model: "The backtest engine evaluates portfolio returns, calendar-year performance, drawdowns, Sharpe ratio, volatility, turnover, rebalancing impact, equal-weight allocation, and mean-variance optimization behaviour across historical market regimes.",
+    why: "It helps traders and investors validate whether a strategy has survived different market conditions. A model is useful only if it can be tested across bull, bear, sideways, high-volatility, and low-volatility phases.",
+    example: "You can test a 20-stock momentum portfolio with monthly rebalancing and compare equal weight versus MVO allocation to understand risk-adjusted performance.",
   },
   {
     name: "Consistent Trending",
     icon: "◆",
     tag: "MOMENTUM",
-    what: "Finds stocks that show stable and repeated trending behaviour instead of one-day random spikes.",
-    why: "It helps identify smoother momentum names with stronger continuation probability and fewer false breakouts.",
-    example: "Use this bucket to find stocks that have been steadily gaining strength across multiple periods.",
+    what: "Consistent Trending is a quant momentum model that identifies stocks showing persistent and stable price strength across multiple lookback windows.",
+    model: "The model focuses on repeatable momentum behaviour, trend persistence, smoother price participation, and reduced noise. Instead of selecting one-day spike stocks, it prefers stocks where momentum is visible across short, medium, and longer lookback periods.",
+    why: "It helps traders avoid false breakouts and random spikes. For portfolio construction, it is useful for selecting stocks that have stronger continuation probability and cleaner trend structure.",
+    example: "A stock that steadily outperforms the market over multiple periods, shows controlled pullbacks, and repeatedly participates in upside moves can qualify as a Consistent Trending candidate.",
   },
   {
     name: "Slow Movement",
     icon: "◇",
     tag: "STABILITY",
-    what: "Identifies stocks that move gradually with lower volatility and controlled trend behaviour.",
-    why: "Useful for investors who prefer stable price movement instead of aggressive high-volatility momentum.",
-    example: "Pick slow-moving stocks for lower-risk portfolio allocation or defensive trend-following baskets.",
+    what: "Slow Movement identifies stocks that move gradually with lower volatility and more controlled price behaviour.",
+    model: "The model filters for stocks with smoother price movement, lower noise, controlled volatility, and stable directional drift. It avoids stocks with erratic spikes, unstable candles, and excessive gap behaviour.",
+    why: "This is useful for investors who prefer stable trend participation over aggressive momentum. It can also be useful for conservative portfolios where lower volatility and smoother NAV behaviour matter.",
+    example: "A stock that rises slowly but consistently over several weeks with limited drawdowns may be selected as a Slow Movement candidate.",
   },
   {
     name: "Cheap Value",
     icon: "◐",
     tag: "VALUE",
-    what: "Ranks stocks that appear undervalued using value-style factors, price behaviour, and relative opportunity.",
-    why: "It helps surface potential long-term value opportunities before broad market recognition.",
-    example: "Use this model to identify stocks that look cheap but are beginning to show early strength.",
+    what: "Cheap Value identifies stocks that appear undervalued relative to their price behaviour, valuation characteristics, and market opportunity.",
+    model: "The model combines value-style ranking with price and trend confirmation. Instead of selecting only statistically cheap stocks, it looks for value names that also show early signs of market recognition.",
+    why: "Pure value stocks can remain cheap for years. This model helps identify value opportunities where the probability of re-rating or mean reversion is higher.",
+    example: "A stock trading at relatively attractive valuations while also showing improving trend behaviour can enter the Cheap Value bucket.",
   },
   {
     name: "Best Quality",
     icon: "◑",
     tag: "QUALITY",
-    what: "Filters companies with stronger quality characteristics such as consistency, stability, cleaner trends, and better behaviour.",
-    why: "It helps avoid weak businesses or noisy stocks that may look attractive only for a short period.",
-    example: "Use Best Quality as a safer universe before running momentum or portfolio allocation models.",
+    what: "Best Quality filters companies with stronger quality characteristics, cleaner market behaviour, and more stable performance patterns.",
+    model: "The model focuses on consistency, lower behavioural noise, cleaner trend structure, stronger relative stability, and better survivability across market regimes.",
+    why: "It helps avoid weak or unstable stocks that may appear attractive only for a short period. Quality filtering improves the base universe before applying momentum, value, or portfolio models.",
+    example: "Before creating a long-only portfolio, the Best Quality bucket can be used as a cleaner stock universe for further ranking.",
   },
   {
     name: "Regime Upside",
     icon: "▲",
     tag: "RISK-ON",
-    what: "Identifies stocks that perform better when the market regime is bullish or risk-on.",
-    why: "It helps you align long trades with market strength instead of fighting the broader trend.",
-    example: "When Nifty is strong, use Regime Upside to find stocks with higher upside participation.",
+    what: "Regime Upside identifies stocks that perform better when the broader market environment is bullish, risk-on, or trending upward.",
+    model: "The model studies how stocks behave during positive market regimes. It looks for names that participate strongly when index breadth, trend, and market structure are supportive.",
+    why: "It helps align long trades with the broader market environment. When the market is risk-on, high-participation stocks usually offer better upside probability.",
+    example: "When Nifty is strong and market breadth is improving, Regime Upside helps shortlist stocks likely to outperform during that phase.",
   },
   {
     name: "Regime Downside",
     icon: "▼",
     tag: "RISK-OFF",
-    what: "Identifies stocks that are weak or vulnerable when the market regime turns bearish or risk-off.",
-    why: "It helps you manage downside risk and prepare bearish or defensive setups.",
-    example: "When market breadth weakens, use Regime Downside to identify stocks likely to underperform.",
+    what: "Regime Downside identifies stocks that become weak or vulnerable when the market regime turns bearish or risk-off.",
+    model: "The model tracks stocks that underperform during weak market phases, falling breadth, rising volatility, and negative index structure.",
+    why: "It helps traders prepare defensive, bearish, or short-side opportunities instead of holding weak names during unfavourable market regimes.",
+    example: "If Nifty breaks down and volatility rises, Regime Downside can highlight stocks that are likely to fall faster than the broader market.",
   },
   {
     name: "Range Bound Upside",
     icon: "◭",
     tag: "RANGE",
-    what: "Finds stocks trading in a range but showing upside pressure near support or breakout zones.",
-    why: "It helps catch early accumulation before the stock breaks out of consolidation.",
-    example: "Use this when a stock is not trending yet but buyers are repeatedly defending support.",
+    what: "Range Bound Upside identifies stocks trading inside a range but showing upside pressure near support, accumulation zones, or breakout areas.",
+    model: "The model looks for sideways stocks where buyers are repeatedly defending lower levels. It studies compression, support behaviour, upside pressure, and potential breakout readiness.",
+    why: "It helps traders catch early accumulation before a full breakout becomes obvious to the market.",
+    example: "A stock moving sideways for many sessions but repeatedly bouncing from support can qualify for Range Bound Upside.",
   },
   {
     name: "Range Bound Downside",
     icon: "◮",
     tag: "RANGE",
-    what: "Finds stocks trading in a range but showing downside pressure near resistance or breakdown zones.",
-    why: "It helps detect distribution or weakness before a clean breakdown happens.",
-    example: "Use this to prepare bearish trades when a stock repeatedly fails near resistance.",
+    what: "Range Bound Downside identifies stocks trading inside a range but showing downside pressure near resistance or breakdown zones.",
+    model: "The model detects distribution-like behaviour, repeated rejection from resistance, weak recovery attempts, and increasing downside pressure inside a consolidation zone.",
+    why: "It helps traders prepare bearish trades before a clean breakdown happens.",
+    example: "A stock repeatedly failing near resistance and showing weak bounce behaviour may qualify for Range Bound Downside.",
   },
   {
     name: "Aggressive Call Option Stocks",
     icon: "⬡",
     tag: "OPTIONS",
-    what: "Finds stocks suitable for bullish option opportunities based on momentum, volatility, and breakout behaviour.",
-    why: "It helps shortlist stronger names for call option strategies instead of randomly selecting stocks.",
-    example: "Use this bucket to identify stocks where bullish option trades may have better directional support.",
+    what: "Aggressive Call Option Stocks identifies stocks suitable for bullish option opportunities based on momentum, volatility, and breakout behaviour.",
+    model: "The model filters for stocks with bullish directional strength, expanding volatility, strong price participation, and potential for option premium expansion.",
+    why: "It helps avoid random call buying. Instead, it shortlists stocks where the underlying price movement supports bullish option trades.",
+    example: "A stock breaking out with strong momentum and rising participation may enter the Aggressive Call Option bucket.",
   },
   {
     name: "Aggressive Put Option Stocks",
     icon: "⬢",
     tag: "OPTIONS",
-    what: "Finds stocks suitable for bearish option opportunities based on weakness, volatility, and breakdown behaviour.",
-    why: "It helps shortlist weaker names for put option opportunities during risk-off conditions.",
-    example: "Use this bucket when the market is weak and you want bearish option candidates.",
+    what: "Aggressive Put Option Stocks identifies stocks suitable for bearish option opportunities based on weakness, volatility, and breakdown behaviour.",
+    model: "The model filters for stocks with bearish momentum, weak trend structure, rising downside volatility, and possible continuation after breakdown.",
+    why: "It helps traders avoid random put buying and focus on stocks where bearish structure supports option trades.",
+    example: "A stock breaking below support with weak recovery and rising volatility may qualify as an Aggressive Put Option candidate.",
   },
   {
     name: "Intraday Bull Call Spreads",
     icon: "◈",
     tag: "INTRADAY",
-    what: "Shows intraday defined-risk bullish option spread opportunities.",
-    why: "It helps trade upside moves with controlled risk instead of taking naked directional exposure.",
-    example: "Use this when the index confirms upside momentum and the system identifies a clean bull call setup.",
+    what: "Intraday Bull Call Spreads identifies defined-risk bullish option spread opportunities during market hours.",
+    model: "The model focuses on intraday upside confirmation, trend strength, index direction, strike selection, and risk-defined spread construction.",
+    why: "It helps traders participate in upside moves while limiting risk compared to naked option buying or futures exposure.",
+    example: "If Nifty confirms intraday upside momentum, the system can identify a bull call spread with defined risk and reward.",
   },
   {
     name: "Intraday Bear Put Spreads",
     icon: "◇",
     tag: "INTRADAY",
-    what: "Shows intraday defined-risk bearish option spread opportunities.",
-    why: "It helps trade downside moves with limited risk and structured payoff.",
-    example: "Use this when index trend turns bearish and a defined-risk bear put spread is triggered.",
+    what: "Intraday Bear Put Spreads identifies defined-risk bearish option spread opportunities during market hours.",
+    model: "The model focuses on intraday downside confirmation, index weakness, option spread structure, strike selection, and controlled risk exposure.",
+    why: "It helps traders express bearish views without taking unlimited or unstructured directional exposure.",
+    example: "If BankNifty confirms intraday downside momentum, the system can identify a bear put spread with limited downside risk.",
   },
   {
     name: "Upside Trend Stocks",
     icon: "◆",
     tag: "LIVE",
-    what: "Shows live intraday stocks where upside momentum is active.",
-    why: "It helps you track active upside trend signals in real time.",
-    example: "Use this panel during market hours to monitor stocks already showing upside continuation.",
+    what: "Upside Trend Stocks shows live intraday stocks where upside momentum is active.",
+    model: "The model uses live price behaviour, trend continuation, momentum confirmation, and signal persistence to identify stocks currently showing upside strength.",
+    why: "It helps traders monitor active intraday long opportunities instead of manually scanning hundreds of stocks.",
+    example: "During market hours, a stock showing strong upside continuation can appear in the Upside Trend Stocks panel for monitoring.",
   },
   {
     name: "Downside Trend Stocks",
     icon: "◉",
     tag: "LIVE",
-    what: "Shows live intraday stocks where downside momentum is active.",
-    why: "It helps you track active downside trend signals and weak stocks in real time.",
-    example: "Use this panel during market hours to monitor stocks breaking down or losing strength.",
+    what: "Downside Trend Stocks shows live intraday stocks where downside momentum is active.",
+    model: "The model tracks live weakness, downside continuation, trend breakdown, and selling pressure to identify stocks currently showing bearish momentum.",
+    why: "It helps traders monitor active downside opportunities and weak stocks during market hours.",
+    example: "A stock breaking intraday support with continued selling pressure can appear in the Downside Trend Stocks panel.",
   },
 ];
 
-const socialLinks = ["LinkedIn", "Instagram", "Facebook", "Pinterest", "Twitter"];
+const socialLinks = [
+  { label: "LinkedIn", url: "https://www.linkedin.com/company/lightninbull/" },
+  { label: "Instagram", url: "https://www.instagram.com/lightninbull/" },
+  { label: "Facebook", url: "https://www.facebook.com/lightninbull/" },
+  { label: "Pinterest", url: "https://www.pinterest.com/lightninbull/" },
+  { label: "Twitter", url: "https://x.com/lightninbull" },
+];
 
 const Auth: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -256,7 +279,6 @@ const Auth: React.FC = () => {
 
   return (
     <div className="auth-page">
-      {/* ===== HERO / LOGIN SECTION ===== */}
       <section className="hero-section">
         <video autoPlay muted loop playsInline className="bg-video">
           <source src="/videos/login-bg.mp4" type="video/mp4" />
@@ -289,9 +311,6 @@ const Auth: React.FC = () => {
             </button>
             <button type="button" onClick={() => scrollToElement(contactRef.current)}>
               contact
-            </button>
-            <button type="button" className="nav-signup" onClick={openSignUp}>
-              sign up
             </button>
           </div>
         </nav>
@@ -334,30 +353,6 @@ const Auth: React.FC = () => {
             <div className="card-header">
               <span className="card-logo">⚡ LIGHTNINBULL</span>
               <p className="card-sub">{heading}</p>
-            </div>
-
-            <div className="auth-tabs">
-              <button
-                type="button"
-                className={`auth-tab ${mode === "login" ? "active" : ""}`}
-                onClick={() => {
-                  setMode("login");
-                  resetMessages();
-                }}
-              >
-                Login
-              </button>
-
-              <button
-                type="button"
-                className={`auth-tab ${mode === "signup" ? "active" : ""}`}
-                onClick={() => {
-                  setMode("signup");
-                  resetMessages();
-                }}
-              >
-                Sign Up
-              </button>
             </div>
 
             <div className="card-divider" />
@@ -501,7 +496,6 @@ const Auth: React.FC = () => {
         </div>
       </section>
 
-      {/* ===== INTELLIGENCE SECTION ===== */}
       <section ref={intelligenceRef} className="intelligence-section">
         <div className="section-label-row">
           <div className="label-line" />
@@ -551,9 +545,15 @@ const Auth: React.FC = () => {
 
           <div className="detail-right">
             <div className="detail-box">
+              <span>QUANT MODEL LOGIC</span>
+              <p>{selectedFeature.model}</p>
+            </div>
+
+            <div className="detail-box">
               <span>WHY IT HELPS</span>
               <p>{selectedFeature.why}</p>
             </div>
+
             <div className="detail-box">
               <span>EXAMPLE USE CASE</span>
               <p>{selectedFeature.example}</p>
@@ -562,7 +562,6 @@ const Auth: React.FC = () => {
         </div>
       </section>
 
-      {/* ===== ABOUT SECTION ===== */}
       <section ref={aboutRef} className="about-section">
         <div className="about-inner">
           <p className="section-label about-label">ABOUT LIGHTNINBULL</p>
@@ -603,7 +602,6 @@ const Auth: React.FC = () => {
         </div>
       </section>
 
-      {/* ===== FOOTER / CONTACT ===== */}
       <footer ref={contactRef} className="footer-strip" id="support">
         <div className="footer-top">
           <div>
@@ -618,17 +616,17 @@ const Auth: React.FC = () => {
             <div className="footer-col">
               <h4>Social Links</h4>
               {socialLinks.map((link) => (
-                <a key={link} href="#">
-                  {link}
+                <a key={link.label} href={link.url} target="_blank" rel="noreferrer">
+                  {link.label}
                 </a>
               ))}
             </div>
 
             <div className="footer-col">
               <h4>Contact Us</h4>
-              <a href="#">Contact us</a>
-              <a href="#">Help & Support</a>
-              <a href="#">Partner with us</a>
+              <a href="mailto:support@lightninbull.com">Contact us</a>
+              <a href="mailto:support@lightninbull.com">Help & Support</a>
+              <a href="mailto:partners@lightninbull.com">Partner with us</a>
             </div>
           </div>
         </div>
@@ -749,21 +747,6 @@ const Auth: React.FC = () => {
           color: #facc15;
         }
 
-        .nav-signup {
-          padding: 8px 16px !important;
-          border: 1px solid rgba(250,204,21,0.26) !important;
-          border-radius: 999px;
-          color: #facc15 !important;
-          background: rgba(250,204,21,0.045) !important;
-          text-transform: uppercase !important;
-          font-size: 9px !important;
-        }
-
-        .nav-signup:hover {
-          background: rgba(250,204,21,0.1) !important;
-          border-color: rgba(250,204,21,0.55) !important;
-        }
-
         .hero-content {
           position: relative;
           z-index: 10;
@@ -861,15 +844,15 @@ const Auth: React.FC = () => {
           position: relative;
           z-index: 10;
           flex-shrink: 0;
-          width: 430px;
-          padding: 36px;
+          width: 390px;
+          padding: 28px;
           border-radius: 4px;
           background: rgba(8, 9, 12, 0.92);
           border: 1px solid rgba(250, 204, 21, 0.18);
           box-shadow:
             0 0 0 1px rgba(255,255,255,0.03),
-            0 40px 80px rgba(0,0,0,0.62),
-            0 0 70px rgba(250,204,21,0.05);
+            0 34px 68px rgba(0,0,0,0.62),
+            0 0 60px rgba(250,204,21,0.05);
           backdrop-filter: blur(24px);
         }
 
@@ -885,7 +868,7 @@ const Auth: React.FC = () => {
         }
 
         .card-header {
-          margin-bottom: 22px;
+          margin-bottom: 18px;
         }
 
         .card-logo {
@@ -905,55 +888,28 @@ const Auth: React.FC = () => {
           text-transform: lowercase;
         }
 
-        .auth-tabs {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin-bottom: 24px;
-        }
-
-        .auth-tab {
-          padding: 10px 12px;
-          border-radius: 3px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: rgba(255,255,255,0.5);
-          cursor: pointer;
-          font-family: 'DM Mono', monospace;
-          font-size: 9px;
-          letter-spacing: 3px;
-          text-transform: uppercase;
-          transition: all 0.2s ease;
-        }
-
-        .auth-tab.active {
-          background: linear-gradient(90deg, #facc15 0%, #d6a21f 100%);
-          border-color: rgba(250,204,21,0.7);
-          color: #050608;
-        }
-
         .card-divider {
           height: 1px;
           background: rgba(255,255,255,0.07);
-          margin-bottom: 26px;
+          margin-bottom: 20px;
         }
 
         .login-form {
           display: flex;
           flex-direction: column;
-          gap: 15px;
+          gap: 12px;
         }
 
         .signup-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 12px;
+          gap: 10px;
         }
 
         .input-group {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 7px;
         }
 
         .input-label {
@@ -965,13 +921,13 @@ const Auth: React.FC = () => {
 
         .input {
           width: 100%;
-          padding: 14px 16px;
+          padding: 12px 14px;
           border-radius: 3px;
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.045);
           color: #fff;
           font-family: 'DM Mono', monospace;
-          font-size: 13px;
+          font-size: 12px;
           outline: none;
           transition: border-color 0.2s, background 0.2s;
           letter-spacing: 0.4px;
@@ -988,13 +944,13 @@ const Auth: React.FC = () => {
 
         .btn {
           width: 100%;
-          padding: 15px;
+          padding: 13px;
           border-radius: 3px;
           background: linear-gradient(90deg, #facc15 0%, #d6a21f 100%);
           border: none;
           font-family: 'Syne', sans-serif;
           font-weight: 800;
-          font-size: 12px;
+          font-size: 11px;
           letter-spacing: 3px;
           color: #050608;
           cursor: pointer;
@@ -1052,13 +1008,13 @@ const Auth: React.FC = () => {
 
         .signup-ghost-btn {
           width: 100%;
-          padding: 13px;
+          padding: 11px;
           border-radius: 3px;
           background: transparent;
           border: 1px solid rgba(250,204,21,0.22);
           color: #facc15;
           font-family: 'DM Mono', monospace;
-          font-size: 9px;
+          font-size: 8px;
           letter-spacing: 2px;
           text-transform: uppercase;
           cursor: pointer;
@@ -1631,7 +1587,7 @@ const Auth: React.FC = () => {
 
           .login-card {
             width: 100%;
-            max-width: 520px;
+            max-width: 440px;
           }
 
           .hero-stats {
@@ -1673,8 +1629,8 @@ const Auth: React.FC = () => {
             justify-content: flex-start;
           }
 
-          .nav-links button:not(.nav-signup) {
-            display: none;
+          .nav-links button {
+            font-size: 10px;
           }
 
           .hero-content {
@@ -1704,12 +1660,12 @@ const Auth: React.FC = () => {
           }
 
           .login-card {
-            padding: 26px;
+            padding: 24px;
           }
 
           .signup-grid {
             grid-template-columns: 1fr;
-            gap: 15px;
+            gap: 12px;
           }
 
           .scroll-indicator {
