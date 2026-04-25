@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
@@ -7,12 +8,15 @@ import StockStats from "../components/StockStats";
 import PortfolioBacktestPanel from "../components/PortfolioBacktestPanel";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
 import IntradayStockSignalsPanel from "../components/IntradayStockSignalsPanel";
+import DashboardWelcome from "../components/DashboardWelcome";
+
 import {
   fetchStocksByCategory,
   getCachedStocksByCategory,
   type Stock,
   type StockCategoryResponse,
 } from "../services/api";
+
 import {
   fetchWatchlistSymbols,
   addWatchlistSymbol,
@@ -110,31 +114,18 @@ const Dashboard: React.FC = () => {
   const [watchlistBootstrapped, setWatchlistBootstrapped] = useState(false);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+    typeof window !== "undefined"
+      ? window.innerWidth <= MOBILE_BREAKPOINT
+      : false
   );
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+    typeof window !== "undefined"
+      ? window.innerWidth <= MOBILE_BREAKPOINT
+      : false
   );
-
-  useEffect(() => {
-    const elements = document.querySelectorAll(".quant-reveal");
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-          }
-        });
-      },
-      { threshold: 0.2 }
-    );
-
-    elements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, [activeTab]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -156,7 +147,7 @@ const Dashboard: React.FC = () => {
     const bootstrapWatchlist = async () => {
       try {
         const symbols = await fetchWatchlistSymbols();
-        setStarredSymbols(symbols.map((s) => normalizeSymbol(s)));
+        setStarredSymbols(symbols.map((symbol) => normalizeSymbol(symbol)));
       } catch (error) {
         console.error("Failed to load watchlist from localStorage:", error);
         setStarredSymbols([]);
@@ -192,7 +183,9 @@ const Dashboard: React.FC = () => {
 
           const cachedResults = WATCHLIST_SOURCE_CATEGORIES.map((category) =>
             getCachedStocksByCategory(category)
-          ).filter((result): result is StockCategoryResponse => Boolean(result));
+          ).filter((result): result is StockCategoryResponse =>
+            Boolean(result)
+          );
 
           if (cachedResults.length > 0) {
             setStocks(buildWatchlistStocks(starredSymbols, cachedResults));
@@ -218,6 +211,7 @@ const Dashboard: React.FC = () => {
           }
 
           const combinedResults = [...cachedResults, ...fetchedResults];
+
           setStocks(buildWatchlistStocks(starredSymbols, combinedResults));
           return;
         }
@@ -237,6 +231,7 @@ const Dashboard: React.FC = () => {
         }
 
         const cached = getCachedStocksByCategory(activeTab);
+
         if (cached) {
           setStocks(cached.stocks || []);
           setLoading(false);
@@ -244,6 +239,7 @@ const Dashboard: React.FC = () => {
         }
 
         setLoading(true);
+
         const data = await fetchStocksByCategory(activeTab);
 
         if (cancelled) {
@@ -253,6 +249,7 @@ const Dashboard: React.FC = () => {
         setStocks(data.stocks || []);
       } catch (error) {
         console.error(`Failed to load ${activeTab} stocks:`, error);
+
         if (!cancelled) {
           setStocks([]);
         }
@@ -291,7 +288,7 @@ const Dashboard: React.FC = () => {
     const previous = [...starredSymbols];
 
     const optimistic = wasStarred
-      ? starredSymbols.filter((s) => s !== normalized)
+      ? starredSymbols.filter((savedSymbol) => savedSymbol !== normalized)
       : [...starredSymbols, normalized];
 
     setStarredSymbols(optimistic);
@@ -301,7 +298,7 @@ const Dashboard: React.FC = () => {
         ? await removeWatchlistSymbol(normalized)
         : await addWatchlistSymbol(normalized);
 
-      setStarredSymbols(updated.map((s) => normalizeSymbol(s)));
+      setStarredSymbols(updated.map((item) => normalizeSymbol(item)));
     } catch (error) {
       console.error("Failed to update localStorage watchlist:", error);
       setStarredSymbols(previous);
@@ -323,6 +320,7 @@ const Dashboard: React.FC = () => {
       if (isMobile) {
         setMobileSidebarOpen(true);
       }
+
       return;
     }
 
@@ -396,7 +394,12 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          <div style={{ flex: 1 }} onClick={() => setMobileSidebarOpen(false)} />
+          <div
+            style={{
+              flex: 1,
+            }}
+            onClick={() => setMobileSidebarOpen(false)}
+          />
         </div>
       )}
 
@@ -452,7 +455,8 @@ const Dashboard: React.FC = () => {
                 padding: "10px 18px",
                 borderRadius: 14,
                 border: "1px solid rgba(255, 215, 0, 0.55)",
-                background: "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
+                background:
+                  "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
                 color: "#000000",
                 fontSize: "14px",
                 fontWeight: 800,
@@ -465,96 +469,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {!activeTab ? (
-            <div className="quant-home-section">
-              <div className="quant-reveal">
-                <h1 className="quant-title">
-                  <span className="typing-text">AI Quant Fund Manager</span>
-                </h1>
-
-                <p className="quant-text">
-                  A high-performance AI quant engine that discovers outperforming
-                  stocks, classifies them into intelligent investment buckets, and
-                  converts them into actionable portfolio ideas.
-                </p>
-
-                <p className="quant-text">
-                  The system uses advanced quantitative models across momentum,
-                  regime detection, quality, value, volatility, and risk-adjusted
-                  allocation to help you build a smarter watchlist and test it like
-                  a professional fund manager.
-                </p>
-              </div>
-
-              <div className="quant-card-grid">
-                <div className="quant-card quant-reveal">
-                  <h3>Stock Discovery</h3>
-                  <p>
-                    Finds high-conviction stocks using quant models and classifies
-                    them into outperforming buckets.
-                  </p>
-                </div>
-
-                <div className="quant-card quant-reveal">
-                  <h3>Watchlist Engine</h3>
-                  <p>
-                    Selected stocks are added into your Watchlist so you can track
-                    strong ideas in real time.
-                  </p>
-                </div>
-
-                <div className="quant-card quant-reveal">
-                  <h3>Portfolio Backtest</h3>
-                  <p>
-                    Test portfolios using Equal Weight and MVO allocation with
-                    active rebalancing logic.
-                  </p>
-                </div>
-
-                <div className="quant-card quant-reveal">
-                  <h3>Risk Rebalancing</h3>
-                  <ul>
-                    <li>Rebalance every 2 weeks</li>
-                    <li>Rebalance if portfolio falls 3%</li>
-                    <li>Rebalance if portfolio gains 5%</li>
-                  </ul>
-                </div>
-
-                <div className="quant-card quant-reveal">
-                  <h3>Advanced Quant Models</h3>
-                  <p>
-                    Uses factor ranking, volatility filters, regime classification,
-                    momentum scoring, and optimization models.
-                  </p>
-                </div>
-
-                <div className="quant-card quant-reveal">
-                  <h3>Fund Manager Workflow</h3>
-                  <p>
-                    Combines alpha generation, risk control, and portfolio
-                    construction into one interactive dashboard.
-                  </p>
-                </div>
-              </div>
-
-              {isMobile && (
-                <button
-                  onClick={() => setMobileSidebarOpen(true)}
-                  style={{
-                    marginTop: 28,
-                    padding: "12px 18px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255, 215, 0, 0.55)",
-                    background:
-                      "linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)",
-                    color: "#000",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  Open Menu
-                </button>
-              )}
-            </div>
+            <DashboardWelcome onNavigate={handleCategoryChange} />
           ) : selectedStock ? (
             <>
               <button
@@ -574,21 +489,35 @@ const Dashboard: React.FC = () => {
 
               <TradingViewChart symbol={selectedStock} />
 
-              <div style={{ marginTop: 20 }}>
+              <div
+                style={{
+                  marginTop: 20,
+                }}
+              >
                 <StockStats symbol={selectedStock} />
               </div>
             </>
           ) : activeTab === "Guide" ? (
-            <div style={{ color: "#fff" }}>
+            <div
+              style={{
+                color: "#fff",
+              }}
+            >
               <h2>User Guide</h2>
+
               <p>
-                Welcome to Lightninbull Financial Analytics. This section helps you
-                understand the metrics and strategies used in the platform.
+                Welcome to Lightninbull Financial Analytics. This section helps
+                you understand the metrics and strategies used in the platform.
               </p>
             </div>
           ) : activeTab === "Profile / Settings" ? (
-            <div style={{ color: "#fff" }}>
+            <div
+              style={{
+                color: "#fff",
+              }}
+            >
               <h2>Profile & Settings</h2>
+
               <p>Manage your account preferences and application settings here.</p>
             </div>
           ) : activeTab === "Portfolio Backtest" ? (
@@ -630,15 +559,36 @@ const Dashboard: React.FC = () => {
                 </button>
               )}
 
-              <div style={{ marginBottom: 18, color: "#fff" }}>
-                <h2 style={{ marginBottom: 6 }}>{activeTab} Screener</h2>
-                <p style={{ color: "#cbd5e1" }}>
-                  Live insights and professional quantitative metrics for {activeTab}
+              <div
+                style={{
+                  marginBottom: 18,
+                  color: "#fff",
+                }}
+              >
+                <h2
+                  style={{
+                    marginBottom: 6,
+                  }}
+                >
+                  {activeTab} Screener
+                </h2>
+
+                <p
+                  style={{
+                    color: "#cbd5e1",
+                  }}
+                >
+                  Live insights and professional quantitative metrics for{" "}
+                  {activeTab}
                 </p>
               </div>
 
               {loading ? (
-                <div style={{ color: "#cbd5e1" }}>
+                <div
+                  style={{
+                    color: "#cbd5e1",
+                  }}
+                >
                   Loading {activeTab} data...
                 </div>
               ) : (
