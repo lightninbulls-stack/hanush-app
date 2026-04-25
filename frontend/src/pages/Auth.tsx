@@ -1,1459 +1,1772 @@
-/**
- * LightninBull — Premium Landing Page (Animation Upgrade v2)
- * ─────────────────────────────────────────────────────────────
- * Drop below your existing hero video in Auth.tsx (or any page).
- * Safe: no routes, no dashboard, no sidebar touched.
- *
- *   npm install framer-motion
- */
+import React, { useMemo, useRef, useState } from "react";
+import { loginUser, registerUser, saveAuthToken } from "../api";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
-import {
-  motion,
-  useInView,
-  useScroll,
-  useTransform,
-  useSpring,
-  useMotionValue,
-  AnimatePresence,
-} from "framer-motion";
+type AuthMode = "login" | "signup";
 
-// ─── Design tokens ────────────────────────────────────────────
-const T = {
-  black:   "#09090b",
-  deep:    "#0c0c0f",
-  surface: "#111114",
-  raised:  "#17171b",
-  border:  "rgba(255,255,255,0.07)",
-  gold:    "#c9a84c",
-  gold2:   "#e8c96a",
-  cream:   "#e8e3d8",
-  muted:   "rgba(232,227,216,0.42)",
-  dim:     "rgba(232,227,216,0.18)",
-  serif:   "'Instrument Serif', Georgia, serif",
-  sans:    "'DM Sans', system-ui, sans-serif",
-  mono:    "'DM Mono', 'Courier New', monospace",
-} as const;
+type FeatureInfo = {
+  name: string;
+  icon: string;
+  tag: string;
+  what: string;
+  why: string;
+  example: string;
+};
 
-// ─── Easing curves ────────────────────────────────────────────
-const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
-const EASE_OUT_CIRC = [0.0, 0.55, 0.45, 1] as const;
+const initialSignUpState = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  confirmPassword: "",
+};
 
-// ─── Framer Motion variants ───────────────────────────────────
-const fadeUp = (delay = 0, distance = 40) => ({
-  hidden:  { opacity: 0, y: distance },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.75, delay, ease: EASE_OUT_EXPO } },
-});
-
-const fadeLeft = (delay = 0) => ({
-  hidden:  { opacity: 0, x: -48 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.7, delay, ease: EASE_OUT_EXPO } },
-});
-
-const fadeRight = (delay = 0) => ({
-  hidden:  { opacity: 0, x: 48 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.7, delay, ease: EASE_OUT_EXPO } },
-});
-
-const scaleIn = (delay = 0) => ({
-  hidden:  { opacity: 0, scale: 0.93 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.65, delay, ease: EASE_OUT_EXPO } },
-});
-
-const staggerContainer = (stagger = 0.09, delayChildren = 0) => ({
-  hidden:  {},
-  visible: { transition: { staggerChildren: stagger, delayChildren } },
-});
-
-const cardVariant = {
-  hidden:  { opacity: 0, y: 36, scale: 0.97 },
-  visible: {
-    opacity: 1, y: 0, scale: 1,
-    transition: { duration: 0.6, ease: EASE_OUT_EXPO },
+const features: FeatureInfo[] = [
+  {
+    name: "Watchlist",
+    icon: "◈",
+    tag: "TRACK",
+    what: "Track selected stocks, signals, model outputs, and high-conviction ideas in one clean dashboard.",
+    why: "It helps you avoid jumping between multiple tools and keeps your important opportunities in one focused view.",
+    example: "Add Regime Upside stocks, intraday signals, and portfolio candidates into one watchlist before execution.",
   },
-};
-
-// ─── Types ────────────────────────────────────────────────────
-interface Feature     { id: string; tag: string; title: string; body: string; }
-interface WorkflowStep{ num: string; title: string; desc: string; }
-interface RiskPillar  { label: string; value: string; sub: string; }
-
-// ─── Static data ──────────────────────────────────────────────
-const FEATURES: Feature[] = [
-  { id: "momentum", tag: "SIGNAL ENGINE",  title: "Momentum Models",
-    body: "Cross-sectional and time-series momentum factors identify trending instruments before the crowd moves in." },
-  { id: "meanrev",  tag: "MEAN REVERSION", title: "Mean Reversion Models",
-    body: "Statistical z-score and Bollinger-based engines detect overextension and surface high-probability snap-back setups." },
-  { id: "regime",   tag: "MACRO LENS",     title: "Regime Intelligence",
-    body: "Dynamic upside/downside regime classifiers adapt the signal stack to prevailing market conditions in real time." },
-  { id: "range",    tag: "RANGE BOUND",    title: "Range Bound Models",
-    body: "Channel-aware algorithms harvest premium in sideways markets where trend-followers bleed." },
-  { id: "options",  tag: "DERIVATIVES",    title: "Aggressive Option Stocks",
-    body: "Quantitatively screened high-IV, high-conviction call and put candidates — ranked daily by expected value." },
-  { id: "intraday", tag: "INTRADAY",       title: "Index Option Spreads",
-    body: "Intraday bull call and bear put spread signals on index options, with defined risk and high-frequency entry logic." },
+  {
+    name: "Portfolio Backtest",
+    icon: "◉",
+    tag: "TEST",
+    what: "Test portfolio performance historically using equal weight, MVO allocation, drawdown metrics, returns, Sharpe, and yearly performance.",
+    why: "It helps you understand whether a strategy survives different market conditions before deploying capital.",
+    example: "Backtest a 20-stock momentum portfolio with monthly rebalancing and compare it against Nifty 50.",
+  },
+  {
+    name: "Consistent Trending",
+    icon: "◆",
+    tag: "MOMENTUM",
+    what: "Finds stocks that show stable and repeated trending behaviour instead of one-day random spikes.",
+    why: "It helps identify smoother momentum names with stronger continuation probability and fewer false breakouts.",
+    example: "Use this bucket to find stocks that have been steadily gaining strength across multiple periods.",
+  },
+  {
+    name: "Slow Movement",
+    icon: "◇",
+    tag: "STABILITY",
+    what: "Identifies stocks that move gradually with lower volatility and controlled trend behaviour.",
+    why: "Useful for investors who prefer stable price movement instead of aggressive high-volatility momentum.",
+    example: "Pick slow-moving stocks for lower-risk portfolio allocation or defensive trend-following baskets.",
+  },
+  {
+    name: "Cheap Value",
+    icon: "◐",
+    tag: "VALUE",
+    what: "Ranks stocks that appear undervalued using value-style factors, price behaviour, and relative opportunity.",
+    why: "It helps surface potential long-term value opportunities before broad market recognition.",
+    example: "Use this model to identify stocks that look cheap but are beginning to show early strength.",
+  },
+  {
+    name: "Best Quality",
+    icon: "◑",
+    tag: "QUALITY",
+    what: "Filters companies with stronger quality characteristics such as consistency, stability, cleaner trends, and better behaviour.",
+    why: "It helps avoid weak businesses or noisy stocks that may look attractive only for a short period.",
+    example: "Use Best Quality as a safer universe before running momentum or portfolio allocation models.",
+  },
+  {
+    name: "Regime Upside",
+    icon: "▲",
+    tag: "RISK-ON",
+    what: "Identifies stocks that perform better when the market regime is bullish or risk-on.",
+    why: "It helps you align long trades with market strength instead of fighting the broader trend.",
+    example: "When Nifty is strong, use Regime Upside to find stocks with higher upside participation.",
+  },
+  {
+    name: "Regime Downside",
+    icon: "▼",
+    tag: "RISK-OFF",
+    what: "Identifies stocks that are weak or vulnerable when the market regime turns bearish or risk-off.",
+    why: "It helps you manage downside risk and prepare bearish or defensive setups.",
+    example: "When market breadth weakens, use Regime Downside to identify stocks likely to underperform.",
+  },
+  {
+    name: "Range Bound Upside",
+    icon: "◭",
+    tag: "RANGE",
+    what: "Finds stocks trading in a range but showing upside pressure near support or breakout zones.",
+    why: "It helps catch early accumulation before the stock breaks out of consolidation.",
+    example: "Use this when a stock is not trending yet but buyers are repeatedly defending support.",
+  },
+  {
+    name: "Range Bound Downside",
+    icon: "◮",
+    tag: "RANGE",
+    what: "Finds stocks trading in a range but showing downside pressure near resistance or breakdown zones.",
+    why: "It helps detect distribution or weakness before a clean breakdown happens.",
+    example: "Use this to prepare bearish trades when a stock repeatedly fails near resistance.",
+  },
+  {
+    name: "Aggressive Call Option Stocks",
+    icon: "⬡",
+    tag: "OPTIONS",
+    what: "Finds stocks suitable for bullish option opportunities based on momentum, volatility, and breakout behaviour.",
+    why: "It helps shortlist stronger names for call option strategies instead of randomly selecting stocks.",
+    example: "Use this bucket to identify stocks where bullish option trades may have better directional support.",
+  },
+  {
+    name: "Aggressive Put Option Stocks",
+    icon: "⬢",
+    tag: "OPTIONS",
+    what: "Finds stocks suitable for bearish option opportunities based on weakness, volatility, and breakdown behaviour.",
+    why: "It helps shortlist weaker names for put option opportunities during risk-off conditions.",
+    example: "Use this bucket when the market is weak and you want bearish option candidates.",
+  },
+  {
+    name: "Intraday Bull Call Spreads",
+    icon: "◈",
+    tag: "INTRADAY",
+    what: "Shows intraday defined-risk bullish option spread opportunities.",
+    why: "It helps trade upside moves with controlled risk instead of taking naked directional exposure.",
+    example: "Use this when the index confirms upside momentum and the system identifies a clean bull call setup.",
+  },
+  {
+    name: "Intraday Bear Put Spreads",
+    icon: "◇",
+    tag: "INTRADAY",
+    what: "Shows intraday defined-risk bearish option spread opportunities.",
+    why: "It helps trade downside moves with limited risk and structured payoff.",
+    example: "Use this when index trend turns bearish and a defined-risk bear put spread is triggered.",
+  },
+  {
+    name: "Upside Trend Stocks",
+    icon: "◆",
+    tag: "LIVE",
+    what: "Shows live intraday stocks where upside momentum is active.",
+    why: "It helps you track active upside trend signals in real time.",
+    example: "Use this panel during market hours to monitor stocks already showing upside continuation.",
+  },
+  {
+    name: "Downside Trend Stocks",
+    icon: "◉",
+    tag: "LIVE",
+    what: "Shows live intraday stocks where downside momentum is active.",
+    why: "It helps you track active downside trend signals and weak stocks in real time.",
+    example: "Use this panel during market hours to monitor stocks breaking down or losing strength.",
+  },
 ];
 
-const WORKFLOW: WorkflowStep[] = [
-  { num: "01", title: "Data Ingestion",        desc: "Multi-feed OHLCV, options chain, and macro regime data normalised into a unified quant layer." },
-  { num: "02", title: "Factor Scoring",        desc: "Momentum, value, quality, and volatility factors scored cross-sectionally across the entire universe." },
-  { num: "03", title: "Signal Generation",     desc: "Model ensemble produces ranked signals with confidence scores, entry zones, and risk parameters." },
-  { num: "04", title: "Portfolio Construction",desc: "Equal-weight and MVO optimisation build allocations respecting drawdown, correlation, and concentration limits." },
-  { num: "05", title: "Rebalancing Engine",    desc: "Rule-based triggers — drift, calendar, and risk-breach — execute disciplined rebalancing without emotion." },
-  { num: "06", title: "Live Execution",        desc: "Signals surface in your dashboard for manual or assisted execution with broker-level precision." },
-];
+const socialLinks = ["LinkedIn", "Instagram", "Facebook", "Pinterest", "Twitter"];
 
-const RISK_PILLARS: RiskPillar[] = [
-  { label: "Max Drawdown Control", value: "DD", sub: "Hard stop on portfolio drawdown with auto-deleveraging signals." },
-  { label: "Volatility Budgeting", value: "VB", sub: "Position sizes are volatility-adjusted so every bet risks the same." },
-  { label: "Correlation Guard",    value: "CG", sub: "Concentration in correlated clusters is capped to prevent factor blow-ups." },
-  { label: "Regime Filter",        value: "RF", sub: "Signals are suppressed in hostile regimes — capital preservation first." },
-];
+const Auth: React.FC = () => {
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [signUpForm, setSignUpForm] = useState(initialSignUpState);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [selectedFeature, setSelectedFeature] = useState<FeatureInfo>(features[2]);
 
-const TICKER_ITEMS = [
-  "Momentum","Mean Reversion","Regime Upside","Regime Downside",
-  "Range Bound","Portfolio Backtest","MVO Optimisation","Risk Analytics",
-  "Intraday Spreads","Option Signals","Factor Models","Rebalancing",
-];
+  const authCardRef = useRef<HTMLDivElement | null>(null);
+  const intelligenceRef = useRef<HTMLElement | null>(null);
+  const aboutRef = useRef<HTMLElement | null>(null);
+  const contactRef = useRef<HTMLElement | null>(null);
 
-const SIGNALS = [
-  { type:"BUY",  instrument:"NIFTY 24200 CE",    strategy:"Bull Call Spread", entry:"₹ 185",   target:"₹ 280",   sl:"₹ 120",   conf:"HIGH"   },
-  { type:"SELL", instrument:"BANKNIFTY 51500 PE", strategy:"Bear Put Spread",  entry:"₹ 240",   target:"₹ 380",   sl:"₹ 155",   conf:"MEDIUM" },
-  { type:"BUY",  instrument:"RELIANCE NSE",        strategy:"Momentum Long",   entry:"₹ 2,840", target:"₹ 2,920", sl:"₹ 2,800", conf:"HIGH"   },
-];
+  const heading = useMemo(
+    () =>
+      mode === "login"
+        ? "access your trading dashboard"
+        : "create your lightninbull account",
+    [mode]
+  );
 
-// ─── useReveal ────────────────────────────────────────────────
-function useReveal(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: threshold });
-  return { ref, inView };
-}
+  const resetMessages = () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+  };
 
-// ─── useMagneticHover ─────────────────────────────────────────
-function useMagneticHover(strength = 0.22) {
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const sx = useSpring(mx, { stiffness: 180, damping: 18 });
-  const sy = useSpring(my, { stiffness: 180, damping: 18 });
+  const scrollToElement = (element: HTMLElement | null) => {
+    element?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
-  const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    mx.set((e.clientX - r.left - r.width  / 2) * strength);
-    my.set((e.clientY - r.top  - r.height / 2) * strength);
-  }, [mx, my, strength]);
+  const openSignUp = () => {
+    setMode("signup");
+    resetMessages();
+    setTimeout(() => {
+      authCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  };
 
-  const onLeave = useCallback(() => { mx.set(0); my.set(0); }, [mx, my]);
-  return { sx, sy, onMove, onLeave };
-}
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetMessages();
+    setLoading(true);
 
-// ─── Animated counter ─────────────────────────────────────────
-const Counter: React.FC<{ to: number; suffix?: string; duration?: number }> = ({
-  to, suffix = "", duration = 1.8,
-}) => {
-  const [count, setCount] = useState(0);
-  const { ref, inView } = useReveal();
+    try {
+      const result = await loginUser(phone, password);
+      saveAuthToken(result.access_token);
+      window.location.href = "/dashboard";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setErrorMessage(message);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => {
-    if (!inView) return;
-    let raf: number;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const p = Math.min((now - t0) / (duration * 1000), 1);
-      setCount(Math.floor((1 - Math.pow(1 - p, 3)) * to));
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else setCount(to);
+  const handleSignUpChange =
+    (field: keyof typeof initialSignUpState) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      setSignUpForm((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, to, duration]);
 
-  return <span ref={ref}>{count}{suffix}</span>;
-};
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    resetMessages();
 
-// ─── SectionTag ───────────────────────────────────────────────
-const SectionTag: React.FC<{ children: React.ReactNode; center?: boolean }> = ({
-  children, center = true,
-}) => (
-  <motion.div
-    className="lb-section-tag"
-    style={{ justifyContent: center ? "center" : "flex-start" }}
-    variants={fadeUp(0, 18)}
-    initial="hidden"
-    whileInView="visible"
-    viewport={{ once: true, amount: 0.5 }}
-  >
-    <span className="lb-tag-line" />
-    <span className="lb-tag-text">{children}</span>
-    <span className="lb-tag-line lb-tag-line-r" />
-  </motion.div>
-);
+    if (signUpForm.password !== signUpForm.confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
 
-// ─── FeatureCard with cursor-tracking spotlight ───────────────
-const FeatureCard: React.FC<{ f: Feature }> = ({ f }) => {
-  const { sx, sy, onMove, onLeave } = useMagneticHover(0.14);
-  const [hovered, setHovered] = useState(false);
-  const [pos, setPos] = useState({ x: 50, y: 50 });
+    setLoading(true);
 
-  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    onMove(e);
-    const r = e.currentTarget.getBoundingClientRect();
-    setPos({
-      x: ((e.clientX - r.left) / r.width)  * 100,
-      y: ((e.clientY - r.top)  / r.height) * 100,
-    });
+    try {
+      await registerUser({
+        name: signUpForm.name,
+        email: signUpForm.email,
+        phone: signUpForm.phone,
+        password: signUpForm.password,
+      });
+
+      const loginResult = await loginUser(signUpForm.phone, signUpForm.password);
+      saveAuthToken(loginResult.access_token);
+
+      setSuccessMessage("Account created successfully. Redirecting...");
+      window.location.href = "/dashboard";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Sign up failed";
+      setErrorMessage(message);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <motion.div
-      className="lb-feature-card"
-      variants={cardVariant}
-      style={{ x: sx, y: sy, position: "relative", overflow: "hidden" }}
-      onMouseMove={handleMove}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { onLeave(); setHovered(false); }}
-      whileHover={{ y: -5, transition: { duration: 0.28, ease: EASE_OUT_CIRC } }}
-    >
-      {/* Cursor spotlight */}
-      <div
-        className="lb-card-spotlight"
-        style={{
-          opacity: hovered ? 1 : 0,
-          background: `radial-gradient(240px circle at ${pos.x}% ${pos.y}%,
-            rgba(201,168,76,0.11) 0%, transparent 65%)`,
-        }}
-      />
-      {/* Top hairline */}
-      <motion.div
-        className="lb-card-topline"
-        animate={{ scaleX: hovered ? 1 : 0, opacity: hovered ? 1 : 0 }}
-        transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
-        style={{ originX: 0 }}
-      />
+    <div className="auth-page">
+      {/* ===== HERO / LOGIN SECTION ===== */}
+      <section className="hero-section">
+        <video autoPlay muted loop playsInline className="bg-video">
+          <source src="/videos/login-bg.mp4" type="video/mp4" />
+        </video>
 
-      <span className="lb-card-tag">{f.tag}</span>
-      <h3 className="lb-card-title">{f.title}</h3>
-      <p className="lb-card-body">{f.body}</p>
+        <div className="video-overlay" />
+        <div className="noise-overlay" />
 
-      <motion.div
-        className="lb-card-arrow"
-        animate={{ x: hovered ? 0 : -10, opacity: hovered ? 0.9 : 0 }}
-        transition={{ duration: 0.22, ease: EASE_OUT_CIRC }}
-      >→</motion.div>
-    </motion.div>
-  );
-};
+        <nav className="top-nav">
+          <button
+            type="button"
+            className="nav-logo"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <span className="logo-bolt">⚡</span> LIGHTNINBULL
+          </button>
 
-// ─── Ticker strip ─────────────────────────────────────────────
-const TickerStrip: React.FC<{ reverse?: boolean }> = ({ reverse = false }) => (
-  <div className="lb-ticker-wrap">
-    <div className="lb-ticker-track" style={{ animationDirection: reverse ? "reverse" : "normal" }}>
-      {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-        <span key={i} className="lb-ticker-item">
-          <span className="lb-ticker-dot">◆</span>{item}
-        </span>
-      ))}
-    </div>
-  </div>
-);
-
-// ─── Floating particles ───────────────────────────────────────
-const ParticleField: React.FC<{ count?: number }> = ({ count = 24 }) => {
-  const particles = useRef(
-    Array.from({ length: count }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 1.6 + 0.4,
-      dur: Math.random() * 9 + 7,
-      delay: Math.random() * 6,
-      driftX: (Math.random() - 0.5) * 40,
-    }))
-  ).current;
-
-  return (
-    <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none", zIndex:0 }}>
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          style={{
-            position:"absolute", left:`${p.x}%`, top:`${p.y}%`,
-            width: p.size, height: p.size,
-            borderRadius:"50%", background: T.gold,
-          }}
-          animate={{ y:[0,-70,0], x:[0, p.driftX, 0], opacity:[0, 0.32, 0] }}
-          transition={{ duration: p.dur, delay: p.delay, repeat: Infinity, ease:"easeInOut" }}
-        />
-      ))}
-    </div>
-  );
-};
-
-// ─── Scroll progress bar ──────────────────────────────────────
-const ScrollProgressBar: React.FC = () => {
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, { stiffness: 80, damping: 28 });
-  return (
-    <motion.div
-      style={{
-        position:"fixed", top:0, left:0, right:0, height:"2px",
-        background:`linear-gradient(90deg, ${T.gold}, ${T.gold2})`,
-        transformOrigin:"left", scaleX, zIndex:9999,
-      }}
-    />
-  );
-};
-
-// ─── Workflow step ────────────────────────────────────────────
-const WfStep: React.FC<{
-  step: WorkflowStep; index: number;
-  active: number; onEnter: (i: number) => void;
-}> = ({ step, index, active, onEnter }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { amount: 0.55 });
-  const isActive = active === index;
-
-  useEffect(() => { if (inView) onEnter(index); }, [inView, index, onEnter]);
-
-  return (
-    <motion.div
-      ref={ref}
-      className="lb-workflow-step"
-      variants={fadeRight(index * 0.06)}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      style={{ borderBottomColor: isActive ? "rgba(201,168,76,0.22)" : T.border }}
-    >
-      <motion.div
-        className="lb-step-num"
-        animate={{ color: isActive ? "rgba(201,168,76,0.55)" : "rgba(201,168,76,0.13)" }}
-        transition={{ duration: 0.4 }}
-      >{step.num}</motion.div>
-
-      <div className="lb-step-body">
-        <motion.h3
-          className="lb-step-title"
-          animate={{ color: isActive ? T.cream : "rgba(232,227,216,0.55)" }}
-          transition={{ duration: 0.4 }}
-        >{step.title}</motion.h3>
-
-        <motion.p
-          className="lb-step-desc"
-          animate={{ opacity: isActive ? 1 : 0.4 }}
-          transition={{ duration: 0.4 }}
-        >{step.desc}</motion.p>
-
-        <motion.div
-          style={{
-            height:"1px", marginTop:"16px",
-            background:`linear-gradient(90deg, ${T.gold}, transparent)`,
-            transformOrigin:"left",
-          }}
-          animate={{ scaleX: isActive ? 1 : 0, opacity: isActive ? 1 : 0 }}
-          transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-        />
-      </div>
-    </motion.div>
-  );
-};
-
-// ─── Risk pillar card ─────────────────────────────────────────
-const RiskCard: React.FC<{ p: RiskPillar }> = ({ p }) => {
-  const [hov, setHov] = useState(false);
-  return (
-    <motion.div
-      className="lb-risk-pillar"
-      variants={cardVariant}
-      onHoverStart={() => setHov(true)}
-      onHoverEnd={() => setHov(false)}
-      whileHover={{ y: -6, transition:{ duration:0.28, ease: EASE_OUT_CIRC } }}
-      style={{ position:"relative", overflow:"hidden" }}
-    >
-      {/* Corner brackets */}
-      {[
-        { top:0,    left:0,    borderTop:`1px solid ${T.gold}`,    borderLeft:`1px solid ${T.gold}`    },
-        { bottom:0, right:0,   borderBottom:`1px solid ${T.gold}`, borderRight:`1px solid ${T.gold}`   },
-      ].map((s, i) => (
-        <motion.div key={i}
-          style={{ position:"absolute", width:22, height:22, ...s }}
-          animate={{ opacity: hov ? 0.55 : 0 }}
-          transition={{ duration:0.3 }}
-        />
-      ))}
-
-      {/* Glow */}
-      <motion.div
-        style={{
-          position:"absolute", inset:0,
-          background:"radial-gradient(ellipse at 50% 110%, rgba(201,168,76,0.08) 0%, transparent 65%)",
-        }}
-        animate={{ opacity: hov ? 1 : 0 }}
-        transition={{ duration:0.4 }}
-      />
-
-      <motion.span
-        className="lb-risk-badge"
-        animate={{ color: hov ? "rgba(201,168,76,0.5)" : "rgba(201,168,76,0.17)" }}
-        transition={{ duration:0.35 }}
-      >{p.value}</motion.span>
-      <span className="lb-risk-label">{p.label}</span>
-      <p className="lb-risk-sub">{p.sub}</p>
-    </motion.div>
-  );
-};
-
-// ─── Signal card ──────────────────────────────────────────────
-const SignalCard: React.FC<{
-  sig: typeof SIGNALS[0]; index: number;
-}> = ({ sig, index }) => {
-  const isBuy = sig.type === "BUY";
-  return (
-    <motion.div
-      variants={fadeUp(index * 0.1, 24)}
-      style={{
-        background: T.surface, border:`1px solid ${T.border}`,
-        borderRadius:"2px", padding:"20px 22px",
-        position:"relative", overflow:"hidden",
-      }}
-      whileHover={{
-        borderColor: isBuy ? "rgba(74,222,128,0.25)" : "rgba(248,113,113,0.25)",
-        y: -3,
-        transition:{ duration:0.22, ease: EASE_OUT_CIRC },
-      }}
-    >
-      {/* Side bar */}
-      <div style={{
-        position:"absolute", left:0, top:0, bottom:0, width:"2px",
-        background: isBuy
-          ? "linear-gradient(to bottom, #4ade80, rgba(74,222,128,0.12))"
-          : "linear-gradient(to bottom, #f87171, rgba(248,113,113,0.12))",
-      }} />
-      {/* Bg tint */}
-      <div style={{
-        position:"absolute", inset:0, pointerEvents:"none",
-        background: isBuy
-          ? "linear-gradient(120deg, rgba(74,222,128,0.025) 0%, transparent 55%)"
-          : "linear-gradient(120deg, rgba(248,113,113,0.025) 0%, transparent 55%)",
-      }} />
-
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
-        <div>
-          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"5px" }}>
-            <span style={{
-              fontFamily: T.mono, fontSize:"8px", letterSpacing:"2px",
-              color: isBuy ? "#4ade80" : "#f87171",
-              background: isBuy ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)",
-              padding:"2px 8px", borderRadius:"1px",
-            }}>{sig.type}</span>
-            <span style={{ fontFamily: T.mono, fontSize:"8px", letterSpacing:"1.5px", color: T.dim }}>{sig.strategy}</span>
+          <div className="nav-links">
+            <button type="button" onClick={() => scrollToElement(intelligenceRef.current)}>
+              markets
+            </button>
+            <button type="button" onClick={() => scrollToElement(intelligenceRef.current)}>
+              intelligence
+            </button>
+            <button type="button" onClick={() => scrollToElement(intelligenceRef.current)}>
+              research
+            </button>
+            <button type="button" onClick={() => scrollToElement(aboutRef.current)}>
+              about us
+            </button>
+            <button type="button" onClick={() => scrollToElement(contactRef.current)}>
+              contact
+            </button>
+            <button type="button" className="nav-signup" onClick={openSignUp}>
+              sign up
+            </button>
           </div>
-          <div style={{ fontFamily: T.sans, fontSize:"14px", fontWeight:500, color: T.cream }}>{sig.instrument}</div>
+        </nav>
+
+        <div className="hero-content">
+          <div className="hero-left">
+            <p className="eyebrow-label">INSTITUTIONAL QUANT INTELLIGENCE</p>
+
+            <h1 className="hero-headline">
+              Invest and trade<br />
+              with the <span className="headline-gold">precision</span><br />
+              of algorithms.
+            </h1>
+
+            <p className="hero-subtext">
+              Real-time signals. Deep factor analytics.
+              <br />
+              Built for traders who demand discipline, data, and edge.
+            </p>
+
+            <div className="hero-stats">
+              <div className="stat">
+                <span className="stat-num">10K+</span>
+                <span className="stat-label">active users</span>
+              </div>
+              <div className="stat-divider" />
+              <div className="stat">
+                <span className="stat-num">16+</span>
+                <span className="stat-label">AI modules</span>
+              </div>
+              <div className="stat-divider" />
+              <div className="stat">
+                <span className="stat-num">live</span>
+                <span className="stat-label">signal engine</span>
+              </div>
+            </div>
+          </div>
+
+          <div ref={authCardRef} className="login-card">
+            <div className="card-header">
+              <span className="card-logo">⚡ LIGHTNINBULL</span>
+              <p className="card-sub">{heading}</p>
+            </div>
+
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={`auth-tab ${mode === "login" ? "active" : ""}`}
+                onClick={() => {
+                  setMode("login");
+                  resetMessages();
+                }}
+              >
+                Login
+              </button>
+
+              <button
+                type="button"
+                className={`auth-tab ${mode === "signup" ? "active" : ""}`}
+                onClick={() => {
+                  setMode("signup");
+                  resetMessages();
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            <div className="card-divider" />
+
+            {errorMessage ? <div className="auth-alert error">{errorMessage}</div> : null}
+            {successMessage ? <div className="auth-alert success">{successMessage}</div> : null}
+
+            {mode === "login" ? (
+              <form onSubmit={handleLogin} className="login-form">
+                <div className="input-group">
+                  <label className="input-label">PHONE NUMBER</label>
+                  <input
+                    placeholder="+91 00000 00000"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">PASSWORD</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <button className="btn" disabled={loading} type="submit">
+                  {loading ? (
+                    <span className="btn-loading">
+                      <span className="spinner" /> Authenticating...
+                    </span>
+                  ) : (
+                    <span>Access Dashboard →</span>
+                  )}
+                </button>
+
+                <button type="button" className="signup-ghost-btn" onClick={openSignUp}>
+                  New to LightninBull? Create Account →
+                </button>
+
+                <p className="forgot-link">
+                  Forgot credentials? <a href="#support">Contact support</a>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="login-form">
+                <div className="input-group">
+                  <label className="input-label">FULL NAME</label>
+                  <input
+                    placeholder="Your name"
+                    value={signUpForm.name}
+                    onChange={handleSignUpChange("name")}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">EMAIL</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={signUpForm.email}
+                    onChange={handleSignUpChange("email")}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">PHONE NUMBER</label>
+                  <input
+                    placeholder="+91 00000 00000"
+                    value={signUpForm.phone}
+                    onChange={handleSignUpChange("phone")}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="signup-grid">
+                  <div className="input-group">
+                    <label className="input-label">PASSWORD</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={signUpForm.password}
+                      onChange={handleSignUpChange("password")}
+                      className="input"
+                      required
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">CONFIRM</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={signUpForm.confirmPassword}
+                      onChange={handleSignUpChange("confirmPassword")}
+                      className="input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button className="btn" disabled={loading} type="submit">
+                  {loading ? (
+                    <span className="btn-loading">
+                      <span className="spinner" /> Creating account...
+                    </span>
+                  ) : (
+                    <span>Create Account →</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="signup-ghost-btn"
+                  onClick={() => {
+                    setMode("login");
+                    resetMessages();
+                  }}
+                >
+                  Already have an account? Login →
+                </button>
+              </form>
+            )}
+          </div>
         </div>
-        <span style={{
-          fontFamily: T.mono, fontSize:"7px", letterSpacing:"2px",
-          color: sig.conf === "HIGH" ? T.gold : T.muted,
-          border:`1px solid ${sig.conf === "HIGH" ? "rgba(201,168,76,0.3)" : T.border}`,
-          padding:"3px 8px", borderRadius:"1px",
-        }}>{sig.conf}</span>
-      </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-        {[
-          { lbl:"Entry",    val: sig.entry  },
-          { lbl:"Target",   val: sig.target },
-          { lbl:"Stop Loss",val: sig.sl     },
-        ].map((m, j) => (
-          <div key={j}>
-            <div style={{ fontFamily:T.mono, fontSize:"7px", letterSpacing:"2px", color:T.dim, marginBottom:"3px" }}>{m.lbl}</div>
-            <div style={{ fontFamily:T.mono, fontSize:"12px", color:T.cream }}>{m.val}</div>
+        <div className="scroll-indicator">
+          <span>SCROLL TO EXPLORE</span>
+          <div className="scroll-line" />
+        </div>
+      </section>
+
+      {/* ===== INTELLIGENCE SECTION ===== */}
+      <section ref={intelligenceRef} className="intelligence-section">
+        <div className="section-label-row">
+          <div className="label-line" />
+          <p className="section-label">LIGHTNINBULL INTELLIGENCE LAYER</p>
+          <div className="label-line" />
+        </div>
+
+        <h2 className="section-title">
+          Quant <em className="ai-word">AI</em> Fund Manager
+        </h2>
+
+        <p className="section-desc">
+          A next-generation quantitative platform combining portfolio analytics, factor modeling,
+          regime intelligence, derivatives insights, and real-time trading signals — all inside one
+          unified intelligence layer.
+        </p>
+
+        <div className="feature-grid">
+          {features.map((feature, index) => (
+            <button
+              type="button"
+              key={feature.name}
+              className={`feature-card ${
+                selectedFeature.name === feature.name ? "selected" : ""
+              }`}
+              style={{ animationDelay: `${index * 0.035}s` }}
+              onClick={() => setSelectedFeature(feature)}
+            >
+              <div className="feature-topline">
+                <span className="card-icon">{feature.icon}</span>
+                <span className="feature-tag">{feature.tag}</span>
+              </div>
+              <h3 className="card-title">{feature.name}</h3>
+              <p className="card-desc">{feature.what}</p>
+              <span className="feature-action">View details →</span>
+              <div className="card-corner" />
+            </button>
+          ))}
+        </div>
+
+        <div className="feature-detail-panel">
+          <div className="detail-left">
+            <p className="detail-kicker">{selectedFeature.tag}</p>
+            <h3>{selectedFeature.name}</h3>
+            <p>{selectedFeature.what}</p>
           </div>
-        ))}
-      </div>
-    </motion.div>
-  );
-};
 
-// ══════════════════════════════════════════════════════════════
-//  MAIN
-// ══════════════════════════════════════════════════════════════
-const LandingPage: React.FC = () => {
-  const [activeStep, setActiveStep] = useState(0);
+          <div className="detail-right">
+            <div className="detail-box">
+              <span>WHY IT HELPS</span>
+              <p>{selectedFeature.why}</p>
+            </div>
+            <div className="detail-box">
+              <span>EXAMPLE USE CASE</span>
+              <p>{selectedFeature.example}</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: heroScroll } = useScroll({ target: heroRef, offset:["start end","end start"] });
-  const heroBgY = useTransform(heroScroll, [0, 1], ["-8%","8%"]);
+      {/* ===== ABOUT SECTION ===== */}
+      <section ref={aboutRef} className="about-section">
+        <div className="about-inner">
+          <p className="section-label about-label">ABOUT LIGHTNINBULL</p>
 
-  const s1  = useReveal();
-  const s4  = useReveal();
-  const s5  = useReveal();
-  const s6  = useReveal();
-  const cta = useReveal();
+          <h2 className="about-title">
+            Built for traders who want structure,
+            <br />
+            not noise.
+          </h2>
 
-  return (
-    <>
-      {/* ── Global CSS ── */}
+          <p className="about-text">
+            LightninBull is an AI-driven Quant Fund Manager platform built to bring
+            institutional-style market intelligence to traders and investors. The platform
+            combines factor models, regime detection, intraday signals, derivatives analytics,
+            portfolio backtesting, and risk management into one unified dashboard.
+          </p>
+
+          <p className="growth-line">10K+ active users and rising.</p>
+
+          <div className="about-stats">
+            <div>
+              <span>10K+</span>
+              <p>Active Users</p>
+            </div>
+            <div>
+              <span>16+</span>
+              <p>AI Modules</p>
+            </div>
+            <div>
+              <span>Real-Time</span>
+              <p>Signal Engine</p>
+            </div>
+            <div>
+              <span>Risk</span>
+              <p>Portfolio Analytics</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FOOTER / CONTACT ===== */}
+      <footer ref={contactRef} className="footer-strip" id="support">
+        <div className="footer-top">
+          <div>
+            <span className="footer-logo">⚡ LIGHTNINBULL</span>
+            <p className="footer-desc">
+              Institutional Quant Intelligence for systematic trading, portfolio construction,
+              and disciplined risk management.
+            </p>
+          </div>
+
+          <div className="footer-links-wrap">
+            <div className="footer-col">
+              <h4>Social Links</h4>
+              {socialLinks.map((link) => (
+                <a key={link} href="#">
+                  {link}
+                </a>
+              ))}
+            </div>
+
+            <div className="footer-col">
+              <h4>Contact Us</h4>
+              <a href="#">Contact us</a>
+              <a href="#">Help & Support</a>
+              <a href="#">Partner with us</a>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <span>
+            © {new Date().getFullYear()} LightninBull. Institutional Quant Intelligence. All
+            rights reserved.
+          </span>
+          <button type="button" onClick={openSignUp}>
+            Join LightninBull →
+          </button>
+        </div>
+      </footer>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400;500&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
 
-        .lb-root{
-          background:#09090b;
-          color:#e8e3d8;
-          font-family:'DM Sans',system-ui,sans-serif;
-          overflow-x:hidden;
+        .auth-page,
+        .auth-page * {
+          box-sizing: border-box;
         }
 
-        /* section tag */
-        .lb-section-tag{
-          display:flex;align-items:center;gap:18px;
-          margin-bottom:40px;
-          font-family:'DM Mono',monospace;
-          font-size:9px;letter-spacing:5px;
-          color:#c9a84c;text-transform:uppercase;
-        }
-        .lb-tag-line{
-          flex:0 0 48px;height:1px;
-          background:linear-gradient(90deg,transparent,#c9a84c);
-        }
-        .lb-tag-line-r{
-          background:linear-gradient(90deg,#c9a84c,transparent);
-        }
-        .lb-tag-text{white-space:nowrap;}
-
-        /* feature cards */
-        .lb-feature-card{
-          padding:36px 30px 32px;
-          background:#111114;
-          border:1px solid rgba(255,255,255,0.07);
-          cursor:default;
-          transition:border-color .4s ease,box-shadow .4s ease;
-          will-change:transform;
-        }
-        .lb-feature-card:hover{
-          border-color:rgba(201,168,76,.28);
-          box-shadow:0 24px 60px rgba(0,0,0,.5),0 0 0 1px rgba(201,168,76,.05);
-        }
-        .lb-card-spotlight{
-          position:absolute;inset:0;
-          pointer-events:none;
-          transition:opacity .25s ease;z-index:0;
-        }
-        .lb-card-topline{
-          position:absolute;top:0;left:0;right:0;height:1px;
-          background:linear-gradient(90deg,#c9a84c,rgba(201,168,76,.25),transparent);
-        }
-        .lb-card-tag{
-          display:block;
-          font-family:'DM Mono',monospace;
-          font-size:8px;letter-spacing:4px;
-          color:#c9a84c;opacity:.55;
-          margin-bottom:18px;text-transform:uppercase;
-          position:relative;z-index:1;
-          transition:opacity .3s;
-        }
-        .lb-feature-card:hover .lb-card-tag{opacity:1;}
-        .lb-card-title{
-          font-family:'Instrument Serif',serif;
-          font-size:24px;font-weight:400;
-          color:#e8e3d8;margin-bottom:14px;
-          line-height:1.2;letter-spacing:-.3px;
-          position:relative;z-index:1;
-        }
-        .lb-card-body{
-          font-family:'DM Sans',sans-serif;
-          font-size:13px;font-weight:300;
-          line-height:1.85;
-          color:rgba(232,227,216,.42);
-          position:relative;z-index:1;
-        }
-        .lb-card-arrow{
-          margin-top:22px;
-          font-family:'DM Mono',monospace;
-          font-size:14px;color:#c9a84c;
-          position:relative;z-index:1;
+        .auth-page {
+          background: #050608;
+          color: #fff;
+          min-height: 100vh;
+          overflow-x: hidden;
         }
 
-        /* ticker */
-        .lb-ticker-wrap{
-          overflow:hidden;
-          border-top:1px solid rgba(255,255,255,.07);
-          border-bottom:1px solid rgba(255,255,255,.07);
-          padding:17px 0;background:#0c0c0f;
-          mask-image:linear-gradient(90deg,transparent 0%,black 7%,black 93%,transparent 100%);
-          -webkit-mask-image:linear-gradient(90deg,transparent 0%,black 7%,black 93%,transparent 100%);
-        }
-        .lb-ticker-track{
-          display:flex;width:max-content;
-          animation:lb-ticker 42s linear infinite;
-        }
-        @keyframes lb-ticker{
-          from{transform:translateX(0);}
-          to{transform:translateX(-33.333%);}
-        }
-        .lb-ticker-item{
-          display:inline-flex;align-items:center;gap:10px;
-          padding:0 28px;
-          font-family:'DM Mono',monospace;
-          font-size:9px;letter-spacing:3px;
-          color:rgba(232,227,216,.18);text-transform:uppercase;
-          white-space:nowrap;transition:color .2s;
-        }
-        .lb-ticker-item:hover{color:rgba(201,168,76,.6);}
-        .lb-ticker-dot{color:#c9a84c;font-size:5px;opacity:.4;}
-
-        /* workflow */
-        .lb-workflow-step{
-          display:grid;grid-template-columns:72px 1fr;
-          gap:0 28px;align-items:start;
-          padding:36px 0;
-          border-bottom:1px solid rgba(255,255,255,.07);
-        }
-        .lb-workflow-step:last-child{border-bottom:none;}
-        .lb-step-num{
-          font-family:'Instrument Serif',serif;
-          font-size:52px;font-weight:400;
-          line-height:1;letter-spacing:-2px;padding-top:2px;
-        }
-        .lb-step-title{
-          font-family:'Instrument Serif',serif;
-          font-size:22px;font-weight:400;
-          margin-bottom:8px;letter-spacing:-.2px;
-        }
-        .lb-step-desc{
-          font-family:'DM Sans',sans-serif;
-          font-size:13px;font-weight:300;
-          line-height:1.8;color:rgba(232,227,216,.42);
+        button {
+          font: inherit;
         }
 
-        /* risk */
-        .lb-risk-pillar{
-          padding:32px 28px;
-          border:1px solid rgba(255,255,255,.07);
-          border-radius:2px;background:#111114;
-          transition:border-color .35s ease,box-shadow .35s ease;
-        }
-        .lb-risk-pillar:hover{
-          border-color:rgba(201,168,76,.22);
-          box-shadow:0 20px 50px rgba(0,0,0,.45);
-        }
-        .lb-risk-badge{
-          font-family:'Instrument Serif',serif;
-          font-style:italic;font-size:42px;
-          margin-bottom:16px;display:block;line-height:1;
-        }
-        .lb-risk-label{
-          font-family:'DM Mono',monospace;
-          font-size:8px;letter-spacing:3px;
-          color:#c9a84c;text-transform:uppercase;
-          margin-bottom:10px;display:block;
-        }
-        .lb-risk-sub{
-          font-family:'DM Sans',sans-serif;
-          font-size:12px;font-weight:300;
-          line-height:1.75;color:rgba(232,227,216,.42);
+        .hero-section {
+          position: relative;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          font-family: 'Syne', sans-serif;
+          background: #050608;
         }
 
-        /* divider */
-        .lb-divider{height:1px;background:rgba(255,255,255,.07);}
-
-        /* big stat */
-        .lb-big-stat{
-          font-family:'Instrument Serif',serif;
-          font-style:italic;color:#c9a84c;
-          letter-spacing:-2px;line-height:1;
+        .bg-video {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          opacity: 0.36;
         }
 
-        /* bar */
-        .lb-bar{
-          border-radius:2px 2px 0 0;
-          background:linear-gradient(to top,rgba(201,168,76,.65),rgba(201,168,76,.15));
-          transition:background .2s;transform-origin:bottom;
-        }
-        .lb-bar:hover{
-          background:linear-gradient(to top,#c9a84c,rgba(201,168,76,.35));
-        }
-
-        /* CTA */
-        .lb-cta-btn{
-          display:inline-flex;align-items:center;gap:10px;
-          padding:16px 36px;
-          background:#c9a84c;color:#09090b;
-          font-family:'DM Mono',monospace;
-          font-size:10px;letter-spacing:3px;
-          text-transform:uppercase;font-weight:500;
-          border:none;border-radius:2px;cursor:pointer;
-          position:relative;overflow:hidden;
-          transition:opacity .2s,transform .2s,box-shadow .3s;
-        }
-        .lb-cta-btn::after{
-          content:'';position:absolute;inset:0;
-          background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
-          transform:translateX(-100%);transition:transform .55s ease;
-        }
-        .lb-cta-btn:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 14px 40px rgba(201,168,76,.32);}
-        .lb-cta-btn:hover::after{transform:translateX(100%);}
-
-        .lb-cta-ghost{
-          display:inline-flex;align-items:center;gap:10px;
-          padding:16px 36px;
-          background:transparent;color:rgba(232,227,216,.42);
-          font-family:'DM Mono',monospace;
-          font-size:10px;letter-spacing:3px;
-          text-transform:uppercase;
-          border:1px solid rgba(255,255,255,.07);
-          border-radius:2px;cursor:pointer;
-          transition:border-color .3s,color .3s,transform .2s;
-        }
-        .lb-cta-ghost:hover{
-          border-color:rgba(201,168,76,.35);
-          color:#e8e3d8;transform:translateY(-2px);
+        .video-overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(ellipse at 50% 45%, rgba(250,204,21,0.07), transparent 42%),
+            linear-gradient(135deg, rgba(5, 6, 8, 0.96) 0%, rgba(5, 6, 8, 0.68) 48%, rgba(5, 6, 8, 0.94) 100%);
+          z-index: 1;
         }
 
-        /* ── RESPONSIVE ── */
-        @media(max-width:1024px){
-          .lb-two-col{flex-direction:column!important;}
-          .lb-two-col>*{width:100%!important;max-width:100%!important;}
-          .lb-feat-grid{grid-template-columns:repeat(2,1fr)!important;}
-          .lb-risk-grid{grid-template-columns:repeat(2,1fr)!important;}
-          .lb-sticky-col{position:relative!important;top:auto!important;}
-          .lb-wf-grid{grid-template-columns:1fr!important;}
-          .lb-bt-grid{grid-template-columns:1fr!important;}
-          .lb-id-grid{grid-template-columns:1fr!important;}
+        .noise-overlay {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          opacity: 0.035;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+          background-size: 180px;
+          pointer-events: none;
         }
-        @media(max-width:768px){
-          .lb-pad{padding:88px 24px!important;}
-          .lb-pad-deep{padding:88px 24px!important;}
-          .lb-feat-grid{grid-template-columns:1fr!important;}
-          .lb-risk-grid{grid-template-columns:1fr!important;}
-          .lb-stats-row{flex-direction:column!important;}
-          .lb-stats-row>div{
-            border-right:none!important;
-            border-bottom:1px solid rgba(255,255,255,.07)!important;
+
+        .top-nav {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 30px 60px;
+          border-bottom: 1px solid rgba(250, 204, 21, 0.08);
+        }
+
+        .nav-logo {
+          border: none;
+          background: transparent;
+          font-family: 'Syne', sans-serif;
+          font-weight: 800;
+          font-size: 15px;
+          letter-spacing: 4px;
+          color: #fff;
+          cursor: pointer;
+        }
+
+        .logo-bolt {
+          color: #facc15;
+          margin-right: 6px;
+        }
+
+        .nav-links {
+          display: flex;
+          align-items: center;
+          gap: 34px;
+        }
+
+        .nav-links button {
+          border: none;
+          background: transparent;
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 1.6px;
+          color: rgba(255,255,255,0.42);
+          cursor: pointer;
+          text-transform: lowercase;
+          transition: color 0.2s ease;
+        }
+
+        .nav-links button:hover {
+          color: #facc15;
+        }
+
+        .nav-signup {
+          padding: 8px 16px !important;
+          border: 1px solid rgba(250,204,21,0.26) !important;
+          border-radius: 999px;
+          color: #facc15 !important;
+          background: rgba(250,204,21,0.045) !important;
+          text-transform: uppercase !important;
+          font-size: 9px !important;
+        }
+
+        .nav-signup:hover {
+          background: rgba(250,204,21,0.1) !important;
+          border-color: rgba(250,204,21,0.55) !important;
+        }
+
+        .hero-content {
+          position: relative;
+          z-index: 10;
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 70px 60px 40px;
+          gap: 70px;
+        }
+
+        .hero-left {
+          max-width: 720px;
+        }
+
+        .eyebrow-label {
+          font-family: 'DM Mono', monospace;
+          font-size: 10px;
+          letter-spacing: 5px;
+          color: #facc15;
+          margin-bottom: 34px;
+          opacity: 0.9;
+        }
+
+        .hero-headline {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(72px, 7.4vw, 112px);
+          font-weight: 300;
+          line-height: 0.93;
+          color: #f7f0df;
+          letter-spacing: -2.8px;
+          margin: 0;
+        }
+
+        .headline-gold {
+          color: #d6b849;
+          font-style: italic;
+          font-weight: 300;
+          text-shadow:
+            0 0 32px rgba(250,204,21,0.18),
+            0 0 90px rgba(250,204,21,0.08);
+        }
+
+        .hero-subtext {
+          margin-top: 34px;
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          line-height: 1.9;
+          color: rgba(255,255,255,0.45);
+          letter-spacing: 0.45px;
+        }
+
+        .hero-stats {
+          display: flex;
+          align-items: stretch;
+          margin-top: 54px;
+          border: 1px solid rgba(255,255,255,0.1);
+          max-width: 610px;
+          background: rgba(5,6,8,0.34);
+          backdrop-filter: blur(10px);
+        }
+
+        .stat {
+          min-width: 160px;
+          padding: 24px 28px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .stat-num {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 30px;
+          font-weight: 400;
+          color: #f7f0df;
+          letter-spacing: -0.6px;
+          line-height: 1;
+          text-transform: lowercase;
+        }
+
+        .stat-label {
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 3px;
+          color: rgba(255,255,255,0.33);
+          text-transform: uppercase;
+        }
+
+        .stat-divider {
+          width: 1px;
+          background: rgba(255,255,255,0.08);
+        }
+
+        .login-card {
+          position: relative;
+          z-index: 10;
+          flex-shrink: 0;
+          width: 430px;
+          padding: 36px;
+          border-radius: 4px;
+          background: rgba(8, 9, 12, 0.92);
+          border: 1px solid rgba(250, 204, 21, 0.18);
+          box-shadow:
+            0 0 0 1px rgba(255,255,255,0.03),
+            0 40px 80px rgba(0,0,0,0.62),
+            0 0 70px rgba(250,204,21,0.05);
+          backdrop-filter: blur(24px);
+        }
+
+        .login-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #facc15, transparent);
+          border-radius: 4px 4px 0 0;
+        }
+
+        .card-header {
+          margin-bottom: 22px;
+        }
+
+        .card-logo {
+          font-family: 'Syne', sans-serif;
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: 4px;
+          color: #facc15;
+        }
+
+        .card-sub {
+          margin-top: 9px;
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          letter-spacing: 1px;
+          color: rgba(255,255,255,0.36);
+          text-transform: lowercase;
+        }
+
+        .auth-tabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 24px;
+        }
+
+        .auth-tab {
+          padding: 10px 12px;
+          border-radius: 3px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: rgba(255,255,255,0.5);
+          cursor: pointer;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 3px;
+          text-transform: uppercase;
+          transition: all 0.2s ease;
+        }
+
+        .auth-tab.active {
+          background: linear-gradient(90deg, #facc15 0%, #d6a21f 100%);
+          border-color: rgba(250,204,21,0.7);
+          color: #050608;
+        }
+
+        .card-divider {
+          height: 1px;
+          background: rgba(255,255,255,0.07);
+          margin-bottom: 26px;
+        }
+
+        .login-form {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+        }
+
+        .signup-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .input-label {
+          font-family: 'DM Mono', monospace;
+          font-size: 8px;
+          letter-spacing: 3px;
+          color: rgba(255,255,255,0.3);
+        }
+
+        .input {
+          width: 100%;
+          padding: 14px 16px;
+          border-radius: 3px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.045);
+          color: #fff;
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          outline: none;
+          transition: border-color 0.2s, background 0.2s;
+          letter-spacing: 0.4px;
+        }
+
+        .input:focus {
+          border-color: rgba(250,204,21,0.42);
+          background: rgba(250,204,21,0.035);
+        }
+
+        .input::placeholder {
+          color: rgba(255,255,255,0.18);
+        }
+
+        .btn {
+          width: 100%;
+          padding: 15px;
+          border-radius: 3px;
+          background: linear-gradient(90deg, #facc15 0%, #d6a21f 100%);
+          border: none;
+          font-family: 'Syne', sans-serif;
+          font-weight: 800;
+          font-size: 12px;
+          letter-spacing: 3px;
+          color: #050608;
+          cursor: pointer;
+          margin-top: 4px;
+          transition: opacity 0.2s, transform 0.15s;
+          position: relative;
+          overflow: hidden;
+          text-transform: uppercase;
+        }
+
+        .btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+          transform: translateX(-100%);
+          transition: transform 0.5s ease;
+        }
+
+        .btn:hover::after {
+          transform: translateX(100%);
+        }
+
+        .btn:hover {
+          opacity: 0.94;
+          transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+          transform: none;
+        }
+
+        .btn-loading {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        }
+
+        .spinner {
+          display: inline-block;
+          width: 12px;
+          height: 12px;
+          border: 2px solid rgba(5,6,8,0.3);
+          border-top-color: #050608;
+          border-radius: 50%;
+          animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .signup-ghost-btn {
+          width: 100%;
+          padding: 13px;
+          border-radius: 3px;
+          background: transparent;
+          border: 1px solid rgba(250,204,21,0.22);
+          color: #facc15;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .signup-ghost-btn:hover {
+          background: rgba(250,204,21,0.06);
+          border-color: rgba(250,204,21,0.48);
+          transform: translateY(-1px);
+        }
+
+        .forgot-link {
+          text-align: center;
+          font-family: 'DM Mono', monospace;
+          font-size: 10px;
+          color: rgba(255,255,255,0.25);
+          letter-spacing: 0.5px;
+          margin: 0;
+        }
+
+        .forgot-link a {
+          color: rgba(250,204,21,0.62);
+          text-decoration: none;
+        }
+
+        .forgot-link a:hover {
+          color: #facc15;
+        }
+
+        .auth-alert {
+          margin-bottom: 16px;
+          padding: 11px 13px;
+          border-radius: 3px;
+          font-family: 'DM Mono', monospace;
+          font-size: 10px;
+          line-height: 1.6;
+          letter-spacing: 0.4px;
+        }
+
+        .auth-alert.error {
+          background: rgba(220,38,38,0.15);
+          border: 1px solid rgba(248,113,113,0.38);
+          color: #fecaca;
+        }
+
+        .auth-alert.success {
+          background: rgba(22,163,74,0.15);
+          border: 1px solid rgba(74,222,128,0.38);
+          color: #bbf7d0;
+        }
+
+        .scroll-indicator {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          padding: 24px 60px 34px;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 5px;
+          color: rgba(255,255,255,0.2);
+        }
+
+        .scroll-line {
+          flex: 1;
+          max-width: 80px;
+          height: 1px;
+          background: linear-gradient(90deg, rgba(250,204,21,0.45), transparent);
+          animation: scrollPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes scrollPulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+
+        .intelligence-section {
+          padding: 130px 60px 150px;
+          font-family: 'Syne', sans-serif;
+          background:
+            radial-gradient(ellipse 80% 50% at 50% 0%, rgba(250,204,21,0.045) 0%, transparent 70%),
+            #050608;
+        }
+
+        .section-label-row {
+          display: flex;
+          align-items: center;
+          gap: 24px;
+          margin-bottom: 50px;
+        }
+
+        .label-line {
+          flex: 1;
+          height: 1px;
+          background: rgba(255,255,255,0.07);
+        }
+
+        .section-label {
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 5px;
+          color: rgba(250,204,21,0.74);
+          white-space: nowrap;
+          text-transform: uppercase;
+        }
+
+        .section-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(56px, 6vw, 84px);
+          font-weight: 300;
+          text-align: center;
+          color: #f7f0df;
+          letter-spacing: -1.6px;
+          line-height: 0.95;
+          margin: 0;
+        }
+
+        .ai-word {
+          font-style: italic;
+          color: #facc15;
+          font-weight: 300;
+          text-shadow:
+            0 0 40px rgba(250,204,21,0.45),
+            0 0 90px rgba(250,204,21,0.18);
+          animation: subtleGlow 2.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes subtleGlow {
+          from {
+            text-shadow: 0 0 20px rgba(250,204,21,0.3), 0 0 60px rgba(250,204,21,0.1);
           }
-          .lb-stats-row>div:last-child{border-bottom:none!important;}
-          .lb-cta-row{flex-direction:column!important;align-items:stretch!important;}
-          .lb-cta-row button{width:100%;justify-content:center;}
-          .lb-hero-h{font-size:clamp(38px,10vw,58px)!important;}
-          .lb-section-h{font-size:clamp(30px,8vw,48px)!important;}
-          .lb-cta-h{font-size:clamp(44px,11vw,72px)!important;letter-spacing:-2px!important;}
-          .lb-wf-grid>div:first-child{margin-bottom:40px;}
+          to {
+            text-shadow: 0 0 48px rgba(250,204,21,0.6), 0 0 110px rgba(250,204,21,0.25);
+          }
         }
-        @media(max-width:480px){
-          .lb-pad{padding:64px 16px!important;}
-          .lb-pad-deep{padding:64px 16px!important;}
-          .lb-ticker-item{padding:0 18px;font-size:8px;}
-          .lb-step-num{font-size:38px!important;}
-          .lb-card-title{font-size:20px!important;}
+
+        .section-desc {
+          max-width: 760px;
+          margin: 34px auto 84px;
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          line-height: 2;
+          color: rgba(255,255,255,0.38);
+          text-align: center;
+          letter-spacing: 0.3px;
+        }
+
+        .feature-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.05);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
+        .feature-card {
+          position: relative;
+          text-align: left;
+          padding: 31px 27px;
+          background: rgba(8, 9, 12, 0.95);
+          transition: background 0.3s ease, transform 0.22s ease;
+          overflow: hidden;
+          border: none;
+          cursor: pointer;
+          color: inherit;
+          animation: fadeUp 0.5s ease both;
+          min-height: 238px;
+        }
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .feature-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at 0% 100%, rgba(250,204,21,0.08), transparent 62%);
+          opacity: 0;
+          transition: opacity 0.4s ease;
+        }
+
+        .feature-card:hover,
+        .feature-card.selected {
+          background: rgba(14, 15, 18, 1);
+          transform: translateY(-2px);
+        }
+
+        .feature-card:hover::after,
+        .feature-card.selected::after {
+          opacity: 1;
+        }
+
+        .feature-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, #facc15, transparent);
+          opacity: 0;
+          transition: opacity 0.3s;
+        }
+
+        .feature-card:hover::before,
+        .feature-card.selected::before {
+          opacity: 0.7;
+        }
+
+        .feature-topline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          position: relative;
+          z-index: 2;
+        }
+
+        .card-icon {
+          font-size: 18px;
+          color: rgba(250,204,21,0.58);
+          transition: color 0.3s;
+        }
+
+        .feature-tag {
+          font-family: 'DM Mono', monospace;
+          font-size: 8px;
+          letter-spacing: 2.5px;
+          color: rgba(255,255,255,0.25);
+        }
+
+        .feature-card:hover .card-icon,
+        .feature-card.selected .card-icon {
+          color: #facc15;
+        }
+
+        .card-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 26px;
+          font-weight: 400;
+          color: #f7f0df;
+          margin: 0 0 13px;
+          line-height: 1.05;
+          letter-spacing: -0.4px;
+          position: relative;
+          z-index: 2;
+        }
+
+        .card-desc {
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          line-height: 1.75;
+          color: rgba(255,255,255,0.38);
+          margin: 0;
+          position: relative;
+          z-index: 2;
+        }
+
+        .feature-action {
+          display: inline-block;
+          margin-top: 18px;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 2px;
+          color: rgba(250,204,21,0.68);
+          position: relative;
+          z-index: 2;
+        }
+
+        .card-corner {
+          position: absolute;
+          bottom: 18px;
+          right: 18px;
+          width: 18px;
+          height: 18px;
+          border-right: 1px solid rgba(250,204,21,0.25);
+          border-bottom: 1px solid rgba(250,204,21,0.25);
+          z-index: 2;
+        }
+
+        .feature-detail-panel {
+          margin-top: 42px;
+          border: 1px solid rgba(250,204,21,0.16);
+          background:
+            radial-gradient(ellipse at 0% 100%, rgba(250,204,21,0.07), transparent 60%),
+            rgba(8,9,12,0.92);
+          display: grid;
+          grid-template-columns: 0.85fr 1.15fr;
+          gap: 40px;
+          padding: 38px;
+          animation: fadeUp 0.36s ease both;
+        }
+
+        .detail-kicker {
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 4px;
+          color: #facc15;
+          margin: 0 0 18px;
+        }
+
+        .detail-left h3 {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(40px, 4vw, 62px);
+          font-weight: 300;
+          color: #f7f0df;
+          line-height: 0.95;
+          margin: 0 0 24px;
+          letter-spacing: -1px;
+        }
+
+        .detail-left p {
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          line-height: 1.9;
+          color: rgba(255,255,255,0.43);
+          margin: 0;
+        }
+
+        .detail-right {
+          display: grid;
+          gap: 16px;
+        }
+
+        .detail-box {
+          border-left: 1px solid rgba(250,204,21,0.28);
+          padding: 18px 0 18px 22px;
+        }
+
+        .detail-box span {
+          display: block;
+          font-family: 'DM Mono', monospace;
+          font-size: 8px;
+          letter-spacing: 3px;
+          color: rgba(250,204,21,0.8);
+          margin-bottom: 10px;
+        }
+
+        .detail-box p {
+          font-family: 'DM Mono', monospace;
+          font-size: 12px;
+          line-height: 1.85;
+          color: rgba(255,255,255,0.42);
+          margin: 0;
+        }
+
+        .about-section {
+          padding: 130px 60px;
+          background:
+            radial-gradient(ellipse at 50% 0%, rgba(250,204,21,0.05), transparent 70%),
+            #09090b;
+          font-family: 'Syne', sans-serif;
+        }
+
+        .about-inner {
+          max-width: 1180px;
+          margin: 0 auto;
+        }
+
+        .about-label {
+          text-align: center;
+          display: block;
+          margin-bottom: 34px;
+        }
+
+        .about-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(48px, 5.5vw, 82px);
+          font-weight: 300;
+          line-height: 0.98;
+          letter-spacing: -1.8px;
+          color: #f7f0df;
+          text-align: center;
+          margin: 0;
+        }
+
+        .about-text {
+          max-width: 820px;
+          margin: 36px auto 0;
+          text-align: center;
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          line-height: 2;
+          color: rgba(255,255,255,0.42);
+        }
+
+        .growth-line {
+          margin: 38px 0 50px;
+          text-align: center;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(34px, 4vw, 56px);
+          font-style: italic;
+          color: #facc15;
+          text-shadow: 0 0 60px rgba(250,204,21,0.14);
+        }
+
+        .about-stats {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.02);
+        }
+
+        .about-stats div {
+          padding: 30px 24px;
+          border-right: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .about-stats div:last-child {
+          border-right: none;
+        }
+
+        .about-stats span {
+          display: block;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 34px;
+          color: #f7f0df;
+          margin-bottom: 8px;
+        }
+
+        .about-stats p {
+          margin: 0;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 2.4px;
+          color: rgba(255,255,255,0.35);
+          text-transform: uppercase;
+        }
+
+        .footer-strip {
+          padding: 70px 60px 34px;
+          background: #050608;
+          border-top: 1px solid rgba(255,255,255,0.08);
+          font-family: 'Syne', sans-serif;
+        }
+
+        .footer-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 60px;
+          max-width: 1180px;
+          margin: 0 auto 54px;
+        }
+
+        .footer-logo {
+          display: block;
+          font-family: 'Syne', sans-serif;
+          font-weight: 800;
+          font-size: 15px;
+          letter-spacing: 4px;
+          color: #f7f0df;
+          margin-bottom: 20px;
+        }
+
+        .footer-desc {
+          max-width: 480px;
+          font-family: 'DM Mono', monospace;
+          font-size: 12px;
+          line-height: 1.9;
+          color: rgba(255,255,255,0.36);
+          margin: 0;
+        }
+
+        .footer-links-wrap {
+          display: flex;
+          gap: 72px;
+        }
+
+        .footer-col {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-width: 150px;
+        }
+
+        .footer-col h4 {
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 3px;
+          color: #facc15;
+          text-transform: uppercase;
+          margin: 0 0 8px;
+        }
+
+        .footer-col a {
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          color: rgba(255,255,255,0.38);
+          text-decoration: none;
+          transition: color 0.2s ease;
+        }
+
+        .footer-col a:hover {
+          color: #facc15;
+        }
+
+        .footer-bottom {
+          max-width: 1180px;
+          margin: 0 auto;
+          padding-top: 28px;
+          border-top: 1px solid rgba(255,255,255,0.07);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+        }
+
+        .footer-bottom span {
+          font-family: 'DM Mono', monospace;
+          font-size: 10px;
+          color: rgba(255,255,255,0.28);
+          letter-spacing: 1px;
+        }
+
+        .footer-bottom button {
+          border: 1px solid rgba(250,204,21,0.28);
+          background: rgba(250,204,21,0.05);
+          color: #facc15;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+          padding: 12px 18px;
+          border-radius: 3px;
+          cursor: pointer;
+        }
+
+        .footer-bottom button:hover {
+          background: rgba(250,204,21,0.1);
+        }
+
+        @media (max-width: 1200px) {
+          .hero-content {
+            gap: 46px;
+          }
+
+          .hero-headline {
+            font-size: clamp(62px, 7vw, 92px);
+          }
+
+          .feature-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        @media (max-width: 980px) {
+          .top-nav {
+            padding: 24px 28px;
+            align-items: flex-start;
+            gap: 20px;
+          }
+
+          .nav-links {
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+          }
+
+          .hero-content {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 54px 28px 40px;
+          }
+
+          .login-card {
+            width: 100%;
+            max-width: 520px;
+          }
+
+          .hero-stats {
+            max-width: 100%;
+          }
+
+          .feature-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .feature-detail-panel {
+            grid-template-columns: 1fr;
+          }
+
+          .about-stats {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .about-stats div:nth-child(2) {
+            border-right: none;
+          }
+
+          .about-stats div:nth-child(1),
+          .about-stats div:nth-child(2) {
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+          }
+
+          .footer-top {
+            flex-direction: column;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .top-nav {
+            flex-direction: column;
+          }
+
+          .nav-links {
+            justify-content: flex-start;
+          }
+
+          .nav-links button:not(.nav-signup) {
+            display: none;
+          }
+
+          .hero-content {
+            padding: 46px 20px 30px;
+          }
+
+          .hero-headline {
+            font-size: clamp(48px, 14vw, 62px);
+            letter-spacing: -1.5px;
+          }
+
+          .hero-subtext {
+            font-size: 11px;
+          }
+
+          .hero-stats {
+            flex-direction: column;
+          }
+
+          .stat-divider {
+            width: 100%;
+            height: 1px;
+          }
+
+          .stat {
+            min-width: auto;
+          }
+
+          .login-card {
+            padding: 26px;
+          }
+
+          .signup-grid {
+            grid-template-columns: 1fr;
+            gap: 15px;
+          }
+
+          .scroll-indicator {
+            padding: 20px;
+          }
+
+          .intelligence-section,
+          .about-section,
+          .footer-strip {
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+
+          .section-label-row {
+            gap: 12px;
+          }
+
+          .section-label {
+            white-space: normal;
+            text-align: center;
+            line-height: 1.6;
+          }
+
+          .feature-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .feature-detail-panel {
+            padding: 26px;
+          }
+
+          .about-stats {
+            grid-template-columns: 1fr;
+          }
+
+          .about-stats div {
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+          }
+
+          .about-stats div:last-child {
+            border-bottom: none;
+          }
+
+          .footer-links-wrap {
+            flex-direction: column;
+            gap: 34px;
+          }
+
+          .footer-bottom {
+            flex-direction: column;
+            align-items: flex-start;
+          }
         }
       `}</style>
-
-      <ScrollProgressBar />
-
-      <div className="lb-root">
-
-        {/* ══════════════════════════════════════════
-            S1 — AI Quant Fund Manager Intro
-        ══════════════════════════════════════════ */}
-        <section
-          ref={heroRef}
-          className="lb-pad"
-          style={{ padding:"160px 60px", position:"relative", overflow:"hidden" }}
-        >
-          <ParticleField count={22} />
-
-          {/* Parallax orb */}
-          <motion.div style={{
-            position:"absolute", top:"-15%", left:"50%", translateX:"-50%", y: heroBgY,
-            width:"1000px", height:"650px",
-            background:"radial-gradient(ellipse, rgba(201,168,76,0.055) 0%, transparent 62%)",
-            pointerEvents:"none", zIndex:0,
-          }} />
-
-          <div ref={s1.ref} style={{ maxWidth:"1200px", margin:"0 auto", position:"relative", zIndex:1 }}>
-            <SectionTag>AI QUANT FUND MANAGER</SectionTag>
-
-            <motion.div
-              style={{ textAlign:"center", marginBottom:"80px" }}
-              variants={staggerContainer(0.12, 0.08)}
-              initial="hidden"
-              animate={s1.inView ? "visible" : "hidden"}
-            >
-              {/* Headline */}
-              <motion.h2
-                className="lb-hero-h"
-                variants={fadeUp(0, 52)}
-                style={{
-                  fontFamily: T.serif,
-                  fontSize:"clamp(44px,7vw,88px)",
-                  fontWeight:400, color: T.cream,
-                  letterSpacing:"-2.5px", lineHeight:1.0,
-                  marginBottom:"28px",
-                }}
-              >
-                not a screener.<br />
-                a{" "}
-                <motion.em
-                  style={{ color: T.gold, fontStyle:"italic", display:"inline-block" }}
-                  animate={{
-                    textShadow:[
-                      "0 0 18px rgba(201,168,76,.18)",
-                      "0 0 55px rgba(201,168,76,.55)",
-                      "0 0 18px rgba(201,168,76,.18)",
-                    ],
-                  }}
-                  transition={{ duration:3.5, repeat:Infinity, ease:"easeInOut" }}
-                >thinking</motion.em>{" "}fund manager.
-              </motion.h2>
-
-              <motion.p
-                variants={fadeUp(0.14, 28)}
-                style={{
-                  fontFamily:T.sans, fontSize:"15px", fontWeight:300,
-                  lineHeight:1.9, color:T.muted,
-                  maxWidth:"600px", margin:"0 auto 60px",
-                }}
-              >
-                LightninBull runs a full quant pipeline — factor scoring, regime detection,
-                portfolio construction, and risk controls — so your capital is positioned
-                by mathematics, never by emotion.
-              </motion.p>
-
-              {/* Stats strip */}
-              <motion.div
-                variants={scaleIn(0.28)}
-                style={{
-                  display:"flex", justifyContent:"center",
-                  border:`1px solid ${T.border}`,
-                  borderRadius:"2px", maxWidth:"660px",
-                  margin:"0 auto", overflow:"hidden",
-                }}
-                className="lb-stats-row"
-              >
-                {[
-                  { n:16, suf:"+", lbl:"AI Modules"  },
-                  { n:6,  suf:"",  lbl:"Model Types"  },
-                  { n:100,suf:"%", lbl:"Rules-Based"  },
-                ].map((s, i) => (
-                  <motion.div
-                    key={i}
-                    style={{
-                      flex:1, padding:"28px 24px", textAlign:"center",
-                      borderRight: i < 2 ? `1px solid ${T.border}` : "none",
-                    }}
-                    whileHover={{
-                      background:"rgba(201,168,76,0.03)",
-                      transition:{ duration:0.25 },
-                    }}
-                  >
-                    <div className="lb-big-stat" style={{ fontSize:"52px" }}>
-                      <Counter to={s.n} suffix={s.suf} />
-                    </div>
-                    <div style={{
-                      fontFamily:T.mono, fontSize:"8px",
-                      letterSpacing:"3px", color:T.dim,
-                      textTransform:"uppercase", marginTop:"6px",
-                    }}>{s.lbl}</div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Dual ticker */}
-        <TickerStrip />
-        <div style={{ marginTop:"1px" }}><TickerStrip reverse /></div>
-
-        {/* ══════════════════════════════════════════
-            S2 — Feature Cards
-        ══════════════════════════════════════════ */}
-        <section
-          className="lb-pad-deep"
-          style={{ padding:"140px 60px", background: T.deep }}
-        >
-          <div style={{ maxWidth:"1200px", margin:"0 auto" }}>
-            <SectionTag>THE SIGNAL STACK</SectionTag>
-
-            <motion.div
-              style={{ textAlign:"center", marginBottom:"72px" }}
-              variants={fadeUp(0.05, 30)}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once:true, amount:0.3 }}
-            >
-              <h2 className="lb-section-h" style={{
-                fontFamily:T.serif,
-                fontSize:"clamp(32px,5vw,64px)",
-                fontWeight:400, color:T.cream,
-                letterSpacing:"-1.5px", lineHeight:1.05,
-              }}>
-                every model.<br/>
-                <em style={{ color:T.gold }}>every edge.</em>
-              </h2>
-            </motion.div>
-
-            <motion.div
-              className="lb-feat-grid"
-              style={{
-                display:"grid",
-                gridTemplateColumns:"repeat(3,1fr)",
-                gap:"1px",
-                background: T.border,
-                border:`1px solid ${T.border}`,
-                borderRadius:"2px",
-                overflow:"hidden",
-              }}
-              variants={staggerContainer(0.08, 0.1)}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once:true, amount:0.08 }}
-            >
-              {FEATURES.map((f) => <FeatureCard key={f.id} f={f} />)}
-            </motion.div>
-          </div>
-        </section>
-
-        <div className="lb-divider" />
-
-        {/* ══════════════════════════════════════════
-            S3 — Quant Workflow (sticky)
-        ══════════════════════════════════════════ */}
-        <section
-          className="lb-pad"
-          style={{ padding:"160px 60px" }}
-        >
-          <div style={{ maxWidth:"1200px", margin:"0 auto" }}>
-            <div
-              className="lb-wf-grid"
-              style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"80px", alignItems:"start" }}
-            >
-              {/* Sticky left */}
-              <div
-                className="lb-sticky-col"
-                style={{ position:"sticky", top:"100px", alignSelf:"start" }}
-              >
-                <SectionTag center={false}>THE WORKFLOW</SectionTag>
-
-                <motion.h2
-                  className="lb-section-h"
-                  style={{
-                    fontFamily:T.serif,
-                    fontSize:"clamp(32px,4.5vw,60px)",
-                    fontWeight:400, color:T.cream,
-                    letterSpacing:"-1.5px", lineHeight:1.05,
-                    marginBottom:"24px",
-                  }}
-                  variants={fadeLeft(0)}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once:true, amount:0.4 }}
-                >
-                  from raw data<br/>to live{" "}
-                  <em style={{ color:T.gold }}>signal.</em>
-                </motion.h2>
-
-                <motion.p
-                  style={{
-                    fontFamily:T.sans, fontSize:"13px", fontWeight:300,
-                    lineHeight:1.9, color:T.muted, marginBottom:"36px",
-                  }}
-                  variants={fadeLeft(0.12)}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once:true, amount:0.4 }}
-                >
-                  Every signal has passed through a rigorous six-stage pipeline —
-                  ingested, scored, ranked, constructed, rebalanced, and delivered
-                  with precision.
-                </motion.p>
-
-                {/* Live step indicator */}
-                <motion.div
-                  style={{
-                    border:`1px solid ${T.border}`, borderRadius:"2px",
-                    padding:"18px 20px", background:T.surface,
-                    position:"relative", overflow:"hidden",
-                  }}
-                  variants={fadeLeft(0.22)}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once:true, amount:0.4 }}
-                >
-                  <div style={{
-                    position:"absolute", left:0, top:0, bottom:0, width:"2px",
-                    background:`linear-gradient(to bottom, ${T.gold}, rgba(201,168,76,.2))`,
-                  }} />
-                  <div style={{ fontFamily:T.mono, fontSize:"8px", letterSpacing:"3px", color:T.gold, marginBottom:"8px" }}>
-                    CURRENT STAGE
-                  </div>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeStep}
-                      initial={{ opacity:0, y:10 }}
-                      animate={{ opacity:1, y:0 }}
-                      exit={{ opacity:0, y:-10 }}
-                      transition={{ duration:0.28, ease: EASE_OUT_CIRC }}
-                      style={{ fontFamily:T.serif, fontSize:"20px", color:T.cream, letterSpacing:"-0.3px" }}
-                    >
-                      {WORKFLOW[activeStep].title}
-                    </motion.div>
-                  </AnimatePresence>
-                  {/* Dot progress */}
-                  <div style={{ display:"flex", gap:"5px", marginTop:"14px" }}>
-                    {WORKFLOW.map((_,i) => (
-                      <motion.div key={i}
-                        style={{ height:"2px", flex:1, borderRadius:"1px" }}
-                        animate={{ background: i <= activeStep ? T.gold : T.border }}
-                        transition={{ duration:0.35 }}
-                      />
-                    ))}
-                  </div>
-                </motion.div>
-
-                {/* Gold rule */}
-                <motion.div
-                  style={{
-                    marginTop:"32px", height:"1px",
-                    background:`linear-gradient(90deg, ${T.gold}, transparent)`,
-                    transformOrigin:"left",
-                  }}
-                  initial={{ scaleX:0 }}
-                  whileInView={{ scaleX:1 }}
-                  viewport={{ once:true }}
-                  transition={{ duration:0.95, delay:0.35, ease: EASE_OUT_EXPO }}
-                />
-              </div>
-
-              {/* Scrollable steps */}
-              <div>
-                {WORKFLOW.map((step, i) => (
-                  <WfStep
-                    key={step.num}
-                    step={step} index={i}
-                    active={activeStep}
-                    onEnter={setActiveStep}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="lb-divider" />
-
-        {/* ══════════════════════════════════════════
-            S4 — Portfolio Backtest
-        ══════════════════════════════════════════ */}
-        <section
-          className="lb-pad-deep"
-          style={{ padding:"160px 60px", background:T.deep, position:"relative", overflow:"hidden" }}
-        >
-          {/* Dot grid bg */}
-          <div style={{
-            position:"absolute", inset:0, zIndex:0,
-            backgroundImage:`
-              linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
-              linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px)
-            `,
-            backgroundSize:"64px 64px",
-          }} />
-
-          <div ref={s4.ref} style={{ maxWidth:"1200px", margin:"0 auto", position:"relative", zIndex:1 }}>
-            <div
-              className="lb-bt-grid"
-              style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"100px", alignItems:"center" }}
-            >
-              {/* Left: chart */}
-              <motion.div
-                variants={fadeLeft(0)}
-                initial="hidden"
-                animate={s4.inView ? "visible" : "hidden"}
-              >
-                <div style={{
-                  background:T.surface, border:`1px solid ${T.border}`,
-                  borderRadius:"2px", padding:"32px",
-                  position:"relative", overflow:"hidden",
-                }}>
-                  <div style={{
-                    position:"absolute", top:0, left:0, right:0, height:"2px",
-                    background:`linear-gradient(90deg,${T.gold},rgba(201,168,76,.3),transparent)`,
-                  }} />
-
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
-                    <div>
-                      <div style={{ fontFamily:T.mono, fontSize:"8px", letterSpacing:"3px", color:T.gold, marginBottom:"5px" }}>EQUITY CURVE</div>
-                      <div className="lb-big-stat" style={{ fontSize:"32px" }}><Counter to={247} suffix="%" /></div>
-                    </div>
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ fontFamily:T.mono, fontSize:"8px", letterSpacing:"2px", color:T.dim, marginBottom:"5px" }}>CAGR</div>
-                      <div className="lb-big-stat" style={{ fontSize:"24px" }}><Counter to={34} suffix="%" /></div>
-                    </div>
-                  </div>
-
-                  {s4.inView && (
-                    <div style={{ display:"flex", alignItems:"flex-end", gap:"4px", height:"80px", marginBottom:"16px" }}>
-                      {[28,42,35,58,48,65,45,72,60,78,68,85,74,90,82,96].map((h,i) => (
-                        <motion.div
-                          key={i} className="lb-bar" style={{ flex:1 }}
-                          initial={{ height:0 }}
-                          animate={{ height:`${h}%` }}
-                          transition={{ duration:0.6, delay:0.08+i*0.04, ease: EASE_OUT_EXPO }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{
-                    display:"flex", justifyContent:"space-between",
-                    fontFamily:T.mono, fontSize:"7px", color:T.dim,
-                    letterSpacing:"1px", marginBottom:"24px",
-                  }}>
-                    {["Q1","Q2","Q3","Q4","Q1","Q2","Q3","Q4"].map((q,i)=><span key={i}>{q}</span>)}
-                  </div>
-
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", borderTop:`1px solid ${T.border}`, paddingTop:"20px" }}>
-                    {[{ lbl:"Sharpe",val:"2.4" },{ lbl:"Max DD",val:"−12%" },{ lbl:"Win Rate",val:"68%" }].map((m,i)=>(
-                      <div key={i} style={{ textAlign:"center", borderRight: i<2 ? `1px solid ${T.border}` : "none" }}>
-                        <motion.div
-                          style={{ fontFamily:T.serif, fontSize:"22px", color:T.cream, letterSpacing:"-.5px" }}
-                          initial={{ opacity:0, y:12 }}
-                          animate={s4.inView ? { opacity:1, y:0 } : {}}
-                          transition={{ delay:0.6+i*0.1 }}
-                        >{m.val}</motion.div>
-                        <div style={{ fontFamily:T.mono, fontSize:"7px", letterSpacing:"2px", color:T.dim, marginTop:"4px", textTransform:"uppercase" }}>{m.lbl}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Right: copy */}
-              <motion.div
-                variants={fadeRight(0.1)}
-                initial="hidden"
-                animate={s4.inView ? "visible" : "hidden"}
-              >
-                <SectionTag center={false}>PORTFOLIO BACKTEST</SectionTag>
-                <h2 className="lb-section-h" style={{
-                  fontFamily:T.serif,
-                  fontSize:"clamp(28px,4vw,52px)",
-                  fontWeight:400, color:T.cream,
-                  letterSpacing:"-1.5px", lineHeight:1.05,
-                  marginBottom:"24px",
-                }}>
-                  see it survive<br/>
-                  <em style={{ color:T.gold }}>every market</em><br/>
-                  before you trade it.
-                </h2>
-                <p style={{ fontFamily:T.sans, fontSize:"14px", fontWeight:300, lineHeight:1.9, color:T.muted, marginBottom:"36px" }}>
-                  Run full historical simulations with realistic assumptions — commissions,
-                  slippage, rebalancing costs. See drawdown periods, rolling Sharpe,
-                  and year-by-year attribution before risking a single rupee.
-                </p>
-                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                  {[
-                    "Equal Weight & MVO portfolio construction",
-                    "Rebalancing rules — drift, calendar, risk-breach",
-                    "Year-by-year PnL attribution",
-                    "Drawdown, Sharpe, Calmar analytics",
-                  ].map((pt,i) => (
-                    <motion.div
-                      key={i}
-                      style={{ display:"flex", gap:"14px", alignItems:"flex-start" }}
-                      variants={fadeUp(0.3+i*0.07, 16)}
-                      initial="hidden"
-                      animate={s4.inView ? "visible" : "hidden"}
-                    >
-                      <motion.span
-                        style={{ color:T.gold, fontFamily:T.mono, fontSize:"9px", marginTop:"3px", flexShrink:0 }}
-                        animate={{ opacity:[0.4,1,0.4] }}
-                        transition={{ duration:2.5, delay:i*0.35, repeat:Infinity }}
-                      >◆</motion.span>
-                      <span style={{ fontFamily:T.sans, fontSize:"13px", fontWeight:300, color:T.muted, lineHeight:1.7 }}>{pt}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </section>
-
-        <div className="lb-divider" />
-
-        {/* ══════════════════════════════════════════
-            S5 — Risk Control
-        ══════════════════════════════════════════ */}
-        <section className="lb-pad" style={{ padding:"160px 60px" }}>
-          <div ref={s5.ref} style={{ maxWidth:"1200px", margin:"0 auto" }}>
-            <SectionTag>RISK CONTROL</SectionTag>
-
-            <motion.h2
-              className="lb-section-h"
-              style={{
-                fontFamily:T.serif,
-                fontSize:"clamp(32px,5vw,66px)",
-                fontWeight:400, color:T.cream,
-                letterSpacing:"-1.5px", lineHeight:1.0,
-                textAlign:"center", marginBottom:"80px",
-              }}
-              variants={fadeUp(0, 36)}
-              initial="hidden"
-              animate={s5.inView ? "visible" : "hidden"}
-            >
-              the models know when<br/>
-              <em style={{ color:T.gold }}>not to play.</em>
-            </motion.h2>
-
-            <motion.div
-              className="lb-risk-grid"
-              style={{
-                display:"grid",
-                gridTemplateColumns:"repeat(4,1fr)",
-                gap:"1px",
-                background: T.border,
-                border:`1px solid ${T.border}`,
-                borderRadius:"2px", overflow:"hidden",
-                marginBottom:"36px",
-              }}
-              variants={staggerContainer(0.1, 0.2)}
-              initial="hidden"
-              animate={s5.inView ? "visible" : "hidden"}
-            >
-              {RISK_PILLARS.map((p) => <RiskCard key={p.label} p={p} />)}
-            </motion.div>
-
-            <motion.div
-              style={{
-                padding:"20px 28px",
-                border:`1px solid ${T.border}`,
-                borderRadius:"2px", background:T.surface,
-                display:"flex", alignItems:"center", gap:"20px",
-              }}
-              variants={fadeUp(0.5, 18)}
-              initial="hidden"
-              animate={s5.inView ? "visible" : "hidden"}
-            >
-              <motion.span
-                style={{ color:T.gold, fontSize:"18px", flexShrink:0 }}
-                animate={{ opacity:[0.5,1,0.5] }}
-                transition={{ duration:2.5, repeat:Infinity }}
-              >⚠</motion.span>
-              <p style={{ fontFamily:T.mono, fontSize:"9px", letterSpacing:"1px", color:T.dim, lineHeight:1.7 }}>
-                All models are probabilistic tools, not guarantees. Past backtest performance
-                does not guarantee future results. LightninBull signals are informational —
-                always apply your own risk judgement.
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        <div className="lb-divider" />
-
-        {/* ══════════════════════════════════════════
-            S6 — Intraday Intelligence
-        ══════════════════════════════════════════ */}
-        <section
-          className="lb-pad-deep"
-          style={{ padding:"160px 60px", background:T.deep, position:"relative", overflow:"hidden" }}
-        >
-          <ParticleField count={14} />
-          <div style={{
-            position:"absolute", bottom:"-200px", right:"-100px",
-            width:"700px", height:"500px",
-            background:"radial-gradient(circle, rgba(201,168,76,0.05) 0%, transparent 65%)",
-            pointerEvents:"none", zIndex:0,
-          }} />
-
-          <div ref={s6.ref} style={{ maxWidth:"1200px", margin:"0 auto", position:"relative", zIndex:1 }}>
-            <SectionTag>INTRADAY INTELLIGENCE</SectionTag>
-
-            <div
-              className="lb-id-grid"
-              style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"100px", alignItems:"center" }}
-            >
-              {/* Left copy */}
-              <motion.div
-                variants={fadeLeft(0)}
-                initial="hidden"
-                animate={s6.inView ? "visible" : "hidden"}
-              >
-                <h2 className="lb-section-h" style={{
-                  fontFamily:T.serif,
-                  fontSize:"clamp(28px,4vw,54px)",
-                  fontWeight:400, color:T.cream,
-                  letterSpacing:"-1.5px", lineHeight:1.05,
-                  marginBottom:"24px",
-                }}>
-                  the market opens.<br/>
-                  <em style={{ color:T.gold }}>you're already<br/>positioned.</em>
-                </h2>
-
-                <p style={{ fontFamily:T.sans, fontSize:"14px", fontWeight:300, lineHeight:1.9, color:T.muted, marginBottom:"44px" }}>
-                  Intraday signals for Nifty/BankNifty option spreads and high-conviction
-                  stock signals surface pre-market — so your plan is set before the bell rings.
-                </p>
-
-                <div style={{ display:"flex", flexDirection:"column", gap:"22px" }}>
-                  {[
-                    { label:"Bull Call Spreads",   width:"85%", desc:"Index intraday upside" },
-                    { label:"Bear Put Spreads",    width:"78%", desc:"Index intraday downside" },
-                    { label:"Stock Long Signals",  width:"92%", desc:"Momentum-confirmed buys" },
-                    { label:"Stock Short Signals", width:"71%", desc:"Reversal setups" },
-                  ].map((item, i) => (
-                    <motion.div
-                      key={item.label}
-                      variants={fadeLeft(0.15+i*0.08)}
-                      initial="hidden"
-                      animate={s6.inView ? "visible" : "hidden"}
-                    >
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
-                        <span style={{ fontFamily:T.sans, fontSize:"13px", fontWeight:400, color:T.cream }}>{item.label}</span>
-                        <span style={{ fontFamily:T.mono, fontSize:"8px", letterSpacing:"1px", color:T.dim }}>{item.desc}</span>
-                      </div>
-                      <div style={{ height:"2px", background:T.border, borderRadius:"2px", overflow:"hidden" }}>
-                        <motion.div
-                          style={{
-                            height:"100%", borderRadius:"2px",
-                            background:`linear-gradient(90deg, ${T.gold}, rgba(201,168,76,.3))`,
-                          }}
-                          initial={{ width:"0%" }}
-                          animate={s6.inView ? { width: item.width } : {}}
-                          transition={{ duration:1.15, delay:0.45+i*0.1, ease: EASE_OUT_EXPO }}
-                        />
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-
-              {/* Right: signal cards */}
-              <motion.div
-                style={{ display:"flex", flexDirection:"column", gap:"12px" }}
-                variants={staggerContainer(0.12, 0.18)}
-                initial="hidden"
-                animate={s6.inView ? "visible" : "hidden"}
-              >
-                {SIGNALS.map((sig, i) => <SignalCard key={i} sig={sig} index={i} />)}
-                <motion.p
-                  variants={fadeUp(0.5, 10)}
-                  style={{
-                    fontFamily:T.mono, fontSize:"7px", letterSpacing:"2px",
-                    color:T.dim, textAlign:"center", marginTop:"4px", lineHeight:1.6,
-                  }}
-                >
-                  ILLUSTRATIVE SIGNALS · NOT INVESTMENT ADVICE
-                </motion.p>
-              </motion.div>
-            </div>
-          </div>
-        </section>
-
-        <div className="lb-divider" />
-
-        {/* ══════════════════════════════════════════
-            S7 — Final CTA
-        ══════════════════════════════════════════ */}
-        <section
-          className="lb-pad"
-          style={{ padding:"180px 60px", position:"relative", overflow:"hidden" }}
-        >
-          {/* Pulsing bg orb */}
-          <motion.div
-            style={{
-              position:"absolute", top:"50%", left:"50%",
-              translateX:"-50%", translateY:"-50%",
-              width:"1000px", height:"650px",
-              background:"radial-gradient(ellipse, rgba(201,168,76,0.065) 0%, transparent 58%)",
-              pointerEvents:"none", zIndex:0,
-            }}
-            animate={{ scale:[1,1.06,1], opacity:[0.6,1,0.6] }}
-            transition={{ duration:5.5, repeat:Infinity, ease:"easeInOut" }}
-          />
-
-          <ParticleField count={18} />
-
-          <div ref={cta.ref} style={{ maxWidth:"800px", margin:"0 auto", textAlign:"center", position:"relative", zIndex:1 }}>
-            <motion.div
-              variants={staggerContainer(0.1, 0.05)}
-              initial="hidden"
-              animate={cta.inView ? "visible" : "hidden"}
-            >
-              <motion.p
-                variants={fadeUp(0,18)}
-                style={{
-                  fontFamily:T.mono, fontSize:"9px", letterSpacing:"6px",
-                  color:T.gold, textTransform:"uppercase", marginBottom:"36px",
-                }}
-              >
-                NOT EVERYONE MAKES IT IN
-              </motion.p>
-
-              <motion.h2
-                variants={fadeUp(0.08, 55)}
-                className="lb-cta-h"
-                style={{
-                  fontFamily:T.serif,
-                  fontSize:"clamp(48px,9vw,104px)",
-                  fontWeight:400, color:T.cream,
-                  letterSpacing:"-3px", lineHeight:0.92,
-                  marginBottom:"32px",
-                }}
-              >
-                trade like a<br/>
-                <motion.em
-                  style={{ color:T.gold, fontStyle:"italic", display:"inline-block" }}
-                  animate={{
-                    textShadow:[
-                      "0 0 28px rgba(201,168,76,.28), 0 0 80px rgba(201,168,76,.1)",
-                      "0 0 65px rgba(201,168,76,.7), 0 0 140px rgba(201,168,76,.28)",
-                      "0 0 28px rgba(201,168,76,.28), 0 0 80px rgba(201,168,76,.1)",
-                    ],
-                  }}
-                  transition={{ duration:3.2, repeat:Infinity, ease:"easeInOut" }}
-                >
-                  quant fund.
-                </motion.em>
-              </motion.h2>
-
-              <motion.p
-                variants={fadeUp(0.18, 28)}
-                style={{
-                  fontFamily:T.sans, fontSize:"15px", fontWeight:300,
-                  lineHeight:1.85, color:T.muted,
-                  maxWidth:"500px", margin:"0 auto 56px",
-                }}
-              >
-                LightninBull brings institutional-grade models, risk controls, and
-                portfolio intelligence to individual traders — for the first time.
-              </motion.p>
-
-              <motion.div
-                variants={fadeUp(0.26, 22)}
-                style={{ display:"flex", justifyContent:"center", gap:"14px", flexWrap:"wrap" }}
-                className="lb-cta-row"
-              >
-                <button className="lb-cta-btn">Access Dashboard →</button>
-                <button className="lb-cta-ghost">View all features</button>
-              </motion.div>
-
-              <motion.p
-                variants={fadeUp(0.35, 16)}
-                style={{
-                  marginTop:"48px",
-                  fontFamily:T.mono, fontSize:"8px", letterSpacing:"1.5px",
-                  color:T.dim, lineHeight:1.8,
-                }}
-              >
-                LIGHTNINBULL · INSTITUTIONAL QUANT INTELLIGENCE<br/>
-                ALL SIGNALS FOR INFORMATIONAL PURPOSES ONLY · TRADE RESPONSIBLY
-              </motion.p>
-            </motion.div>
-          </div>
-        </section>
-
-      </div>
-    </>
+    </div>
   );
 };
 
-export default LandingPage;
+export default Auth;
