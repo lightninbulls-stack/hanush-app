@@ -115,19 +115,19 @@ const Sidebar: React.FC<SidebarProps> = ({
     ),
   }));
 
-  const getIconGlowClass = (itemName: string) => {
+  const getPulseClass = (itemName: string) => {
     if (
       itemName === "Bull Call Spreads" ||
       itemName === "Upside Trend Stocks"
     ) {
-      return "glow-green";
+      return "lb-sidebar-live-dot lb-sidebar-live-dot-green";
     }
 
     if (
       itemName === "Bear Put Spreads" ||
       itemName === "Downside Trend Stocks"
     ) {
-      return "glow-red";
+      return "lb-sidebar-live-dot lb-sidebar-live-dot-red";
     }
 
     return "";
@@ -200,7 +200,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             {section.items.map((item) => {
               const isActive = activeCategory === item.name;
               const isFlash = flashItem === item.name;
-              const glowClass = getIconGlowClass(item.name);
+              const pulseClass = getPulseClass(item.name);
 
               return (
                 <div
@@ -223,14 +223,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span
-                    className={["nav-icon", glowClass]
-                      .filter(Boolean)
-                      .join(" ")}
-                    aria-hidden="true"
-                  >
-                    {item.icon}
-                  </span>
+                  {pulseClass ? (
+                    <span className={pulseClass} aria-hidden="true" />
+                  ) : (
+                    <span className="nav-icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                  )}
 
                   <span
                     style={{
@@ -253,6 +252,46 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <div style={{ height: 24 }} />
       </nav>
+
+      <style>{`
+        .lb-sidebar-live-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          display: inline-block;
+          margin-right: 12px;
+          flex-shrink: 0;
+          animation: lbSidebarPulse 1.4s ease-in-out infinite;
+        }
+
+        .lb-sidebar-live-dot-green {
+          background: #22c55e;
+          box-shadow:
+            0 0 12px rgba(34,197,94,0.85),
+            0 0 24px rgba(34,197,94,0.55),
+            0 0 42px rgba(34,197,94,0.28);
+        }
+
+        .lb-sidebar-live-dot-red {
+          background: #ef4444;
+          box-shadow:
+            0 0 12px rgba(239,68,68,0.85),
+            0 0 24px rgba(239,68,68,0.55),
+            0 0 42px rgba(239,68,68,0.28);
+        }
+
+        @keyframes lbSidebarPulse {
+          0%, 100% {
+            opacity: 0.45;
+            transform: scale(0.9);
+          }
+
+          50% {
+            opacity: 1;
+            transform: scale(1.18);
+          }
+        }
+      `}</style>
     </>
   );
 };
