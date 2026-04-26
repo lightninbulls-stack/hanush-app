@@ -23,19 +23,8 @@ import {
   removeWatchlistSymbol,
 } from "../services/watchlistApi";
 
-const UPSIDE_STOCK_SIGNAL_KEY   = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
+const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
-
-const NON_FEATURE_TABS = [
-  "Watchlist",
-  "Guide",
-  "Profile / Settings",
-  "Portfolio Backtest",
-  "Bull Call Spreads",
-  "Bear Put Spreads",
-  "Upside Trend Stocks",
-  "Downside Trend Stocks",
-];
 
 const WATCHLIST_SOURCE_CATEGORIES = [
   "Consistent Trending",
@@ -62,8 +51,10 @@ const buildWatchlistStocks = (
 
   for (const result of results) {
     const categoryStocks: Stock[] = result?.stocks || [];
+
     for (const stock of categoryStocks) {
       const normalized = normalizeSymbol(stock.symbol);
+
       if (!stockMap.has(normalized)) {
         stockMap.set(normalized, { ...stock, symbol: normalized });
       }
@@ -120,10 +111,16 @@ const Dashboard: React.FC = () => {
     const handleResize = () => {
       const mobile = window.innerWidth <= MOBILE_BREAKPOINT;
       setIsMobile(mobile);
-      if (!mobile) setMobileSidebarOpen(false);
+
+      if (!mobile) {
+        setMobileSidebarOpen(false);
+      }
     };
+
     handleResize();
+
     window.addEventListener("resize", handleResize);
+
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
@@ -138,6 +135,7 @@ const Dashboard: React.FC = () => {
         setWatchlistBootstrapped(true);
       }
     };
+
     bootstrapWatchlist();
   }, []);
 
@@ -147,6 +145,8 @@ const Dashboard: React.FC = () => {
     const getStocks = async () => {
       if (!watchlistBootstrapped) return;
       if (!activeTab) return;
+
+      setSelectedStock(null);
 
       if (
         activeTab === "Guide" ||
@@ -163,28 +163,85 @@ const Dashboard: React.FC = () => {
       }
 
       try {
+        setLoading(true);
+
+        if (activeTab === "Watchlist") {
+          const results = await Promise.all(
+            WATCHLIST_SOURCE_CATEGORIES.map((category) =>
+              fetchStocksByCategory(category)
+            )
+          );
+
+          if (cancelled) return;
+
+          const watchlistStocks = buildWatchlistStocks(starredSymbols, results);
+          setStocks(watchlistStocks);
+          return;
+        }
+
         const cached = getCachedStocksByCategory(activeTab);
+
         if (cached) {
           setStocks(cached.stocks || []);
           return;
         }
 
-        setLoading(true);
         const data = await fetchStocksByCategory(activeTab);
+
         if (cancelled) return;
+
         setStocks(data.stocks || []);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     getStocks();
-    return () => { cancelled = true; };
-  }, [activeTab, watchlistBootstrapped]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, watchlistBootstrapped, starredSymbols]);
 
   const handleCategoryChange = (tab: string) => {
     setPreviousTab(activeTab);
+    setSelectedStock(null);
     setActiveTab(tab);
+  };
+
+  const handleStockClick = (symbol: string) => {
+    setSelectedStock(normalizeSymbol(symbol));
+  };
+
+  const handleBackToTable = () => {
+    setSelectedStock(null);
+  };
+
+  const handleStarClick = async (symbol: string) => {
+    const normalized = normalizeSymbol(symbol);
+    const isAlreadyStarred = starredSymbols.includes(normalized);
+
+    try {
+      const updatedSymbols = isAlreadyStarred
+        ? await removeWatchlistSymbol(normalized)
+        : await addWatchlistSymbol(normalized);
+
+      setStarredSymbols(updatedSymbols.map(normalizeSymbol));
+
+      if (activeTab === "Watchlist" && isAlreadyStarred) {
+        setStocks((prev) =>
+          prev.filter((stock) => normalizeSymbol(stock.symbol) !== normalized)
+        );
+
+        if (selectedStock === normalized) {
+          setSelectedStock(null);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update watchlist:", err);
+    }
   };
 
   return (
@@ -204,21 +261,21 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div style={{ padding: "28px" }}>
+          {!activeTab && <DashboardWelcome onNavigate={handleCategoryChange} />}
 
-          {/* HOME */}
-          {!activeTab && (
-            <DashboardWelcome onNavigate={handleCategoryChange} />
-          )}
-
-          {/* GUIDE → SAME AS HOME */}
           {activeTab === "Guide" && (
             <DashboardWelcome onNavigate={handleCategoryChange} />
           )}
 
-          {/* OTHER LOGIC UNTOUCHED */}
           {activeTab === "Portfolio Backtest" && <PortfolioBacktestPanel />}
-          {activeTab === "Bull Call Spreads" && <IntradaySpreadsPanel spreadType="bull_call" />}
-          {activeTab === "Bear Put Spreads" && <IntradaySpreadsPanel spreadType="put_debit" />}
+
+          {activeTab === "Bull Call Spreads" && (
+            <IntradaySpreadsPanel spreadType="bull_call" />
+          )}
+
+          {activeTab === "Bear Put Spreads" && (
+            <IntradaySpreadsPanel spreadType="put_debit" />
+          )}
 
           {activeTab === "Upside Trend Stocks" && (
             <IntradayStockSignalsPanel
@@ -238,16 +295,51 @@ const Dashboard: React.FC = () => {
             />
           )}
 
-          {stocks.length > 0 && (
+          {loading && (
+            <div
+              style={{
+                padding: 24,
+                color: "rgba(255,255,255,0.5)",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              Loading stocks…
+            </div>
+          )}
+
+          {!loading && selectedStock && (
+            <div>
+              <button
+                onClick={handleBackToTable}
+                style={{
+                  marginBottom: 18,
+                  padding: "9px 14px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(250,204,21,0.22)",
+                  background: "rgba(250,204,21,0.08)",
+                  color: "#facc15",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                ← Back to stocks
+              </button>
+
+              <TradingViewChart symbol={selectedStock} />
+              <StockStats symbol={selectedStock} />
+            </div>
+          )}
+
+          {!loading && !selectedStock && stocks.length > 0 && (
             <StockTable
               category={activeTab}
               stocks={stocks}
               starredSymbols={starredSymbols}
-              onStarClick={() => {}}
-              onStockClick={() => {}}
+              onStarClick={handleStarClick}
+              onStockClick={handleStockClick}
             />
           )}
-
         </div>
       </main>
     </div>
