@@ -109,6 +109,10 @@ def create_order(user: User = Depends(get_current_user)):
 
     order_id = f"lb_{user.id}_{int(datetime.utcnow().timestamp())}"
 
+    # ✅ FIX 1: Was using a literal string "{order_id}" instead of the actual variable.
+    # Python f-string now correctly embeds the order_id value.
+    return_url = f"https://lightninbull.com/payment-success?order_id={order_id}"
+
     payload = {
         "order_id": order_id,
         "order_amount": PLAN_AMOUNT,
@@ -120,7 +124,8 @@ def create_order(user: User = Depends(get_current_user)):
             "customer_phone": user.phone or "9999999999",
         },
         "order_meta": {
-            "return_url": "https://lightninbull.com/payment-success?order_id={order_id}"
+            # ✅ FIX 1 applied here — return_url now has the real order_id in it
+            "return_url": return_url,
         },
     }
 
@@ -181,11 +186,14 @@ async def webhook(request: Request):
         email = customer_details.get("customer_email")
 
         if user_id:
+            # ✅ FIX 2: Was passing the class `Dummy` itself instead of an instance.
+            # save_payment(Dummy, order_id) → save_payment(dummy_instance, order_id)
             class Dummy:
                 id = user_id
                 name = "user"
                 email = email or ""
 
-            save_payment(Dummy, order_id)
+            dummy_user = Dummy()
+            save_payment(dummy_user, order_id)
 
     return {"status": "ok"}
