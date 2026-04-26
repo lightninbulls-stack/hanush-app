@@ -23,8 +23,23 @@ import {
   removeWatchlistSymbol,
 } from "../services/watchlistApi";
 
+import {
+  fetchSubscriptionStatus,
+  type SubscriptionStatus,
+} from "../services/subscriptionApi";
+
 const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
+
+const FREE_STOCK_LIMIT = 3;
+
+const PREMIUM_LOCKED_TABS = [
+  "Portfolio Backtest",
+  "Bull Call Spreads",
+  "Bear Put Spreads",
+  "Upside Trend Stocks",
+  "Downside Trend Stocks",
+];
 
 const NON_FEATURE_TABS = [
   "Watchlist",
@@ -99,6 +114,14 @@ const buildWatchlistStocks = (
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
+  const [subscription, setSubscription] = useState<SubscriptionStatus>({
+    is_active: false,
+    valid_till: null,
+    days_left: 0,
+  });
+
+  const isPremium = subscription.is_active;
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/", { replace: true });
@@ -117,6 +140,23 @@ const Dashboard: React.FC = () => {
   );
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const loadSubscription = async () => {
+      try {
+        const status = await fetchSubscriptionStatus();
+        setSubscription(status);
+      } catch {
+        setSubscription({
+          is_active: false,
+          valid_till: null,
+          days_left: 0,
+        });
+      }
+    };
+
+    loadSubscription();
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -318,8 +358,75 @@ const Dashboard: React.FC = () => {
     setActiveTab("");
   };
 
+  const isLockedPremiumTab =
+    !isPremium && PREMIUM_LOCKED_TABS.includes(activeTab);
+
+  const visibleStocks = isPremium ? stocks : stocks.slice(0, FREE_STOCK_LIMIT);
+
   const showFeatureBackButton =
     !selectedStock && activeTab && !NON_FEATURE_TABS.includes(activeTab);
+
+  const PremiumLockCard = () => (
+    <div className="lb-card" style={{ maxWidth: 760, padding: 30 }}>
+      <div className="lb-eyebrow" style={{ marginBottom: 14 }}>
+        Premium Feature
+      </div>
+
+      <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
+        Unlock Full Quant Dashboard
+      </h2>
+
+      <p className="lb-text" style={{ marginBottom: 20 }}>
+        Free users can explore the top 3 stock ideas. Subscribe to unlock all
+        stocks, intraday option spreads, intraday stock signals, and portfolio
+        backtesting.
+      </p>
+
+      <button
+        className="lb-gold-button"
+        onClick={() => navigate("/pricing")}
+      >
+        Unlock Premium
+      </button>
+    </div>
+  );
+
+  const FreeLimitCard = () => {
+    if (isPremium || stocks.length <= FREE_STOCK_LIMIT) return null;
+
+    return (
+      <div
+        className="lb-card"
+        style={{
+          marginTop: 20,
+          padding: 24,
+          border: "1px solid rgba(226,184,75,0.28)",
+          background:
+            "linear-gradient(135deg, rgba(226,184,75,0.10), rgba(0,0,0,0.45))",
+        }}
+      >
+        <div className="lb-eyebrow" style={{ marginBottom: 10 }}>
+          Free Preview
+        </div>
+
+        <h3 className="lb-title" style={{ fontSize: 24, marginBottom: 8 }}>
+          Showing Top {FREE_STOCK_LIMIT} Stocks Only
+        </h3>
+
+        <p className="lb-text" style={{ marginBottom: 18 }}>
+          Subscribe to unlock the complete list of {stocks.length} stocks,
+          premium signals, and full dashboard features.
+        </p>
+
+        <button
+          className="lb-gold-button"
+          onClick={() => navigate("/pricing")}
+        >
+          Unlock Full List
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="lb-dashboard-shell">
@@ -355,9 +462,32 @@ const Dashboard: React.FC = () => {
             <div />
           )}
 
-          <button className="lb-gold-button" onClick={handleLogout}>
-            Logout
-          </button>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {!isPremium && (
+              <button
+                className="lb-gold-button"
+                onClick={() => navigate("/pricing")}
+              >
+                Upgrade
+              </button>
+            )}
+
+            {isPremium && (
+              <span
+                style={{
+                  color: "#66ffb2",
+                  fontSize: 12,
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                Premium Active • {subscription.days_left} days left
+              </span>
+            )}
+
+            <button className="lb-gold-button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
         </div>
 
         <div
@@ -395,8 +525,10 @@ const Dashboard: React.FC = () => {
                 </h2>
 
                 <p className="lb-text">
-                  Welcome to Lightninbull Financial Analytics. This section helps
-                  you understand the metrics and strategies used in the platform.
+                  Welcome to Lightninbull Financial Analytics. Free users can
+                  view the top 3 stocks from each model. Premium users unlock
+                  the full dashboard, option spreads, intraday signals, and
+                  portfolio backtesting.
                 </p>
               </div>
             </>
@@ -413,7 +545,25 @@ const Dashboard: React.FC = () => {
               <p className="lb-text">
                 Manage your account preferences and application settings here.
               </p>
+
+              <div style={{ marginTop: 20 }}>
+                {isPremium ? (
+                  <p style={{ color: "#66ffb2" }}>
+                    Premium subscription active. Days left:{" "}
+                    {subscription.days_left}
+                  </p>
+                ) : (
+                  <button
+                    className="lb-gold-button"
+                    onClick={() => navigate("/pricing")}
+                  >
+                    Upgrade to Premium
+                  </button>
+                )}
+              </div>
             </div>
+          ) : isLockedPremiumTab ? (
+            <PremiumLockCard />
           ) : activeTab === "Portfolio Backtest" ? (
             <PortfolioBacktestPanel />
           ) : activeTab === "Bull Call Spreads" ? (
@@ -463,7 +613,9 @@ const Dashboard: React.FC = () => {
                     margin: 0,
                   }}
                 >
-                  Live quantitative metrics &amp; model insights for {activeTab}
+                  {isPremium
+                    ? `Full premium list for ${activeTab}`
+                    : `Free preview: top ${FREE_STOCK_LIMIT} stocks from ${activeTab}`}
                 </p>
               </div>
 
@@ -491,13 +643,17 @@ const Dashboard: React.FC = () => {
                   No stocks available for {activeTab}.
                 </div>
               ) : (
-                <StockTable
-                  category={activeTab}
-                  stocks={stocks}
-                  starredSymbols={starredSymbols}
-                  onStarClick={handleStarClick}
-                  onStockClick={handleStockClick}
-                />
+                <>
+                  <StockTable
+                    category={activeTab}
+                    stocks={visibleStocks}
+                    starredSymbols={starredSymbols}
+                    onStarClick={handleStarClick}
+                    onStockClick={handleStockClick}
+                  />
+
+                  <FreeLimitCard />
+                </>
               )}
             </>
           )}
