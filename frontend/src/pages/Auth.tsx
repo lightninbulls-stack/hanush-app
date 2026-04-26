@@ -933,6 +933,7 @@ const Auth: React.FC = () => {
           padding: 90px 56px 130px;
           font-family: 'Syne', sans-serif;
           background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(250,204,21,0.07), transparent 70%), #030405;
+          perspective: 1200px;
         }
 
         .section-label-row { display: flex; align-items: center; gap: 22px; margin-bottom: 36px; }
@@ -949,58 +950,138 @@ const Auth: React.FC = () => {
           color: rgba(255,255,255,0.42); text-align: center;
         }
 
-        /* FEATURE GRID */
+        /* ── 3D GLASS FEATURE GRID ── */
         .feature-grid {
-          display: grid; grid-template-columns: repeat(4, 1fr);
-          gap: 1px;
-          background: rgba(250,204,21,0.07);
-          border: 1px solid rgba(250,204,21,0.09);
-          border-radius: 4px; overflow: hidden;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 18px;
+          perspective: 1200px;
         }
 
+        @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+        /* Glass card wrapper — holds 3D transform */
         .feature-card {
-          position: relative; text-align: left; padding: 26px 22px;
-          background: rgba(5,6,9,0.97);
-          transition: background 0.3s, transform 0.2s;
-          overflow: hidden; border: none; cursor: pointer; color: inherit;
-          animation: fadeUp 0.5s ease both; min-height: 220px;
-        }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+          position: relative;
+          text-align: left;
+          padding: 28px 24px 24px;
+          border-radius: 12px;
+          cursor: pointer;
+          border: none;
+          color: inherit;
+          animation: fadeUp 0.5s ease both;
+          min-height: 230px;
+          transform-style: preserve-3d;
+          transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
 
+          /* Glass morphism */
+          background: linear-gradient(
+            135deg,
+            rgba(255,255,255,0.055) 0%,
+            rgba(255,255,255,0.02) 50%,
+            rgba(250,204,21,0.025) 100%
+          );
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          border: 1px solid rgba(255,255,255,0.1);
+          box-shadow:
+            0 4px 24px rgba(0,0,0,0.55),
+            0 1px 0 rgba(255,255,255,0.07) inset,
+            0 -1px 0 rgba(0,0,0,0.3) inset;
+          overflow: hidden;
+        }
+
+        /* Glass shine layer */
         .feature-card::after {
-          content: ''; position: absolute; inset: 0;
-          background: radial-gradient(ellipse at 0% 100%, rgba(250,204,21,0.1), transparent 60%);
-          opacity: 0; transition: opacity 0.35s;
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; height: 40%;
+          background: linear-gradient(
+            180deg,
+            rgba(255,255,255,0.07) 0%,
+            transparent 100%
+          );
+          border-radius: 12px 12px 0 0;
+          pointer-events: none;
         }
-        .feature-card:hover, .feature-card.selected { background: rgba(10,11,14,1); transform: translateY(-2px); }
-        .feature-card:hover::after, .feature-card.selected::after { opacity: 1; }
 
-        /* Thunder sweep on hover */
+        /* Hover: lift slightly, glow edge */
+        .feature-card:hover {
+          transform: translateY(-4px) scale(1.012);
+          border-color: rgba(250,204,21,0.3);
+          box-shadow:
+            0 12px 40px rgba(0,0,0,0.6),
+            0 0 30px rgba(250,204,21,0.12),
+            0 1px 0 rgba(255,255,255,0.1) inset,
+            0 -1px 0 rgba(0,0,0,0.3) inset;
+        }
+
+        /* Selected: push BACK (recede into screen) with gold glow burst */
+        .feature-card.selected {
+          transform: scale(0.94) translateZ(-40px) rotateX(4deg);
+          border-color: rgba(250,204,21,0.6);
+          background: linear-gradient(
+            135deg,
+            rgba(250,204,21,0.08) 0%,
+            rgba(255,255,255,0.03) 50%,
+            rgba(250,204,21,0.04) 100%
+          );
+          box-shadow:
+            0 2px 12px rgba(0,0,0,0.7),
+            0 0 50px rgba(250,204,21,0.22),
+            0 0 100px rgba(250,204,21,0.1),
+            0 1px 0 rgba(255,255,255,0.08) inset;
+        }
+
+        /* Thunder sweep line on hover/selected */
         .feature-card::before {
-          content: ''; position: absolute;
+          content: '';
+          position: absolute;
           top: 0; left: -110%; width: 100%; height: 2px;
-          background: linear-gradient(90deg, transparent, rgba(250,204,21,0.85), rgba(255,248,120,1), rgba(250,204,21,0.85), transparent);
-          box-shadow: 0 0 12px rgba(250,204,21,0.8), 0 0 30px rgba(250,204,21,0.4);
+          border-radius: 12px 12px 0 0;
+          background: linear-gradient(90deg,
+            transparent,
+            rgba(250,204,21,0.8),
+            rgba(255,248,120,1),
+            rgba(250,204,21,0.8),
+            transparent
+          );
+          box-shadow: 0 0 14px rgba(250,204,21,0.9), 0 0 32px rgba(250,204,21,0.45);
           opacity: 0;
+          z-index: 3;
         }
         .feature-card:hover::before, .feature-card.selected::before {
           opacity: 1;
-          animation: thunderSweep 0.5s cubic-bezier(0.4,0,0.2,1) forwards;
+          animation: thunderSweep 0.52s cubic-bezier(0.4,0,0.2,1) forwards;
         }
         @keyframes thunderSweep { from{left:-110%} to{left:110%} }
 
-        .feature-topline { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; position: relative; z-index: 2; }
-        .card-icon { font-size: 17px; color: rgba(250,204,21,0.6); transition: color 0.3s, filter 0.3s; }
-        .feature-tag { font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 2.5px; color: rgba(255,255,255,0.26); }
-        .feature-card:hover .card-icon, .feature-card.selected .card-icon {
+        .feature-topline {
+          display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 14px; position: relative; z-index: 2;
+        }
+        .card-icon {
+          font-size: 18px; color: rgba(250,204,21,0.62);
+          transition: color 0.3s, filter 0.3s, transform 0.3s;
+        }
+        .feature-tag {
+          font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 2.5px;
+          color: rgba(255,255,255,0.3);
+        }
+        .feature-card:hover .card-icon {
           color: #facc15;
-          filter: drop-shadow(0 0 8px rgba(250,204,21,0.9)) drop-shadow(0 0 20px rgba(250,204,21,0.5));
+          filter: drop-shadow(0 0 9px rgba(250,204,21,1)) drop-shadow(0 0 22px rgba(250,204,21,0.55));
+          transform: scale(1.15);
+        }
+        .feature-card.selected .card-icon {
+          color: #facc15;
+          filter: drop-shadow(0 0 14px rgba(250,204,21,1)) drop-shadow(0 0 36px rgba(250,204,21,0.7));
         }
 
         /* Title gold thunder sweep */
         .card-title {
           font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 400;
-          color: #f7f0df; margin: 0 0 11px; line-height: 1.05; letter-spacing: -0.3px;
+          color: #f7f0df; margin: 0 0 12px; line-height: 1.05; letter-spacing: -0.3px;
           position: relative; z-index: 2;
         }
         .title-thunder {
@@ -1009,39 +1090,143 @@ const Auth: React.FC = () => {
           background-clip: text; -webkit-background-clip: text; color: transparent;
         }
         .feature-card:hover .title-thunder, .feature-card.selected .title-thunder {
-          background: linear-gradient(100deg, #c8b87a 0%, #f7f0df 28%, #facc15 47%, #fff8a0 50%, #facc15 53%, #f7f0df 72%, #c8b87a 100%);
+          background: linear-gradient(
+            100deg,
+            #c8b87a 0%, #f7f0df 28%, #facc15 47%,
+            #fff8a0 50%, #facc15 53%, #f7f0df 72%, #c8b87a 100%
+          );
           background-size: 250% 100%;
           background-clip: text; -webkit-background-clip: text; color: transparent;
           animation: titleThunder 0.6s ease forwards;
-          filter: drop-shadow(0 0 6px rgba(250,204,21,0.45));
+          filter: drop-shadow(0 0 7px rgba(250,204,21,0.5));
         }
         @keyframes titleThunder {
           from { background-position: 200% center; }
           to   { background-position: -50% center; }
         }
 
-        .card-desc { font-family: 'DM Mono', monospace; font-size: 10.5px; line-height: 1.7; color: rgba(255,255,255,0.38); margin: 0; position: relative; z-index: 2; }
-        .feature-action { display: inline-block; margin-top: 14px; font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 2px; color: rgba(250,204,21,0.68); position: relative; z-index: 2; transition: color 0.2s, text-shadow 0.2s; }
-        .feature-card:hover .feature-action { color: #facc15; text-shadow: 0 0 12px rgba(250,204,21,0.6); }
-        .card-corner { position: absolute; bottom: 14px; right: 14px; width: 16px; height: 16px; border-right: 1px solid rgba(250,204,21,0.28); border-bottom: 1px solid rgba(250,204,21,0.28); z-index: 2; transition: border-color 0.3s; }
-        .feature-card:hover .card-corner, .feature-card.selected .card-corner { border-color: rgba(250,204,21,0.7); }
-
-        /* DETAIL PANEL */
-        .feature-detail-panel {
-          margin-top: 38px;
-          border: 1px solid rgba(250,204,21,0.2);
-          background: radial-gradient(ellipse at 0% 100%, rgba(250,204,21,0.09), transparent 60%), rgba(5,6,9,0.96);
-          display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 38px; padding: 34px;
-          animation: fadeUp 0.34s ease both;
-          box-shadow: 0 0 60px rgba(250,204,21,0.06);
+        .card-desc {
+          font-family: 'DM Mono', monospace; font-size: 10.5px; line-height: 1.7;
+          color: rgba(255,255,255,0.38); margin: 0; position: relative; z-index: 2;
         }
-        .detail-kicker { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 4px; color: #facc15; margin: 0 0 16px; text-shadow: 0 0 16px rgba(250,204,21,0.5); }
-        .detail-left h3 { font-family: 'Cormorant Garamond', serif; font-size: clamp(36px, 3.8vw, 56px); font-weight: 300; color: #f7f0df; line-height: 0.95; margin: 0 0 20px; letter-spacing: -0.8px; }
-        .detail-left p { font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9; color: rgba(255,255,255,0.45); margin: 0; }
+        .feature-action {
+          display: inline-block; margin-top: 16px;
+          font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 2px;
+          color: rgba(250,204,21,0.68); position: relative; z-index: 2;
+          transition: color 0.2s, text-shadow 0.2s;
+        }
+        .feature-card:hover .feature-action, .feature-card.selected .feature-action {
+          color: #facc15; text-shadow: 0 0 12px rgba(250,204,21,0.65);
+        }
+        .card-corner {
+          position: absolute; bottom: 15px; right: 15px;
+          width: 16px; height: 16px;
+          border-right: 1px solid rgba(250,204,21,0.3);
+          border-bottom: 1px solid rgba(250,204,21,0.3);
+          z-index: 2; border-radius: 0 0 4px 0;
+          transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .feature-card:hover .card-corner, .feature-card.selected .card-corner {
+          border-color: rgba(250,204,21,0.75);
+          box-shadow: 3px 3px 10px rgba(250,204,21,0.25);
+        }
+
+        /* ── GLASS DETAIL PANEL — pops up below selected row ── */
+        .feature-detail-panel {
+          margin-top: 6px;
+          border-radius: 14px;
+          border: 1px solid rgba(250,204,21,0.25);
+
+          /* Glass morphism matching cards */
+          background: linear-gradient(
+            135deg,
+            rgba(255,255,255,0.06) 0%,
+            rgba(255,255,255,0.02) 40%,
+            rgba(250,204,21,0.04) 100%
+          );
+          backdrop-filter: blur(28px);
+          -webkit-backdrop-filter: blur(28px);
+
+          display: grid;
+          grid-template-columns: 0.85fr 1.15fr;
+          gap: 40px;
+          padding: 38px;
+
+          box-shadow:
+            0 8px 48px rgba(0,0,0,0.65),
+            0 0 80px rgba(250,204,21,0.1),
+            0 1px 0 rgba(255,255,255,0.08) inset,
+            0 -1px 0 rgba(0,0,0,0.25) inset;
+
+          /* Pop-up animation — rises from below */
+          animation: panelPop 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* Glass shine on detail panel top */
+        .feature-detail-panel::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; height: 35%;
+          background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent);
+          border-radius: 14px 14px 0 0;
+          pointer-events: none;
+        }
+
+        /* Gold accent line at top of panel */
+        .feature-detail-panel::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 10%; right: 10%; height: 1.5px;
+          background: linear-gradient(90deg, transparent, rgba(250,204,21,0.7), rgba(255,248,100,1), rgba(250,204,21,0.7), transparent);
+          box-shadow: 0 0 20px rgba(250,204,21,0.6), 0 0 50px rgba(250,204,21,0.3);
+          border-radius: 0;
+        }
+
+        @keyframes panelPop {
+          from {
+            opacity: 0;
+            transform: translateY(24px) scaleY(0.92);
+            filter: blur(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scaleY(1);
+            filter: blur(0);
+          }
+        }
+
+        .detail-kicker {
+          font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 4px;
+          color: #facc15; margin: 0 0 16px;
+          text-shadow: 0 0 16px rgba(250,204,21,0.55);
+        }
+        .detail-left h3 {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(36px, 3.8vw, 56px); font-weight: 300;
+          color: #f7f0df; line-height: 0.95; margin: 0 0 20px; letter-spacing: -0.8px;
+        }
+        .detail-left p {
+          font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9;
+          color: rgba(255,255,255,0.46); margin: 0;
+        }
         .detail-right { display: grid; gap: 14px; }
-        .detail-box { border-left: 2px solid rgba(250,204,21,0.34); padding: 16px 0 16px 20px; }
-        .detail-box span { display: block; font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 3px; color: rgba(250,204,21,0.88); margin-bottom: 9px; text-shadow: 0 0 12px rgba(250,204,21,0.42); }
-        .detail-box p { font-family: 'DM Mono', monospace; font-size: 11.5px; line-height: 1.82; color: rgba(255,255,255,0.44); margin: 0; }
+        .detail-box {
+          border-left: 2px solid rgba(250,204,21,0.38);
+          padding: 16px 0 16px 20px;
+          background: rgba(255,255,255,0.02);
+          border-radius: 0 6px 6px 0;
+        }
+        .detail-box span {
+          display: block; font-family: 'DM Mono', monospace; font-size: 7.5px;
+          letter-spacing: 3px; color: rgba(250,204,21,0.9); margin-bottom: 9px;
+          text-shadow: 0 0 12px rgba(250,204,21,0.45);
+        }
+        .detail-box p {
+          font-family: 'DM Mono', monospace; font-size: 11.5px; line-height: 1.82;
+          color: rgba(255,255,255,0.46); margin: 0;
+        }
 
         /* ── ABOUT ── */
         .about-section { padding: 110px 56px; background: radial-gradient(ellipse at 50% 0%, rgba(250,204,21,0.07), transparent 70%), #050608; font-family: 'Syne', sans-serif; }
@@ -1073,7 +1258,7 @@ const Auth: React.FC = () => {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 1200px) {
-          .feature-grid { grid-template-columns: repeat(3, 1fr); }
+          .feature-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
           .hero-headline { font-size: clamp(48px, 5.5vw, 76px); }
         }
         @media (max-width: 980px) {
@@ -1084,7 +1269,7 @@ const Auth: React.FC = () => {
           .hero-left { padding: 16px 0 0; }
           .login-card { width: 100%; max-width: 420px; align-self: flex-start; }
           .hero-stats, .quant-block { max-width: 100%; }
-          .feature-grid { grid-template-columns: repeat(2, 1fr); }
+          .feature-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
           .feature-detail-panel { grid-template-columns: 1fr; }
           .about-stats { grid-template-columns: repeat(2, 1fr); }
           .about-stats div:nth-child(2) { border-right: none; }
@@ -1104,8 +1289,8 @@ const Auth: React.FC = () => {
           .signup-grid { grid-template-columns: 1fr; }
           .intelligence-section, .about-section, .footer-strip { padding-left: 20px; padding-right: 20px; }
           .section-label { white-space: normal; text-align: center; line-height: 1.6; }
-          .feature-grid { grid-template-columns: 1fr; }
-          .feature-detail-panel { padding: 22px; }
+          .feature-grid { grid-template-columns: 1fr; gap: 12px; }
+          .feature-detail-panel { padding: 24px; grid-template-columns: 1fr; }
           .about-stats { grid-template-columns: 1fr; }
           .about-stats div { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
           .about-stats div:last-child { border-bottom: none; }
