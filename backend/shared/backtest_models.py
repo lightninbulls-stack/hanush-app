@@ -14,6 +14,12 @@ class PortfolioHolding(BaseModel):
     end_price: float
     total_return_pct: float
 
+    # Retail allocation guidance based on ₹1,00,000 capital
+    allocation_amount: Optional[float] = None
+    suggested_quantity: Optional[int] = None
+    actual_invested_amount: Optional[float] = None
+    remaining_cash: Optional[float] = None
+
 
 class BenchmarkMetrics(BaseModel):
     cumulative_return_pct: float
@@ -22,6 +28,7 @@ class BenchmarkMetrics(BaseModel):
     sharpe: float
     max_drawdown_pct: float
     return_1w_pct: Optional[float] = None
+    return_2w_pct: Optional[float] = None
     return_1m_pct: Optional[float] = None
     return_3m_pct: Optional[float] = None
     return_6m_pct: Optional[float] = None
@@ -35,6 +42,7 @@ class PortfolioMetrics(BaseModel):
     sharpe: float
     max_drawdown_pct: float
     return_1w_pct: Optional[float] = None
+    return_2w_pct: Optional[float] = None
     return_1m_pct: Optional[float] = None
     return_3m_pct: Optional[float] = None
     return_6m_pct: Optional[float] = None
