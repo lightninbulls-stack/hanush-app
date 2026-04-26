@@ -9,14 +9,22 @@ interface SidebarProps {
   sidebarWidth?: number;
 }
 
-interface NavItem   { name: string; icon: string; badge?: number | null; }
-interface NavSection { title: string; items: NavItem[]; }
+interface NavItem {
+  name: string;
+  icon: string;
+  badge?: number | null;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
 
 const sections: NavSection[] = [
   {
     title: "Navigation",
     items: [
-      { name: "Watchlist",         icon: "⭐" },
+      { name: "Watchlist", icon: "⭐" },
       { name: "Portfolio Backtest", icon: "📊" },
     ],
   },
@@ -24,22 +32,22 @@ const sections: NavSection[] = [
     title: "Factors",
     items: [
       { name: "Consistent Trending", icon: "⚡" },
-      { name: "Slow Movement",        icon: "⚖️" },
-      { name: "Cheap Value",          icon: "💰" },
-      { name: "Best Quality",         icon: "💎" },
+      { name: "Slow Movement", icon: "⚖️" },
+      { name: "Cheap Value", icon: "💰" },
+      { name: "Best Quality", icon: "💎" },
     ],
   },
   {
     title: "Regime",
     items: [
-      { name: "Regime Upside",   icon: "📈" },
+      { name: "Regime Upside", icon: "📈" },
       { name: "Regime Downside", icon: "📉" },
     ],
   },
   {
     title: "Range Bound",
     items: [
-      { name: "Range Bound Upside",   icon: "🟢" },
+      { name: "Range Bound Upside", icon: "🟢" },
       { name: "Range Bound Downside", icon: "🔴" },
     ],
   },
@@ -47,21 +55,21 @@ const sections: NavSection[] = [
     title: "Derivative Demand",
     items: [
       { name: "Aggressive Call Option Stocks", icon: "🟢" },
-      { name: "Aggressive Put Option Stocks",  icon: "🔴" },
+      { name: "Aggressive Put Option Stocks", icon: "🔴" },
     ],
   },
   {
     title: "Intraday Index Option Spreads",
     items: [
-      { name: "Bull Call Spreads", icon: "🟢" },
-      { name: "Bear Put Spreads",  icon: "🔴" },
+      { name: "Bull Call Spreads", icon: "dot-green" },
+      { name: "Bear Put Spreads", icon: "dot-red" },
     ],
   },
   {
     title: "Intraday Stock Signals",
     items: [
-      { name: "Upside Trend Stocks",   icon: "🟢" },
-      { name: "Downside Trend Stocks", icon: "🔴" },
+      { name: "Upside Trend Stocks", icon: "dot-green" },
+      { name: "Downside Trend Stocks", icon: "dot-red" },
     ],
   },
   {
@@ -98,7 +106,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => window.clearTimeout(t);
   }, [flashItem]);
 
-  // Inject badge into first section
   const sectionsWithBadges: NavSection[] = sections.map((section) => ({
     ...section,
     items: section.items.map((item) =>
@@ -108,9 +115,24 @@ const Sidebar: React.FC<SidebarProps> = ({
     ),
   }));
 
+  const renderIcon = (item: NavItem) => {
+    if (item.icon === "dot-green") {
+      return <span className="signal-dot green" aria-hidden="true" />;
+    }
+
+    if (item.icon === "dot-red") {
+      return <span className="signal-dot red" aria-hidden="true" />;
+    }
+
+    return (
+      <span className="nav-icon" aria-hidden="true">
+        {item.icon}
+      </span>
+    );
+  };
+
   return (
     <>
-      {/* Mobile backdrop */}
       <div
         className={`lb-sidebar-backdrop${isMobileOpen ? " visible" : ""}`}
         onClick={onCloseMobile}
@@ -122,24 +144,34 @@ const Sidebar: React.FC<SidebarProps> = ({
         style={sidebarWidth ? { width: sidebarWidth } : undefined}
         aria-label="Main navigation"
       >
-        {/* Logo row */}
         <div className="lb-sidebar-logo">
           <button
             key={logoBurst}
             type="button"
             onClick={() => triggerCategory("")}
             aria-label="LightninBull Home"
-            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
           >
             <img
               src="/lightninbull-bull.png"
               alt="LightninBull"
               style={{
-                width: 34, height: 34, borderRadius: 7, objectFit: "cover",
+                width: 34,
+                height: 34,
+                borderRadius: 7,
+                objectFit: "cover",
                 border: "1px solid rgba(240,180,41,0.28)",
                 boxShadow: "0 0 10px rgba(240,180,41,0.15)",
               }}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
             />
           </button>
 
@@ -150,18 +182,19 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="lb-sidebar-close"
               onClick={onCloseMobile}
               aria-label="Close sidebar"
-            >✕</button>
+            >
+              ✕
+            </button>
           )}
         </div>
 
-        {/* Nav */}
         {sectionsWithBadges.map((section) => (
           <div key={section.title} className="lb-nav-section">
             <div className="lb-nav-section-title">{section.title}</div>
 
             {section.items.map((item) => {
               const isActive = activeCategory === item.name;
-              const isFlash  = flashItem === item.name;
+              const isFlash = flashItem === item.name;
 
               return (
                 <div
@@ -171,8 +204,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   className={[
                     "lb-nav-item",
                     isActive ? "active" : "",
-                    isFlash  ? "electric-flash" : "",
-                  ].filter(Boolean).join(" ")}
+                    isFlash ? "electric-flash" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   onClick={() => triggerCategory(item.name)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -182,10 +217,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {renderIcon(item)}
+
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
                     {item.name}
                   </span>
+
                   {item.badge != null && (
                     <span className="lb-nav-badge">{item.badge}</span>
                   )}
