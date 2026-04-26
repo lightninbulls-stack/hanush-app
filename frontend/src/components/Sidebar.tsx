@@ -61,15 +61,15 @@ const sections: NavSection[] = [
   {
     title: "Intraday Index Option Spreads",
     items: [
-      { name: "Bull Call Spreads", icon: "dot-green" },
-      { name: "Bear Put Spreads", icon: "dot-red" },
+      { name: "Bull Call Spreads", icon: "🟢" },
+      { name: "Bear Put Spreads", icon: "🔴" },
     ],
   },
   {
     title: "Intraday Stock Signals",
     items: [
-      { name: "Upside Trend Stocks", icon: "dot-green" },
-      { name: "Downside Trend Stocks", icon: "dot-red" },
+      { name: "Upside Trend Stocks", icon: "🟢" },
+      { name: "Downside Trend Stocks", icon: "🔴" },
     ],
   },
   {
@@ -115,24 +115,27 @@ const Sidebar: React.FC<SidebarProps> = ({
     ),
   }));
 
-  const renderIcon = (item: NavItem) => {
-    if (item.icon === "dot-green") {
-      return <span className="signal-dot green" aria-hidden="true" />;
+  const getIconGlowClass = (itemName: string) => {
+    if (
+      itemName === "Bull Call Spreads" ||
+      itemName === "Upside Trend Stocks"
+    ) {
+      return "glow-green";
     }
 
-    if (item.icon === "dot-red") {
-      return <span className="signal-dot red" aria-hidden="true" />;
+    if (
+      itemName === "Bear Put Spreads" ||
+      itemName === "Downside Trend Stocks"
+    ) {
+      return "glow-red";
     }
 
-    return (
-      <span className="nav-icon" aria-hidden="true">
-        {item.icon}
-      </span>
-    );
+    return "";
   };
 
   return (
     <>
+      {/* Mobile backdrop */}
       <div
         className={`lb-sidebar-backdrop${isMobileOpen ? " visible" : ""}`}
         onClick={onCloseMobile}
@@ -144,6 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         style={sidebarWidth ? { width: sidebarWidth } : undefined}
         aria-label="Main navigation"
       >
+        {/* Logo row */}
         <div className="lb-sidebar-logo">
           <button
             key={logoBurst}
@@ -188,6 +192,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* Nav */}
         {sectionsWithBadges.map((section) => (
           <div key={section.title} className="lb-nav-section">
             <div className="lb-nav-section-title">{section.title}</div>
@@ -195,6 +200,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             {section.items.map((item) => {
               const isActive = activeCategory === item.name;
               const isFlash = flashItem === item.name;
+              const glowClass = getIconGlowClass(item.name);
 
               return (
                 <div
@@ -217,7 +223,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  {renderIcon(item)}
+                  <span
+                    className={["nav-icon", glowClass]
+                      .filter(Boolean)
+                      .join(" ")}
+                    aria-hidden="true"
+                  >
+                    {item.icon}
+                  </span>
 
                   <span
                     style={{
