@@ -105,7 +105,7 @@ const features: FeatureInfo[] = [
   },
   {
     name: "Range Bound Downside",
-    icon: "◮",
+    icon: "▽",
     tag: "RANGE",
     what: "Range Bound Downside identifies stocks in sideways consolidation that are exhibiting distribution behaviour, repeated rejection at resistance, and increasing downside pressure suggesting an impending breakdown.",
     model: "The model detects distribution-like structures within consolidation ranges — repeated failures at resistance, weak recovery attempts after each bounce, declining volume on upside moves and increasing volume on downside moves, and compression of price action near the lower boundary of the range.",
