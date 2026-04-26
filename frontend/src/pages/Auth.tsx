@@ -291,6 +291,161 @@ const LocalLightning: React.FC = () => {
   );
 };
 
+/* ─── GlassCard: individual card with push + electric spark on click ─── */
+interface GlassCardProps {
+  feature: FeatureInfo;
+  index: number;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+const GlassCard: React.FC<GlassCardProps> = ({ feature, index, isSelected, onClick }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const sparkingRef = useRef(false);
+
+  const fireSparks = (clickX: number, clickY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas || sparkingRef.current) return;
+    sparkingRef.current = true;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Sparks radiate from click point
+    const sparks: {
+      x: number; y: number;
+      vx: number; vy: number;
+      len: number; opacity: number; life: number;
+    }[] = [];
+
+    const count = 10 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+      const speed = 1.5 + Math.random() * 3.5;
+      sparks.push({
+        x: clickX, y: clickY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        len: 18 + Math.random() * 28,
+        opacity: 0.9 + Math.random() * 0.1,
+        life: 1,
+      });
+    }
+
+    // Also 2-3 short branch sparks
+    for (let i = 0; i < 3; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.8 + Math.random() * 1.5;
+      sparks.push({
+        x: clickX + (Math.random() - 0.5) * 20,
+        y: clickY + (Math.random() - 0.5) * 20,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        len: 10 + Math.random() * 14,
+        opacity: 0.7,
+        life: 1,
+      });
+    }
+
+    let raf: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+
+      for (const s of sparks) {
+        if (s.life <= 0) continue;
+        alive = true;
+        s.life -= 0.06;
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vx *= 0.88;
+        s.vy *= 0.88;
+
+        const op = s.opacity * s.life;
+
+        // Glow
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x - s.vx * (s.len / 4), s.y - s.vy * (s.len / 4));
+        ctx.strokeStyle = `rgba(250,204,21,${op * 0.35})`;
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = `rgba(250,200,0,${op * 0.8})`;
+        ctx.stroke();
+
+        // Core spark line
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x - s.vx * (s.len / 4), s.y - s.vy * (s.len / 4));
+        ctx.strokeStyle = `rgba(255,248,160,${op * 0.95})`;
+        ctx.lineWidth = 1.2;
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = `rgba(255,255,200,${op})`;
+        ctx.stroke();
+      }
+
+      if (alive) {
+        raf = requestAnimationFrame(draw);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        sparkingRef.current = false;
+      }
+    };
+
+    raf = requestAnimationFrame(draw);
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const card = cardRef.current;
+    if (card) {
+      const rect = card.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      fireSparks(cx, cy);
+    }
+    onClick();
+  };
+
+  return (
+    <button
+      ref={cardRef}
+      type="button"
+      className={`feature-card ${isSelected ? "selected" : ""}`}
+      style={{ animationDelay: `${index * 0.035}s` }}
+      onClick={handleClick}
+    >
+      {/* Spark canvas — sits over the card, pointer-events none */}
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={300}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          zIndex: 10,
+          borderRadius: "12px",
+        }}
+      />
+
+      <div className="feature-topline">
+        <span className="card-icon">{feature.icon}</span>
+        <span className="feature-tag">{feature.tag}</span>
+      </div>
+      <h3 className="card-title">
+        <span className="title-thunder">{feature.name}</span>
+      </h3>
+      <p className="card-desc">{feature.what}</p>
+      <span className="feature-action">View details →</span>
+      <div className="card-corner" />
+    </button>
+  );
+};
+
 /* ─── Main Auth component ─── */
 const Auth: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -530,24 +685,13 @@ const Auth: React.FC = () => {
 
         <div className="feature-grid">
           {features.map((feature, index) => (
-            <button
-              type="button"
+            <GlassCard
               key={feature.name}
-              className={`feature-card ${selectedFeature?.name === feature.name ? "selected" : ""}`}
-              style={{ animationDelay: `${index * 0.035}s` }}
+              feature={feature}
+              index={index}
+              isSelected={selectedFeature?.name === feature.name}
               onClick={() => handleFeatureClick(feature)}
-            >
-              <div className="feature-topline">
-                <span className="card-icon">{feature.icon}</span>
-                <span className="feature-tag">{feature.tag}</span>
-              </div>
-              <h3 className="card-title">
-                <span className="title-thunder">{feature.name}</span>
-              </h3>
-              <p className="card-desc">{feature.what}</p>
-              <span className="feature-action">View details →</span>
-              <div className="card-corner" />
-            </button>
+            />
           ))}
         </div>
 
@@ -1018,19 +1162,26 @@ const Auth: React.FC = () => {
 
         /* Selected: push BACK (recede into screen) with gold glow burst */
         .feature-card.selected {
-          transform: scale(0.94) translateZ(-40px) rotateX(4deg);
-          border-color: rgba(250,204,21,0.6);
+          animation: cardPush 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+          border-color: rgba(250,204,21,0.65);
           background: linear-gradient(
             135deg,
-            rgba(250,204,21,0.08) 0%,
+            rgba(250,204,21,0.09) 0%,
             rgba(255,255,255,0.03) 50%,
-            rgba(250,204,21,0.04) 100%
+            rgba(250,204,21,0.05) 100%
           );
           box-shadow:
-            0 2px 12px rgba(0,0,0,0.7),
-            0 0 50px rgba(250,204,21,0.22),
-            0 0 100px rgba(250,204,21,0.1),
-            0 1px 0 rgba(255,255,255,0.08) inset;
+            0 2px 10px rgba(0,0,0,0.75),
+            0 0 55px rgba(250,204,21,0.25),
+            0 0 110px rgba(250,204,21,0.1),
+            0 1px 0 rgba(255,255,255,0.09) inset;
+        }
+
+        @keyframes cardPush {
+          0%   { transform: scale(1) translateZ(0) rotateX(0deg); }
+          25%  { transform: scale(0.9) translateZ(-65px) rotateX(7deg); }
+          55%  { transform: scale(0.92) translateZ(-46px) rotateX(5deg); }
+          100% { transform: scale(0.93) translateZ(-40px) rotateX(4deg); }
         }
 
         /* Thunder sweep line on hover/selected */
