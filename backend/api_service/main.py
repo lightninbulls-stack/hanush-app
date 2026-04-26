@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-
+from models.payment import Payment
 from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
 from api_service import cashfree_routes
 
