@@ -50,26 +50,46 @@ def save_payment(user, order_id):
         writer.writerow(row)
 
 
-def check_active(user_id):
+def get_subscription(user_id):
     if not DATA_FILE.exists():
-        return False
+        return {
+            "is_active": False,
+            "valid_till": None,
+            "days_left": 0,
+        }
 
     now = datetime.utcnow()
+    latest_valid_till = None
 
     with open(DATA_FILE, "r") as f:
         reader = csv.DictReader(f)
 
         for row in reader:
             if str(row["user_id"]) == str(user_id):
-                if datetime.fromisoformat(row["valid_till"]) > now:
-                    return True
+                valid_till = datetime.fromisoformat(row["valid_till"])
 
-    return False
+                if latest_valid_till is None or valid_till > latest_valid_till:
+                    latest_valid_till = valid_till
+
+    if latest_valid_till and latest_valid_till > now:
+        days_left = max((latest_valid_till - now).days, 0)
+
+        return {
+            "is_active": True,
+            "valid_till": latest_valid_till.isoformat(),
+            "days_left": days_left,
+        }
+
+    return {
+        "is_active": False,
+        "valid_till": None,
+        "days_left": 0,
+    }
 
 
 @router.get("/subscription/status")
 def status(user: User = Depends(get_current_user)):
-    return {"is_active": check_active(user.id)}
+    return get_subscription(user.id)
 
 
 @router.post("/create-order")
