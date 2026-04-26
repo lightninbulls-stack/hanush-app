@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 import Auth from "./pages/Auth";
-import PremiumRoute from "./components/PremiumRoute";
+
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
@@ -63,14 +63,11 @@ const App: React.FC = () => {
           />
 
           <Route path="/factors/:slug" element={<FactorPage />} />
-
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <PremiumRoute>
-                  <Dashboard />
-                </PremiumRoute>
+                <Dashboard />
               </ProtectedRoute>
             }
           />
