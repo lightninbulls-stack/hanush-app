@@ -38,6 +38,7 @@ const formatPct = (value?: number | null) => {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "—";
   }
+
   return `${value.toFixed(2)}%`;
 };
 
@@ -53,6 +54,7 @@ const getTone = (value?: number | null) => {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "neutral";
   }
+
   return value >= 0 ? "positive" : "negative";
 };
 
@@ -95,6 +97,7 @@ const renderCell = (
       return (
         <div className="factor-ticker-cell">
           <button
+            type="button"
             className={`star-btn factor-star-btn ${
               starredSymbols.includes(stock.symbol) ? "active" : ""
             }`}
@@ -102,10 +105,15 @@ const renderCell = (
               e.stopPropagation();
               onStarClick(stock.symbol);
             }}
+            aria-label={
+              starredSymbols.includes(stock.symbol)
+                ? `Remove ${stock.symbol} from watchlist`
+                : `Add ${stock.symbol} to watchlist`
+            }
           >
             <svg
-              width="18"
-              height="18"
+              width="17"
+              height="17"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -113,12 +121,13 @@ const renderCell = (
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
           </button>
 
           <div className="factor-ticker-meta">
             <div className="factor-symbol glow-text">{stock.symbol}</div>
+
             <div className="factor-sector">
               {DERIVATIVE_CATEGORIES.has(category)
                 ? stock.option_type || "Derivative Demand"
@@ -201,46 +210,120 @@ const StockTable: React.FC<StockTableProps> = ({
   const columns = getColumnsForCategory(category);
 
   return (
-    <div className="factor-table-shell">
-      <table className="factor-table">
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className={`align-${column.align || "center"}`}
-              >
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-
-        <tbody>
-          {stocks.map((stock) => (
-            <tr
-              key={`${category}-${stock.symbol}-${stock.rank}`}
-              onClick={() => onStockClick(stock.symbol)}
-            >
+    <>
+      <div className="factor-table-shell compact-factor-table">
+        <table className="factor-table">
+          <thead>
+            <tr>
               {columns.map((column) => (
-                <td
-                  key={`${stock.symbol}-${column.key}`}
+                <th
+                  key={column.key}
                   className={`align-${column.align || "center"}`}
                 >
-                  {renderCell(
-                    stock,
-                    column,
-                    starredSymbols,
-                    onStarClick,
-                    category
-                  )}
-                </td>
+                  {column.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+
+          <tbody>
+            {stocks.map((stock) => (
+              <tr
+                key={`${category}-${stock.symbol}-${stock.rank}`}
+                onClick={() => onStockClick(stock.symbol)}
+              >
+                {columns.map((column) => (
+                  <td
+                    key={`${stock.symbol}-${column.key}`}
+                    className={`align-${column.align || "center"}`}
+                  >
+                    {renderCell(
+                      stock,
+                      column,
+                      starredSymbols,
+                      onStarClick,
+                      category
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <style>{`
+        .compact-factor-table .factor-symbol {
+          font-size: 1.25rem !important;
+          font-weight: 500 !important;
+          line-height: 1.05 !important;
+          letter-spacing: 0.2px !important;
+          color: #f7f0df !important;
+          text-shadow: 0 0 12px rgba(250, 204, 21, 0.08) !important;
+        }
+
+        .compact-factor-table .factor-sector {
+          font-size: 0.72rem !important;
+          line-height: 1.25 !important;
+          letter-spacing: 0.8px !important;
+          color: rgba(255, 255, 255, 0.42) !important;
+        }
+
+        .compact-factor-table .factor-ticker-cell {
+          gap: 10px !important;
+        }
+
+        .compact-factor-table .factor-ticker-meta {
+          gap: 3px !important;
+        }
+
+        .compact-factor-table .factor-table td {
+          padding-top: 11px !important;
+          padding-bottom: 11px !important;
+        }
+
+        .compact-factor-table .factor-rank {
+          font-size: 0.9rem !important;
+          font-weight: 700 !important;
+        }
+
+        .compact-factor-table .factor-star-btn,
+        .compact-factor-table .star-btn {
+          width: 30px !important;
+          height: 30px !important;
+          min-width: 30px !important;
+          border-radius: 9px !important;
+        }
+
+        .compact-factor-table .score-chip {
+          min-width: 48px !important;
+          padding: 6px 10px !important;
+          font-size: 0.78rem !important;
+        }
+
+        .compact-factor-table .metric-pill {
+          min-width: 76px !important;
+          padding: 7px 9px !important;
+          font-size: 0.82rem !important;
+          border-radius: 9px !important;
+        }
+
+        @media (max-width: 900px) {
+          .compact-factor-table .factor-symbol {
+            font-size: 1.05rem !important;
+          }
+
+          .compact-factor-table .factor-sector {
+            font-size: 0.68rem !important;
+          }
+
+          .compact-factor-table .factor-table td {
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 
