@@ -382,20 +382,24 @@ const Dashboard: React.FC = () => {
               <StockStats symbol={selectedStock} />
             </>
           ) : activeTab === "Guide" ? (
-            <div className="lb-card" style={{ maxWidth: 720 }}>
-              <div className="lb-eyebrow" style={{ marginBottom: 16 }}>
-                Guide
+            <>
+              <DashboardWelcome onNavigate={handleCategoryChange} />
+
+              <div className="lb-card" style={{ maxWidth: 720, marginTop: 24 }}>
+                <div className="lb-eyebrow" style={{ marginBottom: 16 }}>
+                  Guide
+                </div>
+
+                <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
+                  User Guide
+                </h2>
+
+                <p className="lb-text">
+                  Welcome to Lightninbull Financial Analytics. This section helps
+                  you understand the metrics and strategies used in the platform.
+                </p>
               </div>
-
-              <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
-                User Guide
-              </h2>
-
-              <p className="lb-text">
-                Welcome to Lightninbull Financial Analytics. This section helps
-                you understand the metrics and strategies used in the platform.
-              </p>
-            </div>
+            </>
           ) : activeTab === "Profile / Settings" ? (
             <div className="lb-card" style={{ maxWidth: 720 }}>
               <div className="lb-eyebrow" style={{ marginBottom: 16 }}>
