@@ -12,11 +12,18 @@ router = APIRouter(tags=["cashfree"])
 
 CASHFREE_APP_ID = os.getenv("CASHFREE_APP_ID")
 CASHFREE_SECRET = os.getenv("CASHFREE_SECRET")
+CASHFREE_ENV = os.getenv("CASHFREE_ENV", "sandbox").lower()
 
 DATA_FILE = Path("backend/data/paid_users.csv")
 
 PLAN_AMOUNT = 399
 PLAN_DAYS = 14
+
+
+def get_cashfree_base_url() -> str:
+    if CASHFREE_ENV == "production":
+        return "https://api.cashfree.com/pg"
+    return "https://sandbox.cashfree.com/pg"
 
 
 def save_payment(user, order_id):
@@ -126,7 +133,7 @@ def create_order(user: User = Depends(get_current_user)):
 
     try:
         res = requests.post(
-            "https://api.cashfree.com/pg/orders",
+            f"{get_cashfree_base_url()}/orders",
             json=payload,
             headers=headers,
             timeout=20,
@@ -142,6 +149,7 @@ def create_order(user: User = Depends(get_current_user)):
             status_code=500,
             detail={
                 "message": "Cashfree order failed",
+                "cashfree_env": CASHFREE_ENV,
                 "status_code": res.status_code,
                 "response": res.text,
             },
@@ -152,6 +160,7 @@ def create_order(user: User = Depends(get_current_user)):
     return {
         "payment_session_id": data.get("payment_session_id"),
         "order_id": order_id,
+        "cashfree_env": CASHFREE_ENV,
     }
 
 
