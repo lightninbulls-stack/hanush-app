@@ -3,9 +3,11 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 import Auth from "./pages/Auth";
+import PremiumRoute from "./components/PremiumRoute";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
+const Pricing = lazy(() => import("./pages/Pricing"));
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -41,15 +43,31 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<Auth />} />
           <Route path="/auth" element={<Navigate to="/" replace />} />
+
+          <Route
+            path="/pricing"
+            element={
+              <ProtectedRoute>
+                <Pricing />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/payment-success" element={<Navigate to="/pricing" replace />} />
+
           <Route path="/factors/:slug" element={<FactorPage />} />
+
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <PremiumRoute>
+                  <Dashboard />
+                </PremiumRoute>
               </ProtectedRoute>
             }
           />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
