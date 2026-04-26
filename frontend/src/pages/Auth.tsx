@@ -562,7 +562,7 @@ const Auth: React.FC = () => {
             </h1>
 
             <p className="hero-subtext">
-              Real-time signals. Deep factor analytics.
+              Real-time signals. Deep factor analytics platform.
               Built for traders who demand discipline, data, and edge.
             </p>
 
@@ -590,7 +590,7 @@ const Auth: React.FC = () => {
               <div className="quant-inner">
                 <span className="quant-label">LIGHTNINBULL INTELLIGENCE LAYER</span>
                 <h2 className="quant-heading">
-                  Quant <em className="quant-ai">AI</em> analytics
+                  Quant <em className="quant-ai">AI</em> analytics platform.
                 </h2>
                 <p className="quant-sub">Factor models · Regime detection · Intraday signals · Derivatives analytics</p>
               </div>
