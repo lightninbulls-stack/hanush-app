@@ -34,74 +34,80 @@ const CHART_HEIGHT = 320;
 const CHART_PADDING_X = 28;
 const CHART_PADDING_Y = 24;
 
-const formatPercent = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
+const DEFAULT_RETAIL_CAPITAL = 100000;
+const MIN_RETAIL_CAPITAL = 10000;
+const MAX_RETAIL_CAPITAL = 1000000000;
+
+const clampCapital = (value: number): number => {
+  if (Number.isNaN(value)) return DEFAULT_RETAIL_CAPITAL;
+  return Math.max(MIN_RETAIL_CAPITAL, Math.min(MAX_RETAIL_CAPITAL, value));
+};
+
+const buildRetailAllocation = (
+  weight: number,
+  endPrice: number,
+  capital: number
+) => {
+  const allocationAmount = Math.abs(weight) * capital;
+
+  if (!endPrice || endPrice <= 0) {
+    return {
+      allocation_amount: allocationAmount,
+      suggested_quantity: 0,
+      actual_invested_amount: 0,
+      remaining_cash: allocationAmount,
+    };
   }
 
+  const suggestedQuantity = Math.floor(allocationAmount / endPrice);
+  const actualInvestedAmount = suggestedQuantity * endPrice;
+  const remainingCash = allocationAmount - actualInvestedAmount;
+
+  return {
+    allocation_amount: allocationAmount,
+    suggested_quantity: suggestedQuantity,
+    actual_invested_amount: actualInvestedAmount,
+    remaining_cash: remainingCash,
+  };
+};
+
+const formatPercent = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value.toFixed(2)}%`;
 };
 
 const formatSignedPercent = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 };
 
 const formatNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toFixed(2);
 };
 
 const formatSignedNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 };
 
 const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-
-  return `₹${value.toLocaleString("en-IN", {
-    maximumFractionDigits: 0,
-  })}`;
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 };
 
 const getTone = (value: number | null | undefined): MetricTone => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "neutral";
-  }
-
-  if (value > 0) {
-    return "positive";
-  }
-
-  if (value < 0) {
-    return "negative";
-  }
-
+  if (value === null || value === undefined || Number.isNaN(value)) return "neutral";
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
   return "neutral";
 };
 
 const formatXAxisDate = (value: string | undefined): string => {
-  if (!value) {
-    return "—";
-  }
+  if (!value) return "—";
 
   const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(parsed.getTime())) return value;
 
   return parsed.toLocaleDateString(undefined, {
     day: "2-digit",
@@ -111,9 +117,7 @@ const formatXAxisDate = (value: string | undefined): string => {
 };
 
 const getBenchmarkDisplayName = (value?: string | null): string => {
-  if (!value) {
-    return "NIFTY 50";
-  }
+  if (!value) return "NIFTY 50";
 
   const normalized = String(value).trim().toUpperCase();
 
@@ -139,9 +143,7 @@ const buildLinePath = (
   minValue: number,
   maxValue: number
 ): string => {
-  if (!points.length) {
-    return "";
-  }
+  if (!points.length) return "";
 
   const innerWidth = CHART_WIDTH - CHART_PADDING_X * 2;
   const innerHeight = CHART_HEIGHT - CHART_PADDING_Y * 2;
@@ -186,14 +188,9 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   const benchmarkDisplayName = getBenchmarkDisplayName(benchmarkName);
 
   const chartData = useMemo(() => {
-    if (!portfolioCurve.length || !benchmarkCurve?.length) {
-      return null;
-    }
+    if (!portfolioCurve.length || !benchmarkCurve?.length) return null;
 
-    const allValues = [...portfolioCurve, ...benchmarkCurve].map(
-      (point) => point.nav
-    );
-
+    const allValues = [...portfolioCurve, ...benchmarkCurve].map((point) => point.nav);
     const rawMin = Math.min(...allValues);
     const rawMax = Math.max(...allValues);
     const padding = Math.max((rawMax - rawMin) * 0.08, 0.02);
@@ -206,17 +203,13 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
       portfolioPath: buildLinePath(portfolioCurve, minValue, maxValue),
       benchmarkPath: buildLinePath(benchmarkCurve, minValue, maxValue),
       startLabel: formatXAxisDate(portfolioCurve[0]?.date),
-      endLabel: formatXAxisDate(
-        portfolioCurve[portfolioCurve.length - 1]?.date
-      ),
+      endLabel: formatXAxisDate(portfolioCurve[portfolioCurve.length - 1]?.date),
       portfolioEndNav: portfolioCurve[portfolioCurve.length - 1]?.nav ?? null,
       benchmarkEndNav: benchmarkCurve[benchmarkCurve.length - 1]?.nav ?? null,
     };
   }, [benchmarkCurve, portfolioCurve]);
 
-  if (!chartData) {
-    return null;
-  }
+  if (!chartData) return null;
 
   return (
     <div style={{ marginBottom: 28 }}>
@@ -293,16 +286,8 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
         >
           <div style={{ display: "flex", gap: 16 }}>
             {[
-              {
-                color: "#facc15",
-                label: "Portfolio",
-                shadow: "0 0 6px rgba(250,204,21,0.5)",
-              },
-              {
-                color: "rgba(255,255,255,0.3)",
-                label: benchmarkDisplayName,
-                shadow: "none",
-              },
+              { color: "#facc15", label: "Portfolio", shadow: "0 0 6px rgba(250,204,21,0.5)" },
+              { color: "rgba(255,255,255,0.3)", label: benchmarkDisplayName, shadow: "none" },
             ].map((legend) => (
               <div
                 key={legend.label}
@@ -394,9 +379,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
             fill="none"
             stroke="#facc15"
             strokeWidth={2}
-            style={{
-              filter: "drop-shadow(0 0 4px rgba(250,204,21,0.4))",
-            }}
+            style={{ filter: "drop-shadow(0 0 4px rgba(250,204,21,0.4))" }}
           />
         </svg>
 
@@ -424,6 +407,7 @@ const PortfolioBacktestPanel: React.FC = () => {
   const [data, setData] = useState<PortfolioBacktestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retailCapital, setRetailCapital] = useState(DEFAULT_RETAIL_CAPITAL);
 
   useEffect(() => {
     let cancelled = false;
@@ -473,63 +457,28 @@ const PortfolioBacktestPanel: React.FC = () => {
   const benchmarkMetrics = data?.benchmark_metrics;
   const benchmarkLabel = getBenchmarkDisplayName(data?.benchmark_name);
 
+  const allocationHoldings = useMemo(() => {
+    if (!data?.holdings) return [];
+
+    return data.holdings.map((holding) => ({
+      ...holding,
+      ...buildRetailAllocation(holding.weight, holding.end_price, retailCapital),
+    }));
+  }, [data?.holdings, retailCapital]);
+
   const metricCards: MetricCardItem[] = metrics
     ? [
-        {
-          label: "CAGR",
-          value: formatPercent(metrics.cagr_pct),
-          tone: getTone(metrics.cagr_pct),
-        },
-        {
-          label: "Total Return",
-          value: formatPercent(metrics.cumulative_return_pct),
-          tone: getTone(metrics.cumulative_return_pct),
-        },
-        {
-          label: "Sharpe Ratio",
-          value: formatNumber(metrics.sharpe),
-          tone: getTone(metrics.sharpe),
-        },
-        {
-          label: "Max Drawdown",
-          value: formatPercent(metrics.max_drawdown_pct),
-          tone: getTone(metrics.max_drawdown_pct),
-        },
-        {
-          label: "Volatility",
-          value: formatPercent(metrics.annualized_volatility_pct),
-          tone: "neutral",
-        },
-        {
-          label: "1W Return",
-          value: formatPercent(metrics.return_1w_pct),
-          tone: getTone(metrics.return_1w_pct),
-        },
-        {
-          label: "2W Return",
-          value: formatPercent(metrics.return_2w_pct),
-          tone: getTone(metrics.return_2w_pct),
-        },
-        {
-          label: "1M Return",
-          value: formatPercent(metrics.return_1m_pct),
-          tone: getTone(metrics.return_1m_pct),
-        },
-        {
-          label: "3M Return",
-          value: formatPercent(metrics.return_3m_pct),
-          tone: getTone(metrics.return_3m_pct),
-        },
-        {
-          label: "6M Return",
-          value: formatPercent(metrics.return_6m_pct),
-          tone: getTone(metrics.return_6m_pct),
-        },
-        {
-          label: "VaR (95%)",
-          value: formatPercent(metrics.var_95_pct),
-          tone: "neutral",
-        },
+        { label: "CAGR", value: formatPercent(metrics.cagr_pct), tone: getTone(metrics.cagr_pct) },
+        { label: "Total Return", value: formatPercent(metrics.cumulative_return_pct), tone: getTone(metrics.cumulative_return_pct) },
+        { label: "Sharpe Ratio", value: formatNumber(metrics.sharpe), tone: getTone(metrics.sharpe) },
+        { label: "Max Drawdown", value: formatPercent(metrics.max_drawdown_pct), tone: getTone(metrics.max_drawdown_pct) },
+        { label: "Volatility", value: formatPercent(metrics.annualized_volatility_pct), tone: "neutral" },
+        { label: "1W Return", value: formatPercent(metrics.return_1w_pct), tone: getTone(metrics.return_1w_pct) },
+        { label: "2W Return", value: formatPercent(metrics.return_2w_pct), tone: getTone(metrics.return_2w_pct) },
+        { label: "1M Return", value: formatPercent(metrics.return_1m_pct), tone: getTone(metrics.return_1m_pct) },
+        { label: "3M Return", value: formatPercent(metrics.return_3m_pct), tone: getTone(metrics.return_3m_pct) },
+        { label: "6M Return", value: formatPercent(metrics.return_6m_pct), tone: getTone(metrics.return_6m_pct) },
+        { label: "VaR (95%)", value: formatPercent(metrics.var_95_pct), tone: "neutral" },
       ]
     : [];
 
@@ -538,34 +487,18 @@ const PortfolioBacktestPanel: React.FC = () => {
       ? [
           {
             label: "Alpha (CAGR)",
-            value: formatSignedPercent(
-              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
-            ),
-            tone: getTone(
-              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
-            ),
+            value: formatSignedPercent((metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)),
+            tone: getTone((metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)),
           },
           {
             label: "Sharpe Spread",
-            value: formatSignedNumber(
-              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
-            ),
-            tone: getTone(
-              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
-            ),
+            value: formatSignedNumber((metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)),
+            tone: getTone((metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)),
           },
           {
             label: "DD Improvement",
-            value: formatSignedPercent(
-              (metrics.max_drawdown_pct ?? 0) -
-                (benchmarkMetrics.max_drawdown_pct ?? 0)
-            ),
-            tone: getTone(
-              -(
-                (metrics.max_drawdown_pct ?? 0) -
-                (benchmarkMetrics.max_drawdown_pct ?? 0)
-              )
-            ),
+            value: formatSignedPercent((metrics.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0)),
+            tone: getTone(-((metrics.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0))),
           },
         ]
       : [];
@@ -577,138 +510,77 @@ const PortfolioBacktestPanel: React.FC = () => {
             label: "CAGR",
             portfolioValue: formatPercent(metrics.cagr_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.cagr_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)),
+            spreadTone: getTone((metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)),
           },
           {
             label: "Total Return",
             portfolioValue: formatPercent(metrics.cumulative_return_pct),
-            benchmarkValue: formatPercent(
-              benchmarkMetrics.cumulative_return_pct
-            ),
-            spreadValue: formatSignedPercent(
-              (metrics.cumulative_return_pct ?? 0) -
-                (benchmarkMetrics.cumulative_return_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.cumulative_return_pct ?? 0) -
-                (benchmarkMetrics.cumulative_return_pct ?? 0)
-            ),
+            benchmarkValue: formatPercent(benchmarkMetrics.cumulative_return_pct),
+            spreadValue: formatSignedPercent((metrics.cumulative_return_pct ?? 0) - (benchmarkMetrics.cumulative_return_pct ?? 0)),
+            spreadTone: getTone((metrics.cumulative_return_pct ?? 0) - (benchmarkMetrics.cumulative_return_pct ?? 0)),
           },
           {
             label: "Sharpe Ratio",
             portfolioValue: formatNumber(metrics.sharpe),
             benchmarkValue: formatNumber(benchmarkMetrics.sharpe),
-            spreadValue: formatSignedNumber(
-              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
-            ),
+            spreadValue: formatSignedNumber((metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)),
+            spreadTone: getTone((metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)),
           },
           {
             label: "Max Drawdown",
             portfolioValue: formatPercent(metrics.max_drawdown_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.max_drawdown_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.max_drawdown_pct ?? 0) -
-                (benchmarkMetrics.max_drawdown_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              -(
-                (metrics.max_drawdown_pct ?? 0) -
-                (benchmarkMetrics.max_drawdown_pct ?? 0)
-              )
-            ),
+            spreadValue: formatSignedPercent((metrics.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0)),
+            spreadTone: getTone(-((metrics.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0))),
           },
           {
             label: "Volatility",
             portfolioValue: formatPercent(metrics.annualized_volatility_pct),
-            benchmarkValue: formatPercent(
-              benchmarkMetrics.annualized_volatility_pct
-            ),
-            spreadValue: formatSignedPercent(
-              (metrics.annualized_volatility_pct ?? 0) -
-                (benchmarkMetrics.annualized_volatility_pct ?? 0)
-            ),
+            benchmarkValue: formatPercent(benchmarkMetrics.annualized_volatility_pct),
+            spreadValue: formatSignedPercent((metrics.annualized_volatility_pct ?? 0) - (benchmarkMetrics.annualized_volatility_pct ?? 0)),
             spreadTone: "neutral",
           },
           {
             label: "1W Return",
             portfolioValue: formatPercent(metrics.return_1w_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.return_1w_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.return_1w_pct ?? 0) -
-                (benchmarkMetrics.return_1w_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.return_1w_pct ?? 0) -
-                (benchmarkMetrics.return_1w_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.return_1w_pct ?? 0) - (benchmarkMetrics.return_1w_pct ?? 0)),
+            spreadTone: getTone((metrics.return_1w_pct ?? 0) - (benchmarkMetrics.return_1w_pct ?? 0)),
           },
           {
             label: "2W Return",
             portfolioValue: formatPercent(metrics.return_2w_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.return_2w_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.return_2w_pct ?? 0) -
-                (benchmarkMetrics.return_2w_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.return_2w_pct ?? 0) -
-                (benchmarkMetrics.return_2w_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.return_2w_pct ?? 0) - (benchmarkMetrics.return_2w_pct ?? 0)),
+            spreadTone: getTone((metrics.return_2w_pct ?? 0) - (benchmarkMetrics.return_2w_pct ?? 0)),
           },
           {
             label: "1M Return",
             portfolioValue: formatPercent(metrics.return_1m_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.return_1m_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.return_1m_pct ?? 0) -
-                (benchmarkMetrics.return_1m_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.return_1m_pct ?? 0) -
-                (benchmarkMetrics.return_1m_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.return_1m_pct ?? 0) - (benchmarkMetrics.return_1m_pct ?? 0)),
+            spreadTone: getTone((metrics.return_1m_pct ?? 0) - (benchmarkMetrics.return_1m_pct ?? 0)),
           },
           {
             label: "3M Return",
             portfolioValue: formatPercent(metrics.return_3m_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.return_3m_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.return_3m_pct ?? 0) -
-                (benchmarkMetrics.return_3m_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.return_3m_pct ?? 0) -
-                (benchmarkMetrics.return_3m_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.return_3m_pct ?? 0) - (benchmarkMetrics.return_3m_pct ?? 0)),
+            spreadTone: getTone((metrics.return_3m_pct ?? 0) - (benchmarkMetrics.return_3m_pct ?? 0)),
           },
           {
             label: "6M Return",
             portfolioValue: formatPercent(metrics.return_6m_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.return_6m_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.return_6m_pct ?? 0) -
-                (benchmarkMetrics.return_6m_pct ?? 0)
-            ),
-            spreadTone: getTone(
-              (metrics.return_6m_pct ?? 0) -
-                (benchmarkMetrics.return_6m_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.return_6m_pct ?? 0) - (benchmarkMetrics.return_6m_pct ?? 0)),
+            spreadTone: getTone((metrics.return_6m_pct ?? 0) - (benchmarkMetrics.return_6m_pct ?? 0)),
           },
           {
             label: "VaR (95%)",
             portfolioValue: formatPercent(metrics.var_95_pct),
             benchmarkValue: formatPercent(benchmarkMetrics.var_95_pct),
-            spreadValue: formatSignedPercent(
-              (metrics.var_95_pct ?? 0) - (benchmarkMetrics.var_95_pct ?? 0)
-            ),
+            spreadValue: formatSignedPercent((metrics.var_95_pct ?? 0) - (benchmarkMetrics.var_95_pct ?? 0)),
             spreadTone: "neutral",
           },
         ]
@@ -739,10 +611,7 @@ const PortfolioBacktestPanel: React.FC = () => {
           Running backtest simulation…
         </p>
 
-        <div
-          className="loading-track"
-          style={{ maxWidth: 300, margin: "16px auto 0" }}
-        >
+        <div className="loading-track" style={{ maxWidth: 300, margin: "16px auto 0" }}>
           <div className="loading-bar" />
         </div>
       </div>
@@ -857,13 +726,11 @@ const PortfolioBacktestPanel: React.FC = () => {
             marginBottom: 24,
           }}
         >
-          {(
-            [
-              { type: "equal_weight" as StrategyType, label: "Equal Weight" },
-              { type: "mvo" as StrategyType, label: "MVO Weights" },
-              { type: "mvo_short" as StrategyType, label: "MVO Short" },
-            ] as const
-          ).map((option) => (
+          {[
+            { type: "equal_weight" as StrategyType, label: "Equal Weight" },
+            { type: "mvo" as StrategyType, label: "MVO Weights" },
+            { type: "mvo_short" as StrategyType, label: "MVO Short" },
+          ].map((option) => (
             <button
               key={option.type}
               onClick={() => setStrategyType(option.type)}
@@ -999,26 +866,24 @@ const PortfolioBacktestPanel: React.FC = () => {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Metric", "Portfolio", benchmarkLabel, "Spread"].map(
-                    (header) => (
-                      <th
-                        key={header}
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 9,
-                          letterSpacing: 2,
-                          color: "rgba(250,204,21,0.55)",
-                          padding: "12px 14px",
-                          borderBottom: "1px solid rgba(250,204,21,0.08)",
-                          background: "rgba(0,0,0,0.3)",
-                          textAlign: header === "Metric" ? "left" : "right",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {header}
-                      </th>
-                    )
-                  )}
+                  {["Metric", "Portfolio", benchmarkLabel, "Spread"].map((header) => (
+                    <th
+                      key={header}
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 9,
+                        letterSpacing: 2,
+                        color: "rgba(250,204,21,0.55)",
+                        padding: "12px 14px",
+                        borderBottom: "1px solid rgba(250,204,21,0.08)",
+                        background: "rgba(0,0,0,0.3)",
+                        textAlign: header === "Metric" ? "left" : "right",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -1026,26 +891,10 @@ const PortfolioBacktestPanel: React.FC = () => {
                 {comparisonRows.map((row) => (
                   <tr key={row.label}>
                     {[
-                      {
-                        value: row.label,
-                        tone: "neutral" as MetricTone,
-                        align: "left",
-                      },
-                      {
-                        value: row.portfolioValue,
-                        tone: "neutral" as MetricTone,
-                        align: "right",
-                      },
-                      {
-                        value: row.benchmarkValue,
-                        tone: "neutral" as MetricTone,
-                        align: "right",
-                      },
-                      {
-                        value: row.spreadValue,
-                        tone: row.spreadTone,
-                        align: "right",
-                      },
+                      { value: row.label, tone: "neutral" as MetricTone, align: "left" },
+                      { value: row.portfolioValue, tone: "neutral" as MetricTone, align: "right" },
+                      { value: row.benchmarkValue, tone: "neutral" as MetricTone, align: "right" },
+                      { value: row.spreadValue, tone: row.spreadTone, align: "right" },
                     ].map((cell, index) => (
                       <td
                         key={index}
@@ -1154,7 +1003,7 @@ const PortfolioBacktestPanel: React.FC = () => {
         </div>
       </div>
 
-      {data.holdings && data.holdings.length > 0 && (
+      {allocationHoldings.length > 0 && (
         <div style={{ padding: "0 24px 28px" }}>
           <div
             style={{
@@ -1191,7 +1040,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                   margin: "6px 0 0",
                 }}
               >
-                Retail allocation guide assumes ₹1,00,000 total capital.
+                Retail allocation guide recalculates based on your investment amount.
               </p>
             </div>
 
@@ -1209,8 +1058,74 @@ const PortfolioBacktestPanel: React.FC = () => {
                 whiteSpace: "nowrap",
               }}
             >
-              {data.holdings.length} Stocks
+              {allocationHoldings.length} Stocks
             </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 14,
+              padding: 14,
+              borderRadius: 12,
+              border: "1px solid rgba(250,204,21,0.1)",
+              background: "rgba(8,9,12,0.95)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                  color: "rgba(250,204,21,0.6)",
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
+              >
+                Investment Amount
+              </div>
+
+              <input
+                type="number"
+                min={MIN_RETAIL_CAPITAL}
+                max={MAX_RETAIL_CAPITAL}
+                step={10000}
+                value={retailCapital}
+                onChange={(event) => {
+                  setRetailCapital(Number(event.target.value));
+                }}
+                onBlur={() => {
+                  setRetailCapital((value) => clampCapital(value));
+                }}
+                style={{
+                  width: 220,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(250,204,21,0.18)",
+                  background: "rgba(0,0,0,0.35)",
+                  color: "var(--lb-cream)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                color: "rgba(255,255,255,0.38)",
+                lineHeight: 1.6,
+              }}
+            >
+              Default is ₹1,00,000. You can test allocation from ₹10,000 to ₹100 crore.
+            </p>
           </div>
 
           <div
@@ -1244,10 +1159,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                         padding: "12px 14px",
                         borderBottom: "1px solid rgba(250,204,21,0.08)",
                         background: "rgba(0,0,0,0.3)",
-                        textAlign: header.align as
-                          | "left"
-                          | "center"
-                          | "right",
+                        textAlign: header.align as "left" | "center" | "right",
                         textTransform: "uppercase",
                         whiteSpace: "nowrap",
                       }}
@@ -1259,143 +1171,48 @@ const PortfolioBacktestPanel: React.FC = () => {
               </thead>
 
               <tbody>
-                {data.holdings.map((row) => {
+                {allocationHoldings.map((row) => {
                   const returnTone = getTone(row.total_return_pct);
 
                   return (
                     <tr key={row.symbol}>
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.9)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          fontWeight: 500,
-                          textAlign: "left",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.symbol}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.6)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "center",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {(row.weight * 100).toFixed(2)}%
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.6)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.start_price.toFixed(2)}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.6)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.end_price.toFixed(2)}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.72)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatCurrency(row.allocation_amount)}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.72)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "center",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.suggested_quantity ?? "—"}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.72)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatCurrency(row.actual_invested_amount)}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
-                          color: "rgba(255,255,255,0.52)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatCurrency(row.remaining_cash)}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: "11px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 12,
+                      {[
+                        { value: row.symbol, align: "left", color: "rgba(255,255,255,0.9)", weight: 500 },
+                        { value: `${(row.weight * 100).toFixed(2)}%`, align: "center", color: "rgba(255,255,255,0.6)", weight: 400 },
+                        { value: row.start_price.toFixed(2), align: "right", color: "rgba(255,255,255,0.6)", weight: 400 },
+                        { value: row.end_price.toFixed(2), align: "right", color: "rgba(255,255,255,0.6)", weight: 400 },
+                        { value: formatCurrency(row.allocation_amount), align: "right", color: "rgba(255,255,255,0.72)", weight: 400 },
+                        { value: row.suggested_quantity ?? "—", align: "center", color: "rgba(255,255,255,0.72)", weight: 400 },
+                        { value: formatCurrency(row.actual_invested_amount), align: "right", color: "rgba(255,255,255,0.72)", weight: 400 },
+                        { value: formatCurrency(row.remaining_cash), align: "right", color: "rgba(255,255,255,0.52)", weight: 400 },
+                        {
+                          value: `${row.total_return_pct.toFixed(2)}%`,
+                          align: "right",
                           color:
                             returnTone === "positive"
                               ? "#4ade80"
                               : returnTone === "negative"
                               ? "#f87171"
                               : "rgba(255,255,255,0.6)",
-                          borderBottom: "1px solid rgba(255,255,255,0.04)",
-                          textAlign: "right",
-                          fontWeight: 600,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.total_return_pct.toFixed(2)}%
-                      </td>
+                          weight: 600,
+                        },
+                      ].map((cell, index) => (
+                        <td
+                          key={index}
+                          style={{
+                            padding: "11px 14px",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 12,
+                            color: cell.color,
+                            borderBottom: "1px solid rgba(255,255,255,0.04)",
+                            textAlign: cell.align as "left" | "center" | "right",
+                            fontWeight: cell.weight,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {cell.value}
+                        </td>
+                      ))}
                     </tr>
                   );
                 })}
