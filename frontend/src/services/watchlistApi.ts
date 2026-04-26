@@ -23,6 +23,7 @@ export interface PortfolioMetrics {
   beta_to_benchmark?: number | null;
   correlation_to_benchmark?: number | null;
 
+  // Backward compatibility with old backend names
   cumulative_return_pct?: number | null;
   cagr_pct?: number | null;
   annualized_volatility_pct?: number | null;
@@ -43,6 +44,7 @@ export interface BenchmarkMetrics {
   return_6m_pct?: number | null;
   var_95_pct?: number | null;
 
+  // Backward compatibility with old backend names
   cumulative_return_pct?: number | null;
   cagr_pct?: number | null;
   annualized_volatility_pct?: number | null;
