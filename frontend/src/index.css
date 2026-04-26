@@ -1406,3 +1406,18 @@ body {
     font-size: 0.82rem;
   }
 }
+/* Sidebar signal glow - only for Bull/Bear and Upside/Downside intraday items */
+
+.nav-icon.glow-green {
+  filter:
+    drop-shadow(0 0 5px #00ff66)
+    drop-shadow(0 0 10px rgba(0, 255, 102, 0.95))
+    drop-shadow(0 0 16px rgba(0, 255, 102, 0.65));
+}
+
+.nav-icon.glow-red {
+  filter:
+    drop-shadow(0 0 5px #ff3333)
+    drop-shadow(0 0 10px rgba(255, 51, 51, 0.95))
+    drop-shadow(0 0 16px rgba(255, 51, 51, 0.65));
+}
