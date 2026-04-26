@@ -45,11 +45,24 @@ export async function createCashfreeOrder(): Promise<{
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(
-      typeof data?.detail === "string"
-        ? data.detail
-        : "Cashfree order creation failed"
-    );
+    // ✅ Surface the real Cashfree error so it shows in the browser alert
+    const detail = data?.detail;
+    let message = "Cashfree order creation failed";
+
+    if (typeof detail === "string") {
+      message = detail;
+    } else if (detail?.cashfree_error) {
+      // detail.cashfree_error is the raw JSON from Cashfree
+      const cf = detail.cashfree_error;
+      // Cashfree error shape: { message, code, type }
+      const cfMsg =
+        cf?.message || cf?.error_description || JSON.stringify(cf);
+      message = `Cashfree [${detail.cashfree_status}]: ${cfMsg}`;
+    } else if (detail?.message) {
+      message = detail.message;
+    }
+
+    throw new Error(message);
   }
 
   return data;
