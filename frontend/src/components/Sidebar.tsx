@@ -6,18 +6,73 @@ interface SidebarProps {
   starredCount: number;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  sidebarWidth?: number;
 }
 
-interface NavItem {
-  name: string;
-  icon: string;
-  badge?: number | null;
-}
+interface NavItem   { name: string; icon: string; badge?: number | null; }
+interface NavSection { title: string; items: NavItem[]; }
 
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
+const sections: NavSection[] = [
+  {
+    title: "Navigation",
+    items: [
+      { name: "Watchlist",         icon: "⭐" },
+      { name: "Portfolio Backtest", icon: "📊" },
+    ],
+  },
+  {
+    title: "Factors",
+    items: [
+      { name: "Consistent Trending", icon: "⚡" },
+      { name: "Slow Movement",        icon: "⚖️" },
+      { name: "Cheap Value",          icon: "💰" },
+      { name: "Best Quality",         icon: "💎" },
+    ],
+  },
+  {
+    title: "Regime",
+    items: [
+      { name: "Regime Upside",   icon: "📈" },
+      { name: "Regime Downside", icon: "📉" },
+    ],
+  },
+  {
+    title: "Range Bound",
+    items: [
+      { name: "Range Bound Upside",   icon: "🟢" },
+      { name: "Range Bound Downside", icon: "🔴" },
+    ],
+  },
+  {
+    title: "Derivative Demand",
+    items: [
+      { name: "Aggressive Call Option Stocks", icon: "🟢" },
+      { name: "Aggressive Put Option Stocks",  icon: "🔴" },
+    ],
+  },
+  {
+    title: "Intraday Index Option Spreads",
+    items: [
+      { name: "Bull Call Spreads", icon: "🟢" },
+      { name: "Bear Put Spreads",  icon: "🔴" },
+    ],
+  },
+  {
+    title: "Intraday Stock Signals",
+    items: [
+      { name: "Upside Trend Stocks",   icon: "🟢" },
+      { name: "Downside Trend Stocks", icon: "🔴" },
+    ],
+  },
+  {
+    title: "Support",
+    items: [{ name: "Guide", icon: "📚" }],
+  },
+  {
+    title: "System",
+    items: [{ name: "Profile / Settings", icon: "👤" }],
+  },
+];
 
 const Sidebar: React.FC<SidebarProps> = ({
   activeCategory,
@@ -25,191 +80,123 @@ const Sidebar: React.FC<SidebarProps> = ({
   starredCount,
   isMobileOpen = false,
   onCloseMobile,
+  sidebarWidth,
 }) => {
+  const [flashItem, setFlashItem] = useState<string | null>(null);
   const [logoBurst, setLogoBurst] = useState(0);
-  const [shockItem, setShockItem] = useState<string | null>(null);
 
-  const triggerCategory = (category: string) => {
-    setActiveCategory(category);
-    setLogoBurst((prev) => prev + 1);
-    setShockItem(category);
-
-    if (onCloseMobile) {
-      onCloseMobile();
-    }
+  const triggerCategory = (cat: string) => {
+    setActiveCategory(cat);
+    setFlashItem(cat);
+    setLogoBurst((n) => n + 1);
+    onCloseMobile?.();
   };
 
   useEffect(() => {
-    if (!shockItem) return;
+    if (!flashItem) return;
+    const t = window.setTimeout(() => setFlashItem(null), 750);
+    return () => window.clearTimeout(t);
+  }, [flashItem]);
 
-    const timer = window.setTimeout(() => {
-      setShockItem(null);
-    }, 850);
-
-    return () => window.clearTimeout(timer);
-  }, [shockItem]);
-
-  const sections: NavSection[] = [
-    {
-      title: "Navigation",
-      items: [
-        {
-          name: "Watchlist",
-          icon: "⭐",
-          badge: starredCount > 0 ? starredCount : null,
-        },
-        { name: "Portfolio Backtest", icon: "📊" },
-      ],
-    },
-    {
-      title: "Factors",
-      items: [
-        { name: "Consistent Trending", icon: "⚡" },
-        { name: "Slow Movement", icon: "⚖️" },
-        { name: "Cheap Value", icon: "💰" },
-        { name: "Best Quality", icon: "💎" },
-      ],
-    },
-    {
-      title: "Regime",
-      items: [
-        { name: "Regime Upside", icon: "📈" },
-        { name: "Regime Downside", icon: "📉" },
-      ],
-    },
-    {
-      title: "Range Bound",
-      items: [
-        { name: "Range Bound Upside", icon: "🟢" },
-        { name: "Range Bound Downside", icon: "🔴" },
-      ],
-    },
-    {
-      title: "Derivative Demand",
-      items: [
-        { name: "Aggressive Call Option Stocks", icon: "🟢" },
-        { name: "Aggressive Put Option Stocks", icon: "🔴" },
-      ],
-    },
-    {
-      title: "Intraday Index Option Spreads",
-      items: [
-        { name: "Bull Call Spreads", icon: "🟢" },
-        { name: "Bear Put Spreads", icon: "🔴" },
-      ],
-    },
-    {
-      title: "Intraday Stock Signals",
-      items: [
-        { name: "Upside Trend Stocks", icon: "🟢" },
-        { name: "Downside Trend Stocks", icon: "🔴" },
-      ],
-    },
-    {
-      title: "Support",
-      items: [{ name: "Guide", icon: "📚" }],
-    },
-    {
-      title: "System",
-      items: [{ name: "Profile / Settings", icon: "👤" }],
-    },
-  ];
+  // Inject badge into first section
+  const sectionsWithBadges: NavSection[] = sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) =>
+      item.name === "Watchlist"
+        ? { ...item, badge: starredCount > 0 ? starredCount : null }
+        : item
+    ),
+  }));
 
   return (
     <>
+      {/* Mobile backdrop */}
       <div
-        className={`sidebar-backdrop ${isMobileOpen ? "visible" : ""}`}
+        className={`lb-sidebar-backdrop${isMobileOpen ? " visible" : ""}`}
         onClick={onCloseMobile}
+        aria-hidden="true"
       />
 
-      <div className={`sidebar ${isMobileOpen ? "mobile-open" : ""}`}>
-        <div
-          className="sidebar-logo"
-          style={{
-            padding: "0 24px 34px",
-            display: "flex",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
+      <nav
+        className={`lb-sidebar${isMobileOpen ? " mobile-open" : ""}`}
+        style={sidebarWidth ? { width: sidebarWidth } : undefined}
+        aria-label="Main navigation"
+      >
+        {/* Logo row */}
+        <div className="lb-sidebar-logo">
           <button
             key={logoBurst}
             type="button"
-            className="logo-trigger lightning-active"
             onClick={() => triggerCategory("")}
-            aria-label="Lightninbull Home"
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: 0,
-            }}
+            aria-label="LightninBull Home"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}
           >
-            <span className="logo-flash-ring ring-one"></span>
-            <span className="logo-flash-ring ring-two"></span>
-            <span className="logo-lightning-bolt bolt-one"></span>
-            <span className="logo-lightning-bolt bolt-two"></span>
-            <span className="logo-lightning-arc arc-left"></span>
-            <span className="logo-lightning-arc arc-right"></span>
-
             <img
               src="/lightninbull-bull.png"
-              alt="Lightninbull"
-              className="logo-image"
+              alt="LightninBull"
               style={{
-                width: "52px",
-                height: "52px",
-                borderRadius: "10px",
-                objectFit: "cover",
+                width: 34, height: 34, borderRadius: 7, objectFit: "cover",
+                border: "1px solid rgba(240,180,41,0.28)",
+                boxShadow: "0 0 10px rgba(240,180,41,0.15)",
               }}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
           </button>
 
-          <h1
-            style={{
-              fontSize: "1.3rem",
-              fontWeight: 900,
-              color: "#f4d06f",
-              letterSpacing: "0.2px",
-              margin: 0,
-            }}
-          >
-            Lightninbull
-          </h1>
+          <h1 className="lb-sidebar-brand">Lightninbull</h1>
 
           {onCloseMobile && (
-            <button className="sidebar-close-btn" onClick={onCloseMobile}>
-              ✕
-            </button>
+            <button
+              className="lb-sidebar-close"
+              onClick={onCloseMobile}
+              aria-label="Close sidebar"
+            >✕</button>
           )}
         </div>
 
-        {sections.map((section) => (
-          <div key={section.title} className="nav-section">
-            <div className="nav-section-title">{section.title}</div>
+        {/* Nav */}
+        {sectionsWithBadges.map((section) => (
+          <div key={section.title} className="lb-nav-section">
+            <div className="lb-nav-section-title">{section.title}</div>
 
-            {section.items.map((item) => (
-              <div
-                key={item.name}
-                className={`nav-item-link ${
-                  activeCategory === item.name ? "active" : ""
-                } ${shockItem === item.name ? "electric-active" : ""}`}
-                onClick={() => triggerCategory(item.name)}
-              >
-                <span className="nav-electric-line"></span>
-                <span className="nav-icon">{item.icon}</span>
-                <span className="nav-text">{item.name}</span>
+            {section.items.map((item) => {
+              const isActive = activeCategory === item.name;
+              const isFlash  = flashItem === item.name;
 
-                {item.badge !== undefined && item.badge !== null && (
-                  <span className="nav-badge">{item.badge}</span>
-                )}
-              </div>
-            ))}
+              return (
+                <div
+                  key={item.name}
+                  role="button"
+                  tabIndex={0}
+                  className={[
+                    "lb-nav-item",
+                    isActive ? "active" : "",
+                    isFlash  ? "electric-flash" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => triggerCategory(item.name)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      triggerCategory(item.name);
+                    }
+                  }}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.name}
+                  </span>
+                  {item.badge != null && (
+                    <span className="lb-nav-badge">{item.badge}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
-      </div>
+
+        <div style={{ height: 24 }} />
+      </nav>
     </>
   );
 };
