@@ -7,6 +7,8 @@ interface SidebarProps {
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
   sidebarWidth?: number;
+  isPremium?: boolean;
+  daysLeft?: number;
 }
 
 interface NavItem {
@@ -89,6 +91,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
   sidebarWidth,
+  isPremium = false,
+  daysLeft = 0,
 }) => {
   const [flashItem, setFlashItem] = useState<string | null>(null);
   const [logoBurst, setLogoBurst] = useState(0);
@@ -181,6 +185,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <h1 className="lb-sidebar-brand">Lightninbull</h1>
 
+          {isPremium && (
+            <div className="lb-premium-badge">
+              ⚡ PREMIUM
+              <span className="lb-premium-days">{daysLeft}d left</span>
+            </div>
+          )}
+
           {onCloseMobile && (
             <button
               className="lb-sidebar-close"
@@ -254,6 +265,32 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <style>{`
+        .lb-premium-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 3px;
+          padding: 2px 8px;
+          border-radius: 20px;
+          background: linear-gradient(90deg, rgba(226,184,75,0.22), rgba(226,184,75,0.10));
+          border: 1px solid rgba(226,184,75,0.45);
+          color: #e2b84b;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 1.5px;
+          font-family: var(--font-mono, monospace);
+          animation: lb-badge-glow 2.5s ease-in-out infinite;
+        }
+        .lb-premium-days {
+          font-size: 9px;
+          font-weight: 500;
+          color: rgba(226,184,75,0.65);
+        }
+        @keyframes lb-badge-glow {
+          0%, 100% { box-shadow: 0 0 6px rgba(226,184,75,0.20); }
+          50%       { box-shadow: 0 0 14px rgba(226,184,75,0.50); }
+        }
+
         .lb-sidebar-live-dot {
           width: 10px;
           height: 10px;
