@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import Sidebar from "../components/Sidebar";
@@ -26,6 +26,17 @@ import {
 const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
 
+const NON_FEATURE_TABS = [
+  "Watchlist",
+  "Guide",
+  "Profile / Settings",
+  "Portfolio Backtest",
+  "Bull Call Spreads",
+  "Bear Put Spreads",
+  "Upside Trend Stocks",
+  "Downside Trend Stocks",
+];
+
 const WATCHLIST_SOURCE_CATEGORIES = [
   "Consistent Trending",
   "Slow Movement",
@@ -40,8 +51,12 @@ const WATCHLIST_SOURCE_CATEGORIES = [
 ];
 
 const MOBILE_BREAKPOINT = 900;
+const SIDEBAR_DEFAULT = 240;
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 380;
 
-const normalizeSymbol = (symbol: string) => symbol.trim().toUpperCase();
+const normalizeSymbol = (value: string): string =>
+  String(value || "").trim().toUpperCase();
 
 const buildWatchlistStocks = (
   starredSymbols: string[],
@@ -50,13 +65,14 @@ const buildWatchlistStocks = (
   const stockMap = new Map<string, Stock>();
 
   for (const result of results) {
-    const categoryStocks: Stock[] = result?.stocks || [];
-
-    for (const stock of categoryStocks) {
+    for (const stock of result?.stocks || []) {
       const normalized = normalizeSymbol(stock.symbol);
 
       if (!stockMap.has(normalized)) {
-        stockMap.set(normalized, { ...stock, symbol: normalized });
+        stockMap.set(normalized, {
+          ...stock,
+          symbol: normalized,
+        });
       }
     }
   }
@@ -88,11 +104,6 @@ const buildWatchlistStocks = (
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/", { replace: true });
-  };
-
   const [activeTab, setActiveTab] = useState("");
   const [previousTab, setPreviousTab] = useState("");
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -102,10 +113,70 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+    typeof window !== "undefined"
+      ? window.innerWidth <= MOBILE_BREAKPOINT
+      : false
   );
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartW = useRef(SIDEBAR_DEFAULT);
+  const resizerRef = useRef<HTMLDivElement>(null);
+
+  const onMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      isDragging.current = true;
+      dragStartX.current = event.clientX;
+      dragStartW.current = sidebarWidth;
+
+      if (resizerRef.current) {
+        resizerRef.current.classList.add("dragging");
+      }
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      event.preventDefault();
+    },
+    [sidebarWidth]
+  );
+
+  useEffect(() => {
+    const onMouseMove = (event: MouseEvent) => {
+      if (!isDragging.current) return;
+
+      const delta = event.clientX - dragStartX.current;
+      const nextWidth = Math.max(
+        SIDEBAR_MIN,
+        Math.min(SIDEBAR_MAX, dragStartW.current + delta)
+      );
+
+      setSidebarWidth(nextWidth);
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging.current) return;
+
+      isDragging.current = false;
+
+      if (resizerRef.current) {
+        resizerRef.current.classList.remove("dragging");
+      }
+
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -142,55 +213,103 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const getStocks = async () => {
+    const loadStocks = async () => {
       if (!watchlistBootstrapped) return;
-      if (!activeTab) return;
 
-      setSelectedStock(null);
+      if (!activeTab) {
+        setStocks([]);
+        setLoading(false);
+        return;
+      }
+
+      if (activeTab === "Watchlist") {
+        if (starredSymbols.length === 0) {
+          setStocks([]);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const cachedResults = WATCHLIST_SOURCE_CATEGORIES.map((category) =>
+            getCachedStocksByCategory(category)
+          ).filter((result): result is StockCategoryResponse => Boolean(result));
+
+          if (cachedResults.length > 0) {
+            setStocks(buildWatchlistStocks(starredSymbols, cachedResults));
+          }
+
+          const missingCategories = WATCHLIST_SOURCE_CATEGORIES.filter(
+            (category) => !getCachedStocksByCategory(category)
+          );
+
+          if (missingCategories.length === 0) {
+            setLoading(false);
+            return;
+          }
+
+          setLoading(cachedResults.length === 0);
+
+          const fetchedResults = await Promise.all(
+            missingCategories.map((category) => fetchStocksByCategory(category))
+          );
+
+          if (!cancelled) {
+            setStocks(
+              buildWatchlistStocks(starredSymbols, [
+                ...cachedResults,
+                ...fetchedResults,
+              ])
+            );
+          }
+        } catch {
+          if (!cancelled) {
+            setStocks([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+
+        return;
+      }
 
       if (
-        activeTab === "Guide" ||
-        activeTab === "Profile / Settings" ||
-        activeTab === "Portfolio Backtest" ||
-        activeTab === "Bull Call Spreads" ||
-        activeTab === "Bear Put Spreads" ||
-        activeTab === "Upside Trend Stocks" ||
-        activeTab === "Downside Trend Stocks"
+        [
+          "Portfolio Backtest",
+          "Bull Call Spreads",
+          "Bear Put Spreads",
+          "Upside Trend Stocks",
+          "Downside Trend Stocks",
+          "Guide",
+          "Profile / Settings",
+        ].includes(activeTab)
       ) {
         setStocks([]);
         setLoading(false);
         return;
       }
 
+      const cached = getCachedStocksByCategory(activeTab);
+
+      if (cached) {
+        setStocks(cached.stocks || []);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+
       try {
-        setLoading(true);
-
-        if (activeTab === "Watchlist") {
-          const results = await Promise.all(
-            WATCHLIST_SOURCE_CATEGORIES.map((category) =>
-              fetchStocksByCategory(category)
-            )
-          );
-
-          if (cancelled) return;
-
-          const watchlistStocks = buildWatchlistStocks(starredSymbols, results);
-          setStocks(watchlistStocks);
-          return;
-        }
-
-        const cached = getCachedStocksByCategory(activeTab);
-
-        if (cached) {
-          setStocks(cached.stocks || []);
-          return;
-        }
-
         const data = await fetchStocksByCategory(activeTab);
 
-        if (cancelled) return;
-
-        setStocks(data.stocks || []);
+        if (!cancelled) {
+          setStocks(data.stocks || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setStocks([]);
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -198,39 +317,53 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    getStocks();
+    loadStocks();
 
     return () => {
       cancelled = true;
     };
-  }, [activeTab, watchlistBootstrapped, starredSymbols]);
+  }, [activeTab, starredSymbols, watchlistBootstrapped]);
 
-  const handleCategoryChange = (tab: string) => {
-    setPreviousTab(activeTab);
+  useEffect(() => {
     setSelectedStock(null);
-    setActiveTab(tab);
+  }, [activeTab]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/", { replace: true });
   };
 
-  const handleStockClick = (symbol: string) => {
-    setSelectedStock(normalizeSymbol(symbol));
-  };
+  const handleCategoryChange = (nextTab: string) => {
+    if (nextTab !== activeTab) {
+      setPreviousTab(activeTab);
+      setActiveTab(nextTab);
+      setSelectedStock(null);
+    }
 
-  const handleBackToTable = () => {
-    setSelectedStock(null);
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
   };
 
   const handleStarClick = async (symbol: string) => {
     const normalized = normalizeSymbol(symbol);
-    const isAlreadyStarred = starredSymbols.includes(normalized);
+    const wasStarred = starredSymbols.includes(normalized);
+    const previousSymbols = [...starredSymbols];
+
+    const nextSymbols = wasStarred
+      ? starredSymbols.filter((item) => item !== normalized)
+      : [...starredSymbols, normalized];
+
+    setStarredSymbols(Array.from(new Set(nextSymbols.map(normalizeSymbol))));
 
     try {
-      const updatedSymbols = isAlreadyStarred
-        ? await removeWatchlistSymbol(normalized)
-        : await addWatchlistSymbol(normalized);
+      if (wasStarred) {
+        await removeWatchlistSymbol(normalized);
+      } else {
+        await addWatchlistSymbol(normalized);
+      }
 
-      setStarredSymbols(updatedSymbols.map(normalizeSymbol));
-
-      if (activeTab === "Watchlist" && isAlreadyStarred) {
+      if (activeTab === "Watchlist" && wasStarred) {
         setStocks((prev) =>
           prev.filter((stock) => normalizeSymbol(stock.symbol) !== normalized)
         );
@@ -239,109 +372,218 @@ const Dashboard: React.FC = () => {
           setSelectedStock(null);
         }
       }
-    } catch (err) {
-      console.error("Failed to update watchlist:", err);
+    } catch {
+      setStarredSymbols(previousSymbols);
     }
   };
 
+  const handleStockClick = (symbol: string) => {
+    setSelectedStock(normalizeSymbol(symbol));
+  };
+
+  const handleBackToDashboard = () => {
+    if (selectedStock) {
+      setSelectedStock(null);
+      return;
+    }
+
+    if (isMobile) {
+      setMobileSidebarOpen(true);
+      return;
+    }
+
+    if (previousTab && previousTab !== activeTab) {
+      setActiveTab(previousTab);
+      return;
+    }
+
+    setActiveTab("");
+  };
+
+  const showFeatureBackButton =
+    !selectedStock && activeTab && !NON_FEATURE_TABS.includes(activeTab);
+
   return (
     <div className="lb-dashboard-shell">
-      <Sidebar
-        activeCategory={activeTab}
-        setActiveCategory={handleCategoryChange}
-        starredCount={starredSymbols.length}
-      />
+      <div
+        style={
+          isMobile
+            ? {}
+            : {
+                width: sidebarWidth,
+                minWidth: SIDEBAR_MIN,
+                maxWidth: SIDEBAR_MAX,
+                flexShrink: 0,
+              }
+        }
+      >
+        <Sidebar
+          activeCategory={activeTab}
+          setActiveCategory={handleCategoryChange}
+          starredCount={starredSymbols.length}
+          isMobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+          sidebarWidth={isMobile ? undefined : sidebarWidth}
+        />
+      </div>
 
-      <main className="lb-dashboard-main">
+      {!isMobile && (
+        <div
+          ref={resizerRef}
+          className="lb-resizer"
+          onMouseDown={onMouseDown}
+          title="Drag to resize sidebar"
+        />
+      )}
+
+      <div className="lb-dashboard-main">
         <div className="lb-topbar">
-          <div />
+          {isMobile ? (
+            <button
+              className="lb-ghost-button"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              ☰ Menu
+            </button>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--lb-green)",
+                  boxShadow: "0 0 6px rgba(34,197,94,0.6)",
+                }}
+              />
+
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  color: "var(--lb-text-m)",
+                }}
+              >
+                Live
+              </span>
+            </div>
+          )}
+
           <button className="lb-gold-button" onClick={handleLogout}>
             Logout
           </button>
         </div>
 
-        <div style={{ padding: "28px" }}>
-          {!activeTab && <DashboardWelcome onNavigate={handleCategoryChange} />}
-
-          {activeTab === "Guide" && (
+        <div className="lb-content-area">
+          {!activeTab ? (
             <DashboardWelcome onNavigate={handleCategoryChange} />
-          )}
-
-          {activeTab === "Portfolio Backtest" && <PortfolioBacktestPanel />}
-
-          {activeTab === "Bull Call Spreads" && (
-            <IntradaySpreadsPanel spreadType="bull_call" />
-          )}
-
-          {activeTab === "Bear Put Spreads" && (
-            <IntradaySpreadsPanel spreadType="put_debit" />
-          )}
-
-          {activeTab === "Upside Trend Stocks" && (
-            <IntradayStockSignalsPanel
-              strategyName={UPSIDE_STOCK_SIGNAL_KEY}
-              title="Upside Trend Stocks"
-              subtitle="Live intraday NSE upside signals"
-              emptyMessage="No signals"
-            />
-          )}
-
-          {activeTab === "Downside Trend Stocks" && (
-            <IntradayStockSignalsPanel
-              strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
-              title="Downside Trend Stocks"
-              subtitle="Live intraday NSE downside signals"
-              emptyMessage="No signals"
-            />
-          )}
-
-          {loading && (
-            <div
-              style={{
-                padding: 24,
-                color: "rgba(255,255,255,0.5)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              Loading stocks…
-            </div>
-          )}
-
-          {!loading && selectedStock && (
-            <div>
+          ) : selectedStock ? (
+            <>
               <button
-                onClick={handleBackToTable}
-                style={{
-                  marginBottom: 18,
-                  padding: "9px 14px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(250,204,21,0.22)",
-                  background: "rgba(250,204,21,0.08)",
-                  color: "#facc15",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
+                className="lb-ghost-button"
+                onClick={handleBackToDashboard}
+                style={{ marginBottom: 16 }}
               >
-                ← Back to stocks
+                ← Back
               </button>
 
               <TradingViewChart symbol={selectedStock} />
               <StockStats symbol={selectedStock} />
-            </div>
-          )}
+            </>
+          ) : activeTab === "Guide" ? (
+            <DashboardWelcome onNavigate={handleCategoryChange} />
+          ) : activeTab === "Profile / Settings" ? (
+            <div className="lb-card" style={{ maxWidth: 680 }}>
+              <div className="lb-eyebrow" style={{ marginBottom: 12 }}>
+                Account
+              </div>
 
-          {!loading && !selectedStock && stocks.length > 0 && (
-            <StockTable
-              category={activeTab}
-              stocks={stocks}
-              starredSymbols={starredSymbols}
-              onStarClick={handleStarClick}
-              onStockClick={handleStockClick}
+              <h2 className="lb-section-title" style={{ marginBottom: 8 }}>
+                Profile &amp; Settings
+              </h2>
+
+              <p className="lb-text">Manage your account preferences here.</p>
+            </div>
+          ) : activeTab === "Portfolio Backtest" ? (
+            <PortfolioBacktestPanel />
+          ) : activeTab === "Bull Call Spreads" ? (
+            <IntradaySpreadsPanel spreadType="bull_call" />
+          ) : activeTab === "Bear Put Spreads" ? (
+            <IntradaySpreadsPanel spreadType="put_debit" />
+          ) : activeTab === "Upside Trend Stocks" ? (
+            <IntradayStockSignalsPanel
+              strategyName={UPSIDE_STOCK_SIGNAL_KEY}
+              title="Upside Trend Stocks"
+              subtitle="Live intraday NSE cash-equity upside trend signals."
+              emptyMessage="No upside trend stock signals available yet."
             />
+          ) : activeTab === "Downside Trend Stocks" ? (
+            <IntradayStockSignalsPanel
+              strategyName={DOWNSIDE_STOCK_SIGNAL_KEY}
+              title="Downside Trend Stocks"
+              subtitle="Live intraday NSE cash-equity downside trend signals."
+              emptyMessage="No downside trend stock signals available yet."
+            />
+          ) : (
+            <>
+              {showFeatureBackButton && (
+                <button
+                  className="lb-ghost-button"
+                  onClick={handleBackToDashboard}
+                  style={{ marginBottom: 16 }}
+                >
+                  ← Back
+                </button>
+              )}
+
+              <div className="lb-page-heading">
+                <div className="lb-eyebrow" style={{ marginBottom: 6 }}>
+                  Quant Screener
+                </div>
+
+                <h2 className="lb-section-title">{activeTab}</h2>
+
+                <p className="lb-section-desc">
+                  Live quantitative metrics &amp; model insights
+                </p>
+              </div>
+
+              {loading ? (
+                <div
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                    color: "var(--lb-text-m)",
+                    padding: "32px 0",
+                  }}
+                >
+                  Loading {activeTab} data…
+                </div>
+              ) : stocks.length === 0 ? (
+                <div
+                  className="lb-card"
+                  style={{
+                    padding: 28,
+                    color: "rgba(255,255,255,0.45)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                  }}
+                >
+                  No stocks available for {activeTab}.
+                </div>
+              ) : (
+                <StockTable
+                  category={activeTab}
+                  stocks={stocks}
+                  starredSymbols={starredSymbols}
+                  onStarClick={handleStarClick}
+                  onStockClick={handleStockClick}
+                />
+              )}
+            </>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 };
