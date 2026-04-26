@@ -759,8 +759,8 @@ html, body, #root {
 
 .tv-symbol-name {
   font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 400;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--lb-cream);
   letter-spacing: 0.3px;
 }
@@ -831,8 +831,8 @@ html, body, #root {
 
 .lb-stockstats-name {
   font-family: var(--font-serif);
-  font-size: 28px;
-  font-weight: 300;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--lb-cream);
   margin: 6px 0 4px;
 }
@@ -1130,3 +1130,20 @@ html, body, #root {
 
 /* â”€â”€ PRIMARY GOLD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 :root { --primary-gold: #facc15; --text-dim: rgba(255,255,255,0.4); }
+
+/* â”€â”€ TICKER SYMBOL SIZE OVERRIDE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Force smaller font on stock ticker symbols rendered with inline serif font */
+.lb-table td.align-left,
+.lb-table td.align-left * {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+/* Sub-label (sector) inside ticker cell stays smaller */
+.lb-table td.align-left .sec-tag,
+.lb-table td.align-left small,
+.lb-table td.align-left span:not(:first-child) {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  opacity: 0.6;
+}
