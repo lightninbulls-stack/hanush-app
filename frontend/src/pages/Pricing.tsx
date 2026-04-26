@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   createCashfreeOrder,
   fetchSubscriptionStatus,
+  verifyPayment,
   type SubscriptionStatus,
 } from "../services/subscriptionApi";
 
@@ -11,11 +12,13 @@ declare global {
     Cashfree: any;
   }
 }
-const CASHFREE_MODE = "production";
 
+const CASHFREE_MODE =
+  import.meta.env.VITE_CASHFREE_MODE === "production"
+    ? "production"
+    : "sandbox";
 
-// ✅ FIX 3: Wait for Cashfree SDK to be available on window (it loads async).
-// Polls every 200ms for up to 5 seconds instead of checking only once at click time.
+// Wait for Cashfree SDK to load (it arrives via async <script> tag)
 function waitForCashfreeSDK(timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window.Cashfree === "function") {
@@ -30,7 +33,7 @@ function waitForCashfreeSDK(timeoutMs = 5000): Promise<void> {
     }, 200);
     setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Cashfree SDK did not load in time. Please refresh and try again."));
+      reject(new Error("Cashfree SDK did not load. Please refresh and try again."));
     }, timeoutMs);
   });
 }
@@ -39,17 +42,15 @@ const Pricing: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(
-    null
-  );
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const orderId = searchParams.get("order_id");
 
   const validTillText = useMemo(() => {
     if (!subscription?.valid_till) return "";
-
     return new Date(subscription.valid_till).toLocaleString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -64,36 +65,41 @@ const Pricing: React.FC = () => {
       const status = await fetchSubscriptionStatus();
       setSubscription(status);
     } catch {
-      setSubscription({
-        is_active: false,
-        valid_till: null,
-        days_left: 0,
-      });
+      setSubscription({ is_active: false, valid_till: null, days_left: 0 });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadSubscription();
-  }, []);
-
+  // ── On load: if we have an order_id in the URL, verify it immediately ──────
+  // This fires when Cashfree redirects back to /payment-success?order_id=...
+  // Instead of waiting for webhook, we ask Cashfree directly → instant activation
   useEffect(() => {
     if (orderId) {
-      const timer = window.setTimeout(() => {
-        loadSubscription();
-      }, 2500);
-
-      return () => window.clearTimeout(timer);
+      setVerifying(true);
+      verifyPayment(orderId)
+        .then((status) => {
+          setSubscription(status);
+        })
+        .catch(() => {
+          // Verification failed — fall back to normal status check
+          loadSubscription();
+        })
+        .finally(() => {
+          setVerifying(false);
+          setLoading(false);
+        });
+    } else {
+      loadSubscription();
     }
-  }, [orderId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Auto-redirect to dashboard once subscription is confirmed active ────────
   useEffect(() => {
     if (subscription?.is_active && orderId) {
       const timer = window.setTimeout(() => {
         navigate("/dashboard", { replace: true });
       }, 1500);
-
       return () => window.clearTimeout(timer);
     }
   }, [subscription, orderId, navigate]);
@@ -102,7 +108,6 @@ const Pricing: React.FC = () => {
     try {
       setPaying(true);
 
-      // ✅ FIX 3: Properly wait for SDK instead of one-shot check
       await waitForCashfreeSDK();
 
       const data = await createCashfreeOrder();
@@ -112,13 +117,7 @@ const Pricing: React.FC = () => {
         return;
       }
 
-      // ✅ FIX 4: Cashfree JS SDK v3 must be initialised with `new window.Cashfree()`
-      // or called as a constructor — not as a plain function call.
-      // Also pass `returnUrl` directly here as a safety net in case
-      // the backend's order_meta.return_url is not honoured in sandbox mode.
-      const cashfree = new window.Cashfree({
-        mode: CASHFREE_MODE,
-      });
+      const cashfree = new window.Cashfree({ mode: CASHFREE_MODE });
 
       await cashfree.checkout({
         paymentSessionId: data.payment_session_id,
@@ -134,10 +133,15 @@ const Pricing: React.FC = () => {
     }
   };
 
-  if (loading) {
+  // ── Loading states ──────────────────────────────────────────────────────────
+  if (loading || verifying) {
     return (
       <div style={styles.page}>
-        <div style={styles.card}>Checking your subscription...</div>
+        <div style={styles.card}>
+          {verifying
+            ? "⏳ Verifying your payment, please wait..."
+            : "Checking your subscription..."}
+        </div>
       </div>
     );
   }
@@ -159,11 +163,9 @@ const Pricing: React.FC = () => {
             <div style={styles.successBox}>
               <h2 style={styles.successTitle}>✅ Already Subscribed</h2>
               <p style={styles.text}>Your premium access is active.</p>
-
               <p style={styles.expiry}>
                 Valid till: <strong>{validTillText}</strong>
               </p>
-
               <p style={styles.expiry}>
                 Days left: <strong>{subscription.days_left}</strong>
               </p>
@@ -180,8 +182,8 @@ const Pricing: React.FC = () => {
           <>
             {orderId && (
               <div style={styles.warningBox}>
-                Payment is being verified. If you already paid, refresh after a
-                few seconds.
+                Payment could not be confirmed yet. If you already paid, please
+                refresh after a few seconds.
               </div>
             )}
 
@@ -261,18 +263,9 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.7,
     marginTop: 16,
   },
-  priceBox: {
-    margin: "28px 0 20px",
-  },
-  price: {
-    color: "#e2b84b",
-    fontSize: 44,
-    fontWeight: 800,
-  },
-  duration: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 16,
-  },
+  priceBox: { margin: "28px 0 20px" },
+  price: { color: "#e2b84b", fontSize: 44, fontWeight: 800 },
+  duration: { color: "rgba(255,255,255,0.55)", fontSize: 16 },
   features: {
     listStyle: "none",
     padding: 0,
@@ -298,17 +291,9 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(0, 180, 90, 0.12)",
     border: "1px solid rgba(0, 255, 150, 0.25)",
   },
-  successTitle: {
-    margin: "0 0 10px",
-    color: "#66ffb2",
-  },
-  text: {
-    color: "rgba(255,255,255,0.72)",
-  },
-  expiry: {
-    color: "rgba(255,255,255,0.78)",
-    margin: "8px 0",
-  },
+  successTitle: { margin: "0 0 10px", color: "#66ffb2" },
+  text: { color: "rgba(255,255,255,0.72)" },
+  expiry: { color: "rgba(255,255,255,0.78)", margin: "8px 0" },
   warningBox: {
     margin: "24px 0 8px",
     padding: 14,
