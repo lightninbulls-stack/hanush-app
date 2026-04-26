@@ -66,6 +66,16 @@ const formatSignedNumber = (value: number | null | undefined): string => {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 };
 
+const formatCurrency = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `₹${value.toLocaleString("en-IN", {
+    maximumFractionDigits: 0,
+  })}`;
+};
+
 const getTone = (value: number | null | undefined): MetricTone => {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "neutral";
@@ -151,6 +161,23 @@ const buildLinePath = (
     .join(" ");
 };
 
+const metricDefinitions = [
+  ["CAGR", "Yearly growth speed. Example: 20% CAGR means ₹1,00,000 grows around ₹1,20,000 in one year."],
+  ["Total Return", "Total profit or loss during the full backtest period. This is the actual overall return."],
+  ["Sharpe Ratio", "Shows whether returns are good compared to the risk taken. Higher Sharpe means better quality returns."],
+  ["Max Drawdown", "The biggest fall from the highest portfolio value. This tells how much pain the investor may face."],
+  ["Volatility", "How much the portfolio moves up and down. Higher volatility means more fluctuation."],
+  ["VaR (95%)", "Estimated normal-day downside risk. Example: 2% VaR means ₹1,00,000 may lose around ₹2,000 on a bad normal day."],
+  ["Alpha (CAGR)", "How much extra yearly return the portfolio generated compared with NIFTY 50."],
+  ["Sharpe Spread", "Portfolio Sharpe minus NIFTY 50 Sharpe. It compares risk-adjusted performance."],
+  ["DD Improvement", "Shows whether the portfolio fell less than NIFTY 50 during bad periods."],
+  ["1W Return", "Portfolio performance over roughly the last 5 trading sessions."],
+  ["2W Return", "Portfolio performance over roughly the last 10 trading sessions."],
+  ["1M Return", "Portfolio performance over roughly the last 21 trading sessions."],
+  ["3M Return", "Portfolio performance over roughly the last 63 trading sessions."],
+  ["6M Return", "Portfolio performance over roughly the last 126 trading sessions."],
+];
+
 const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   portfolioCurve,
   benchmarkCurve,
@@ -224,8 +251,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
               margin: 0,
             }}
           >
-            Normalized NAV comparison for the last 1 year using daily close
-            data.
+            Normalized NAV comparison for the last 1 year using daily close data.
           </p>
         </div>
 
@@ -480,6 +506,11 @@ const PortfolioBacktestPanel: React.FC = () => {
           tone: getTone(metrics.return_1w_pct),
         },
         {
+          label: "2W Return",
+          value: formatPercent(metrics.return_2w_pct),
+          tone: getTone(metrics.return_2w_pct),
+        },
+        {
           label: "1M Return",
           value: formatPercent(metrics.return_1m_pct),
           tone: getTone(metrics.return_1m_pct),
@@ -617,6 +648,19 @@ const PortfolioBacktestPanel: React.FC = () => {
             spreadTone: getTone(
               (metrics.return_1w_pct ?? 0) -
                 (benchmarkMetrics.return_1w_pct ?? 0)
+            ),
+          },
+          {
+            label: "2W Return",
+            portfolioValue: formatPercent(metrics.return_2w_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.return_2w_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.return_2w_pct ?? 0) -
+                (benchmarkMetrics.return_2w_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.return_2w_pct ?? 0) -
+                (benchmarkMetrics.return_2w_pct ?? 0)
             ),
           },
           {
@@ -1122,21 +1166,34 @@ const PortfolioBacktestPanel: React.FC = () => {
               flexWrap: "wrap",
             }}
           >
-            <h3
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: 20,
-                fontWeight: 300,
-                color: "var(--lb-cream)",
-                margin: 0,
-              }}
-            >
-              {strategyType === "equal_weight"
-                ? "Matched Holdings"
-                : strategyType === "mvo"
-                ? "Optimized Holdings"
-                : "Optimized Short Holdings"}
-            </h3>
+            <div>
+              <h3
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 20,
+                  fontWeight: 300,
+                  color: "var(--lb-cream)",
+                  margin: 0,
+                }}
+              >
+                {strategyType === "equal_weight"
+                  ? "Matched Holdings"
+                  : strategyType === "mvo"
+                  ? "Optimized Holdings"
+                  : "Optimized Short Holdings"}
+              </h3>
+
+              <p
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.32)",
+                  margin: "6px 0 0",
+                }}
+              >
+                Retail allocation guide assumes ₹1,00,000 total capital.
+              </p>
+            </div>
 
             <span
               style={{
@@ -1171,6 +1228,10 @@ const PortfolioBacktestPanel: React.FC = () => {
                     { label: "Weight", align: "center" },
                     { label: "Start Price", align: "right" },
                     { label: "End Price", align: "right" },
+                    { label: "Invest ₹", align: "right" },
+                    { label: "Qty", align: "center" },
+                    { label: "Actual ₹", align: "right" },
+                    { label: "Cash Left", align: "right" },
                     { label: "Total Return", align: "right" },
                   ].map((header) => (
                     <th
@@ -1188,6 +1249,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                           | "center"
                           | "right",
                         textTransform: "uppercase",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {header.label}
@@ -1211,6 +1273,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           fontWeight: 500,
                           textAlign: "left",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {row.symbol}
@@ -1224,6 +1287,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                           color: "rgba(255,255,255,0.6)",
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           textAlign: "center",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {(row.weight * 100).toFixed(2)}%
@@ -1237,6 +1301,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                           color: "rgba(255,255,255,0.6)",
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           textAlign: "right",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {row.start_price.toFixed(2)}
@@ -1250,9 +1315,66 @@ const PortfolioBacktestPanel: React.FC = () => {
                           color: "rgba(255,255,255,0.6)",
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           textAlign: "right",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {row.end_price.toFixed(2)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 14px",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.72)",
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          textAlign: "right",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(row.allocation_amount)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 14px",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.72)",
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          textAlign: "center",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {row.suggested_quantity ?? "—"}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 14px",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.72)",
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          textAlign: "right",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(row.actual_invested_amount)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 14px",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.52)",
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          textAlign: "right",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(row.remaining_cash)}
                       </td>
 
                       <td
@@ -1269,6 +1391,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           textAlign: "right",
                           fontWeight: 600,
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {row.total_return_pct.toFixed(2)}%
@@ -1281,6 +1404,78 @@ const PortfolioBacktestPanel: React.FC = () => {
           </div>
         </div>
       )}
+
+      <div style={{ padding: "0 24px 32px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <h3
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: 20,
+              fontWeight: 300,
+              color: "var(--lb-cream)",
+              margin: "0 0 4px",
+            }}
+          >
+            Metric Definitions
+          </h3>
+
+          <p
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              color: "rgba(255,255,255,0.32)",
+              margin: 0,
+            }}
+          >
+            Simple explanations for retail investors.
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(230px,1fr))",
+            gap: 12,
+          }}
+        >
+          {metricDefinitions.map(([title, description]) => (
+            <div
+              key={title}
+              style={{
+                background: "rgba(8,9,12,0.95)",
+                border: "1px solid rgba(250,204,21,0.1)",
+                borderRadius: 12,
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: 1.4,
+                  color: "rgba(250,204,21,0.62)",
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                {title}
+              </div>
+
+              <p
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.42)",
+                  margin: 0,
+                }}
+              >
+                {description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
