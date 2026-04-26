@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime, timedelta
-import requests, os, csv
+import requests
+import os
+import csv
 from pathlib import Path
 
 from api_service.auth_routes import get_current_user
@@ -70,9 +72,13 @@ def status(user: User = Depends(get_current_user)):
     return {"is_active": check_active(user.id)}
 
 
-# 🔥 CREATE ORDER
 @router.post("/create-order")
 def create_order(user: User = Depends(get_current_user)):
+    if not CASHFREE_APP_ID or not CASHFREE_SECRET:
+        raise HTTPException(
+            status_code=500,
+            detail="Cashfree credentials are not configured",
+        )
 
     order_id = f"lb_{user.id}_{int(datetime.utcnow().timestamp())}"
 
@@ -82,51 +88,75 @@ def create_order(user: User = Depends(get_current_user)):
         "order_currency": "INR",
         "customer_details": {
             "customer_id": str(user.id),
+            "customer_name": user.name or "Lightnin Bull User",
             "customer_email": user.email,
-            "customer_phone": user.phone
-        }
+            "customer_phone": user.phone or "9999999999",
+        },
+        "order_meta": {
+            "return_url": "https://lightninbull.com/payment-success?order_id={order_id}"
+        },
     }
 
     headers = {
         "x-client-id": CASHFREE_APP_ID,
         "x-client-secret": CASHFREE_SECRET,
-        "Content-Type": "application/json"
+        "x-api-version": "2023-08-01",
+        "Content-Type": "application/json",
     }
 
-    res = requests.post(
-        "https://api.cashfree.com/pg/orders",
-        json=payload,
-        headers=headers
-    )
+    try:
+        res = requests.post(
+            "https://api.cashfree.com/pg/orders",
+            json=payload,
+            headers=headers,
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Cashfree request failed: {str(exc)}",
+        ) from exc
 
-    if res.status_code != 200:
-        raise HTTPException(500, "Cashfree order failed")
+    if res.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Cashfree order failed",
+                "status_code": res.status_code,
+                "response": res.text,
+            },
+        )
 
     data = res.json()
 
     return {
-        "payment_session_id": data["payment_session_id"],
-        "order_id": order_id
+        "payment_session_id": data.get("payment_session_id"),
+        "order_id": order_id,
     }
 
 
-# 🔥 WEBHOOK (MOST IMPORTANT)
 @router.post("/webhook")
 async def webhook(request: Request):
-
     body = await request.json()
 
-    if body.get("order_status") == "PAID":
+    data = body.get("data", {})
+    order = data.get("order", {})
+    payment = data.get("payment", {})
+    customer_details = data.get("customer_details", {})
 
-        user_id = body["customer_details"]["customer_id"]
-        order_id = body["order_id"]
+    order_id = order.get("order_id") or body.get("order_id")
+    payment_status = payment.get("payment_status") or body.get("order_status")
 
-        # minimal user object simulation
-        class Dummy:
-            id = user_id
-            name = "user"
-            email = body["customer_details"]["customer_email"]
+    if payment_status in ("SUCCESS", "PAID") and order_id:
+        user_id = customer_details.get("customer_id")
+        email = customer_details.get("customer_email")
 
-        save_payment(Dummy, order_id)
+        if user_id:
+            class Dummy:
+                id = user_id
+                name = "user"
+                email = email or ""
+
+            save_payment(Dummy, order_id)
 
     return {"status": "ok"}
