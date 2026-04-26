@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
+from api_service import auth_routes, intraday_spreads_routes, portfolio_routes, payment_routes
 
 from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
@@ -330,6 +330,7 @@ app.add_middleware(
 app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
 app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfolio"])
 app.include_router(intraday_spreads_routes.router, prefix="/api", tags=["intraday_spreads"])
+app.include_router(payment_routes.router, prefix="/payments", tags=["payments"])
 
 
 def get_db():
