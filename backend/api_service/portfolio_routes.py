@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List
 import logging
+import math
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -25,6 +26,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BACKEND_DIR / "data"
 CLOSE_PRICES_PATH = DATA_DIR / "close_prices_wide.csv"
 
+DEFAULT_RETAIL_CAPITAL = 100000.0
+
 
 class WatchlistBacktestRequest(BaseModel):
     symbols: List[str]
@@ -33,6 +36,33 @@ class WatchlistBacktestRequest(BaseModel):
 
 def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
+
+
+def build_retail_allocation(
+    weight: float,
+    end_price: float,
+    capital: float = DEFAULT_RETAIL_CAPITAL,
+):
+    allocation_amount = abs(float(weight)) * capital
+
+    if end_price <= 0:
+        return {
+            "allocation_amount": round(allocation_amount, 2),
+            "suggested_quantity": 0,
+            "actual_invested_amount": 0.0,
+            "remaining_cash": round(allocation_amount, 2),
+        }
+
+    suggested_quantity = int(math.floor(allocation_amount / end_price))
+    actual_invested_amount = suggested_quantity * end_price
+    remaining_cash = allocation_amount - actual_invested_amount
+
+    return {
+        "allocation_amount": round(allocation_amount, 2),
+        "suggested_quantity": suggested_quantity,
+        "actual_invested_amount": round(actual_invested_amount, 2),
+        "remaining_cash": round(remaining_cash, 2),
+    }
 
 
 @router.post("/backtest/watchlist", response_model=PortfolioBacktestResponse)
@@ -110,6 +140,10 @@ def backtest_watchlist(body: WatchlistBacktestRequest):
                     start_price=float(row["start_price"]),
                     end_price=float(row["end_price"]),
                     total_return_pct=float(row["total_return_pct"]),
+                    **build_retail_allocation(
+                        weight=float(row["weight"]),
+                        end_price=float(row["end_price"]),
+                    ),
                 )
                 for _, row in holdings_df.iterrows()
             ],
