@@ -456,6 +456,7 @@ def compute_metrics(returns: pd.Series, nav: pd.Series) -> dict:
     mdd = float(drawdown.min() * 100.0)
 
     r1w = period_return(nav, 5)
+    r2w = period_return(nav, 10)
     r1m = period_return(nav, 21)
     r3m = period_return(nav, 63)
     r6m = period_return(nav, 126)
@@ -469,6 +470,7 @@ def compute_metrics(returns: pd.Series, nav: pd.Series) -> dict:
         "sharpe": round(sharpe, 2),
         "max_drawdown_pct": round(mdd, 2),
         "return_1w_pct": round(r1w, 2) if r1w is not None else None,
+        "return_2w_pct": round(r2w, 2) if r2w is not None else None,
         "return_1m_pct": round(r1m, 2) if r1m is not None else None,
         "return_3m_pct": round(r3m, 2) if r3m is not None else None,
         "return_6m_pct": round(r6m, 2) if r6m is not None else None,
