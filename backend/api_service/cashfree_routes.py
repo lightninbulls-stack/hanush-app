@@ -3,10 +3,13 @@ from datetime import datetime, timedelta
 import requests
 import os
 import csv
+import logging
 from pathlib import Path
 
 from api_service.auth_routes import get_current_user
 from models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["cashfree"])
 
@@ -101,30 +104,47 @@ def status(user: User = Depends(get_current_user)):
 
 @router.post("/create-order")
 def create_order(user: User = Depends(get_current_user)):
+
+    # ── Credential check ──────────────────────────────────────────────────────
     if not CASHFREE_APP_ID or not CASHFREE_SECRET:
+        logger.error(
+            "CASHFREE CREDENTIALS MISSING — APP_ID present=%s  SECRET present=%s",
+            bool(CASHFREE_APP_ID), bool(CASHFREE_SECRET),
+        )
         raise HTTPException(
             status_code=500,
             detail="Cashfree credentials are not configured",
         )
 
+    logger.info(
+        "CASHFREE_ENV=%s  base_url=%s  APP_ID_prefix=%s",
+        CASHFREE_ENV,
+        get_cashfree_base_url(),
+        CASHFREE_APP_ID[:6],
+    )
+
     order_id = f"lb_{user.id}_{int(datetime.utcnow().timestamp())}"
 
-    # ✅ FIX 1: Was using a literal string "{order_id}" instead of the actual variable.
-    # Python f-string now correctly embeds the order_id value.
+    # ── Phone sanitisation — Cashfree requires exactly 10 digits ─────────────
+    raw_phone = getattr(user, "phone", None) or "9999999999"
+    digits_only = "".join(c for c in str(raw_phone) if c.isdigit())
+    if digits_only.startswith("91") and len(digits_only) == 12:
+        digits_only = digits_only[2:]
+    customer_phone = (digits_only[:10].ljust(10, "0")) if digits_only else "9999999999"
+
     return_url = f"https://lightninbull.com/payment-success?order_id={order_id}"
 
     payload = {
         "order_id": order_id,
-        "order_amount": PLAN_AMOUNT,
+        "order_amount": float(PLAN_AMOUNT),
         "order_currency": "INR",
         "customer_details": {
             "customer_id": str(user.id),
-            "customer_name": user.name or "Lightnin Bull User",
+            "customer_name": (user.name or "LightninBull User")[:50],
             "customer_email": user.email,
-            "customer_phone": user.phone or "9999999999",
+            "customer_phone": customer_phone,
         },
         "order_meta": {
-            # ✅ FIX 1 applied here — return_url now has the real order_id in it
             "return_url": return_url,
         },
     }
@@ -134,8 +154,12 @@ def create_order(user: User = Depends(get_current_user)):
         "x-client-secret": CASHFREE_SECRET,
         "x-api-version": "2023-08-01",
         "Content-Type": "application/json",
+        "Accept": "application/json",
     }
 
+    logger.info("Cashfree payload being sent: %s", payload)
+
+    # ── Call Cashfree ─────────────────────────────────────────────────────────
     try:
         res = requests.post(
             f"{get_cashfree_base_url()}/orders",
@@ -144,19 +168,35 @@ def create_order(user: User = Depends(get_current_user)):
             timeout=20,
         )
     except requests.RequestException as exc:
+        logger.error("Cashfree network error: %s", exc)
         raise HTTPException(
             status_code=500,
             detail=f"Cashfree request failed: {str(exc)}",
         ) from exc
 
+    # ── Always log Cashfree's full response ───────────────────────────────────
+    logger.info(
+        "Cashfree response — HTTP %s — body: %s",
+        res.status_code,
+        res.text,
+    )
+
     if res.status_code not in (200, 201):
+        try:
+            cf_error = res.json()
+        except Exception:
+            cf_error = res.text
+
+        logger.error("Cashfree order FAILED: %s", cf_error)
+
+        # Surface Cashfree's actual error message to the frontend alert
         raise HTTPException(
             status_code=500,
             detail={
                 "message": "Cashfree order failed",
                 "cashfree_env": CASHFREE_ENV,
-                "status_code": res.status_code,
-                "response": res.text,
+                "cashfree_status": res.status_code,
+                "cashfree_error": cf_error,   # ← you'll see this in the browser alert
             },
         )
 
@@ -186,8 +226,6 @@ async def webhook(request: Request):
         email = customer_details.get("customer_email")
 
         if user_id:
-            # ✅ FIX 2: Was passing the class `Dummy` itself instead of an instance.
-            # save_payment(Dummy, order_id) → save_payment(dummy_instance, order_id)
             class Dummy:
                 id = user_id
                 name = "user"
