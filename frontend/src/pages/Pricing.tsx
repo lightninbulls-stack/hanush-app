@@ -17,6 +17,27 @@ const CASHFREE_MODE =
     ? "production"
     : "sandbox";
 
+// ✅ FIX 3: Wait for Cashfree SDK to be available on window (it loads async).
+// Polls every 200ms for up to 5 seconds instead of checking only once at click time.
+function waitForCashfreeSDK(timeoutMs = 5000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window.Cashfree === "function") {
+      resolve();
+      return;
+    }
+    const interval = setInterval(() => {
+      if (typeof window.Cashfree === "function") {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 200);
+    setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Cashfree SDK did not load in time. Please refresh and try again."));
+    }, timeoutMs);
+  });
+}
+
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -84,10 +105,8 @@ const Pricing: React.FC = () => {
     try {
       setPaying(true);
 
-      if (!window.Cashfree) {
-        alert("Cashfree SDK not loaded. Please refresh and try again.");
-        return;
-      }
+      // ✅ FIX 3: Properly wait for SDK instead of one-shot check
+      await waitForCashfreeSDK();
 
       const data = await createCashfreeOrder();
 
@@ -96,17 +115,23 @@ const Pricing: React.FC = () => {
         return;
       }
 
-      const cashfree = window.Cashfree({
+      // ✅ FIX 4: Cashfree JS SDK v3 must be initialised with `new window.Cashfree()`
+      // or called as a constructor — not as a plain function call.
+      // Also pass `returnUrl` directly here as a safety net in case
+      // the backend's order_meta.return_url is not honoured in sandbox mode.
+      const cashfree = new window.Cashfree({
         mode: CASHFREE_MODE,
       });
 
       await cashfree.checkout({
         paymentSessionId: data.payment_session_id,
         redirectTarget: "_self",
+        returnUrl: `https://lightninbull.com/payment-success?order_id=${data.order_id}`,
       });
-    } catch (error) {
+
+    } catch (error: any) {
       console.error("Payment error:", error);
-      alert("Payment failed. Please try again.");
+      alert(error?.message || "Payment failed. Please try again.");
     } finally {
       setPaying(false);
     }
