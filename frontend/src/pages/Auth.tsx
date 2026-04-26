@@ -590,7 +590,7 @@ const Auth: React.FC = () => {
               <div className="quant-inner">
                 <span className="quant-label">LIGHTNINBULL INTELLIGENCE LAYER</span>
                 <h2 className="quant-heading">
-                  Quant <em className="quant-ai">AI</em> Fund Manager
+                  Quant <em className="quant-ai">AI</em> analytics
                 </h2>
                 <p className="quant-sub">Factor models · Regime detection · Intraday signals · Derivatives analytics</p>
               </div>
@@ -719,7 +719,7 @@ const Auth: React.FC = () => {
           <p className="section-label about-label">ABOUT LIGHTNINBULL</p>
           <h2 className="about-title">Built for traders who want structure,<br />not noise.</h2>
           <p className="about-text">
-            LightninBull is an AI-driven Quant Fund Manager platform built to bring institutional-style market intelligence to traders and investors.
+            LightninBull is an AI-driven Quant analytics platform built to bring institutional-style market intelligence to traders and investors.
             The platform combines factor models, regime detection, intraday signals, derivatives analytics, portfolio backtesting, and risk management into one unified dashboard.
           </p>
           <p className="growth-line">10K+ active users and rising.</p>
