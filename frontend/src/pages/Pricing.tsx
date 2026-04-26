@@ -12,6 +12,11 @@ declare global {
   }
 }
 
+const CASHFREE_MODE =
+  import.meta.env.VITE_CASHFREE_MODE === "production"
+    ? "production"
+    : "sandbox";
+
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -79,6 +84,11 @@ const Pricing: React.FC = () => {
     try {
       setPaying(true);
 
+      if (!window.Cashfree) {
+        alert("Cashfree SDK not loaded. Please refresh and try again.");
+        return;
+      }
+
       const data = await createCashfreeOrder();
 
       if (!data.payment_session_id) {
@@ -87,7 +97,7 @@ const Pricing: React.FC = () => {
       }
 
       const cashfree = window.Cashfree({
-        mode: "production",
+        mode: CASHFREE_MODE,
       });
 
       await cashfree.checkout({
@@ -126,9 +136,7 @@ const Pricing: React.FC = () => {
           <>
             <div style={styles.successBox}>
               <h2 style={styles.successTitle}>✅ Already Subscribed</h2>
-              <p style={styles.text}>
-                Your premium access is active.
-              </p>
+              <p style={styles.text}>Your premium access is active.</p>
 
               <p style={styles.expiry}>
                 Valid till: <strong>{validTillText}</strong>
@@ -179,6 +187,10 @@ const Pricing: React.FC = () => {
             >
               {paying ? "Opening Payment..." : "Subscribe Now"}
             </button>
+
+            <p style={styles.modeText}>
+              Payment Mode: {CASHFREE_MODE.toUpperCase()}
+            </p>
           </>
         )}
       </div>
@@ -283,5 +295,11 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(226,184,75,0.28)",
     color: "#e2b84b",
     fontSize: 13,
+  },
+  modeText: {
+    marginTop: 14,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: 1,
   },
 };
