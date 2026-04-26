@@ -45,18 +45,14 @@ export async function createCashfreeOrder(): Promise<{
   const data = await response.json();
 
   if (!response.ok) {
-    // ✅ Surface the real Cashfree error so it shows in the browser alert
     const detail = data?.detail;
     let message = "Cashfree order creation failed";
 
     if (typeof detail === "string") {
       message = detail;
     } else if (detail?.cashfree_error) {
-      // detail.cashfree_error is the raw JSON from Cashfree
       const cf = detail.cashfree_error;
-      // Cashfree error shape: { message, code, type }
-      const cfMsg =
-        cf?.message || cf?.error_description || JSON.stringify(cf);
+      const cfMsg = cf?.message || cf?.error_description || JSON.stringify(cf);
       message = `Cashfree [${detail.cashfree_status}]: ${cfMsg}`;
     } else if (detail?.message) {
       message = detail.message;
@@ -66,4 +62,31 @@ export async function createCashfreeOrder(): Promise<{
   }
 
   return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW: verifyPayment
+// Call this right after Cashfree redirects back to /payment-success.
+// It asks our backend to confirm with Cashfree whether the order was paid,
+// and if yes, activates the subscription immediately without waiting for webhook.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function verifyPayment(
+  order_id: string
+): Promise<SubscriptionStatus> {
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(`${API_BASE_URL}/cashfree/verify-payment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ order_id }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Payment verification failed");
+  }
+
+  return response.json();
 }
