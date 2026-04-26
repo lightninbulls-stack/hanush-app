@@ -15,6 +15,7 @@ export interface PortfolioMetrics {
   max_drawdown_pct?: number | null;
 
   return_1w_pct?: number | null;
+  return_2w_pct?: number | null;
   return_1m_pct?: number | null;
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
@@ -23,7 +24,6 @@ export interface PortfolioMetrics {
   beta_to_benchmark?: number | null;
   correlation_to_benchmark?: number | null;
 
-  // Backward compatibility with old backend names
   cumulative_return_pct?: number | null;
   cagr_pct?: number | null;
   annualized_volatility_pct?: number | null;
@@ -39,12 +39,12 @@ export interface BenchmarkMetrics {
   max_drawdown_pct?: number | null;
 
   return_1w_pct?: number | null;
+  return_2w_pct?: number | null;
   return_1m_pct?: number | null;
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
   var_95_pct?: number | null;
 
-  // Backward compatibility with old backend names
   cumulative_return_pct?: number | null;
   cagr_pct?: number | null;
   annualized_volatility_pct?: number | null;
@@ -62,6 +62,11 @@ export interface PortfolioHolding {
   start_price: number;
   end_price: number;
   total_return_pct: number;
+
+  allocation_amount?: number | null;
+  suggested_quantity?: number | null;
+  actual_invested_amount?: number | null;
+  remaining_cash?: number | null;
 }
 
 export interface PortfolioBacktestResponse {
@@ -97,9 +102,7 @@ function readWatchlistFromStorage(): string[] {
       return [];
     }
 
-    return parsed
-      .map((symbol) => normalizeSymbol(String(symbol)))
-      .filter(Boolean);
+    return parsed.map((symbol) => normalizeSymbol(String(symbol))).filter(Boolean);
   } catch {
     return [];
   }
@@ -114,10 +117,7 @@ function writeWatchlistToStorage(symbols: string[]): void {
     new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean))
   );
 
-  window.localStorage.setItem(
-    WATCHLIST_STORAGE_KEY,
-    JSON.stringify(uniqueSymbols)
-  );
+  window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(uniqueSymbols));
 }
 
 export async function fetchWatchlistSymbols(): Promise<string[]> {
@@ -152,13 +152,10 @@ export async function runWatchlistBacktest(
   symbols: string[],
   strategyType: "equal_weight" | "mvo" | "mvo_short" = "equal_weight"
 ): Promise<PortfolioBacktestResponse> {
-  const response = await axios.post(
-    `${RENDER_API_URL}/portfolio/backtest/watchlist`,
-    {
-      symbols,
-      strategy_type: strategyType,
-    }
-  );
+  const response = await axios.post(`${RENDER_API_URL}/portfolio/backtest/watchlist`, {
+    symbols,
+    strategy_type: strategyType,
+  });
 
   return response.data;
 }
