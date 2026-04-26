@@ -7,31 +7,46 @@ const RENDER_API_URL = (
 const WATCHLIST_STORAGE_KEY = "starredStocks";
 
 export interface PortfolioMetrics {
-  cumulative_return_pct: number;
-  cagr_pct: number;
-  annualized_volatility_pct: number;
-  sharpe: number;
-  max_drawdown_pct: number;
+  annualised_return_pct?: number | null;
+  total_return_pct?: number | null;
+  sharpe_ratio?: number | null;
+  sortino_ratio?: number | null;
+  volatility_pct?: number | null;
+  max_drawdown_pct?: number | null;
+
   return_1w_pct?: number | null;
   return_1m_pct?: number | null;
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
   var_95_pct?: number | null;
+
   beta_to_benchmark?: number | null;
   correlation_to_benchmark?: number | null;
+
+  cumulative_return_pct?: number | null;
+  cagr_pct?: number | null;
+  annualized_volatility_pct?: number | null;
+  sharpe?: number | null;
 }
 
 export interface BenchmarkMetrics {
-  cumulative_return_pct: number;
-  cagr_pct: number;
-  annualized_volatility_pct: number;
-  sharpe: number;
-  max_drawdown_pct: number;
+  annualised_return_pct?: number | null;
+  total_return_pct?: number | null;
+  sharpe_ratio?: number | null;
+  sortino_ratio?: number | null;
+  volatility_pct?: number | null;
+  max_drawdown_pct?: number | null;
+
   return_1w_pct?: number | null;
   return_1m_pct?: number | null;
   return_3m_pct?: number | null;
   return_6m_pct?: number | null;
   var_95_pct?: number | null;
+
+  cumulative_return_pct?: number | null;
+  cagr_pct?: number | null;
+  annualized_volatility_pct?: number | null;
+  sharpe?: number | null;
 }
 
 export interface PortfolioPoint {
@@ -69,11 +84,13 @@ function readWatchlistFromStorage(): string[] {
 
   try {
     const raw = window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+
     if (!raw) {
       return [];
     }
 
     const parsed = JSON.parse(raw);
+
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -115,6 +132,7 @@ export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
 
   const updated = Array.from(new Set([...existing, normalized]));
   writeWatchlistToStorage(updated);
+
   return updated;
 }
 
@@ -124,6 +142,7 @@ export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
 
   const updated = existing.filter((item) => item !== normalized);
   writeWatchlistToStorage(updated);
+
   return updated;
 }
 
@@ -138,5 +157,6 @@ export async function runWatchlistBacktest(
       strategy_type: strategyType,
     }
   );
+
   return response.data;
 }
