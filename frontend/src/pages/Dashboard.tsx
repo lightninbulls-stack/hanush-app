@@ -435,6 +435,8 @@ const Dashboard: React.FC = () => {
           activeCategory={activeTab}
           setActiveCategory={handleCategoryChange}
           starredCount={starredSymbols.length}
+          isPremium={isPremium}
+          daysLeft={subscription.days_left}
         />
       )}
 
@@ -445,6 +447,8 @@ const Dashboard: React.FC = () => {
           starredCount={starredSymbols.length}
           isMobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
+          isPremium={isPremium}
+          daysLeft={subscription.days_left}
         />
       )}
 
@@ -664,3 +668,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+
