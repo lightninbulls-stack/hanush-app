@@ -6,79 +6,151 @@ import {
   type PortfolioPoint,
 } from "../services/watchlistApi";
 
-type StrategyType  = "equal_weight" | "mvo" | "mvo_short";
-type MetricTone    = "neutral" | "positive" | "negative";
+type StrategyType = "equal_weight" | "mvo" | "mvo_short";
+type MetricTone = "neutral" | "positive" | "negative";
 
-type MetricCardItem = { label: string; value: string; tone?: MetricTone };
-type ComparisonRow  = {
+type MetricCardItem = {
+  label: string;
+  value: string;
+  tone?: MetricTone;
+};
+
+type ComparisonRow = {
   label: string;
   portfolioValue: string;
   benchmarkValue: string;
   spreadValue: string;
   spreadTone: MetricTone;
 };
+
 type PerformanceComparisonChartProps = {
-  portfolioCurve:  PortfolioPoint[];
+  portfolioCurve: PortfolioPoint[];
   benchmarkCurve?: PortfolioPoint[] | null;
-  benchmarkName?:  string | null;
+  benchmarkName?: string | null;
 };
 
-const CHART_WIDTH     = 1000;
-const CHART_HEIGHT    = 320;
+const CHART_WIDTH = 1000;
+const CHART_HEIGHT = 320;
 const CHART_PADDING_X = 28;
 const CHART_PADDING_Y = 24;
 
-const formatPercent = (v: number | null | undefined): string => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `${v.toFixed(2)}%`;
+const formatPercent = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${value.toFixed(2)}%`;
 };
-const formatSignedPercent = (v: number | null | undefined): string => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+
+const formatSignedPercent = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 };
-const formatNumber = (v: number | null | undefined): string => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return v.toFixed(2);
+
+const formatNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return value.toFixed(2);
 };
-const formatSignedNumber = (v: number | null | undefined): string => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—";
-  return `${v > 0 ? "+" : ""}${v.toFixed(2)}`;
+
+const formatSignedNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 };
-const getTone = (v: number | null | undefined): MetricTone => {
-  if (v === null || v === undefined || Number.isNaN(v)) return "neutral";
-  if (v > 0) return "positive";
-  if (v < 0) return "negative";
+
+const getTone = (value: number | null | undefined): MetricTone => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "neutral";
+  }
+
+  if (value > 0) {
+    return "positive";
+  }
+
+  if (value < 0) {
+    return "negative";
+  }
+
   return "neutral";
 };
+
 const formatXAxisDate = (value: string | undefined): string => {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
+
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  });
 };
+
 const getBenchmarkDisplayName = (value?: string | null): string => {
-  if (!value) return "NIFTY 50";
-  const n = String(value).trim().toUpperCase();
-  if (["^NSEI","NSEI","NIFTY 50","NIFTY50","NIFTY_50","NIFTY-50","NIFTY50.NS"].includes(n)) return "NIFTY 50";
+  if (!value) {
+    return "NIFTY 50";
+  }
+
+  const normalized = String(value).trim().toUpperCase();
+
+  if (
+    [
+      "^NSEI",
+      "NSEI",
+      "NIFTY 50",
+      "NIFTY50",
+      "NIFTY_50",
+      "NIFTY-50",
+      "NIFTY50.NS",
+    ].includes(normalized)
+  ) {
+    return "NIFTY 50";
+  }
+
   return value;
 };
 
-const buildLinePath = (points: PortfolioPoint[], minValue: number, maxValue: number): string => {
-  if (!points.length) return "";
-  const innerWidth  = CHART_WIDTH  - CHART_PADDING_X * 2;
+const buildLinePath = (
+  points: PortfolioPoint[],
+  minValue: number,
+  maxValue: number
+): string => {
+  if (!points.length) {
+    return "";
+  }
+
+  const innerWidth = CHART_WIDTH - CHART_PADDING_X * 2;
   const innerHeight = CHART_HEIGHT - CHART_PADDING_Y * 2;
-  const range       = maxValue - minValue || 1;
-  const denom       = Math.max(points.length - 1, 1);
+  const range = maxValue - minValue || 1;
+  const denominator = Math.max(points.length - 1, 1);
+
   return points
-    .map((p, i) => {
-      const x = CHART_PADDING_X + (i / denom) * innerWidth;
-      const y = CHART_HEIGHT - CHART_PADDING_Y - ((p.nav - minValue) / range) * innerHeight;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    .map((point, index) => {
+      const x = CHART_PADDING_X + (index / denominator) * innerWidth;
+      const y =
+        CHART_HEIGHT -
+        CHART_PADDING_Y -
+        ((point.nav - minValue) / range) * innerHeight;
+
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
 };
 
-/* ── Performance chart ───────────────────────────────────────────────────── */
 const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   portfolioCurve,
   benchmarkCurve,
@@ -87,32 +159,40 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   const benchmarkDisplayName = getBenchmarkDisplayName(benchmarkName);
 
   const chartData = useMemo(() => {
-    if (!portfolioCurve.length || !benchmarkCurve?.length) return null;
+    if (!portfolioCurve.length || !benchmarkCurve?.length) {
+      return null;
+    }
 
-    const allValues = [...portfolioCurve, ...benchmarkCurve].map((p) => p.nav);
-    const rawMin    = Math.min(...allValues);
-    const rawMax    = Math.max(...allValues);
-    const padding   = Math.max((rawMax - rawMin) * 0.08, 0.02);
-    const minValue  = Math.max(0, rawMin - padding);
-    const maxValue  = rawMax + padding;
+    const allValues = [...portfolioCurve, ...benchmarkCurve].map(
+      (point) => point.nav
+    );
+
+    const rawMin = Math.min(...allValues);
+    const rawMax = Math.max(...allValues);
+    const padding = Math.max((rawMax - rawMin) * 0.08, 0.02);
+    const minValue = Math.max(0, rawMin - padding);
+    const maxValue = rawMax + padding;
 
     return {
       minValue,
       maxValue,
-      portfolioPath:   buildLinePath(portfolioCurve, minValue, maxValue),
-      benchmarkPath:   buildLinePath(benchmarkCurve, minValue, maxValue),
-      startLabel:      formatXAxisDate(portfolioCurve[0]?.date),
-      endLabel:        formatXAxisDate(portfolioCurve[portfolioCurve.length - 1]?.date),
+      portfolioPath: buildLinePath(portfolioCurve, minValue, maxValue),
+      benchmarkPath: buildLinePath(benchmarkCurve, minValue, maxValue),
+      startLabel: formatXAxisDate(portfolioCurve[0]?.date),
+      endLabel: formatXAxisDate(
+        portfolioCurve[portfolioCurve.length - 1]?.date
+      ),
       portfolioEndNav: portfolioCurve[portfolioCurve.length - 1]?.nav ?? null,
       benchmarkEndNav: benchmarkCurve[benchmarkCurve.length - 1]?.nav ?? null,
     };
   }, [benchmarkCurve, portfolioCurve]);
 
-  if (!chartData) return null;
+  if (!chartData) {
+    return null;
+  }
 
   return (
     <div style={{ marginBottom: 28 }}>
-      {/* Section header */}
       <div
         style={{
           display: "flex",
@@ -135,6 +215,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
           >
             Portfolio vs Benchmark
           </h3>
+
           <p
             style={{
               fontFamily: "var(--font-mono)",
@@ -143,9 +224,11 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
               margin: 0,
             }}
           >
-            Normalized NAV comparison for the last 1 year using daily close data.
+            Normalized NAV comparison for the last 1 year using daily close
+            data.
           </p>
         </div>
+
         <span
           style={{
             fontFamily: "var(--font-mono)",
@@ -164,7 +247,6 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
         </span>
       </div>
 
-      {/* Chart shell */}
       <div
         style={{
           background: "rgba(4,5,8,0.98)",
@@ -173,7 +255,6 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
           padding: 18,
         }}
       >
-        {/* Legend + values */}
         <div
           style={{
             display: "flex",
@@ -186,11 +267,19 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
         >
           <div style={{ display: "flex", gap: 16 }}>
             {[
-              { color: "#facc15", label: "Portfolio",          shadow: "0 0 6px rgba(250,204,21,0.5)" },
-              { color: "rgba(255,255,255,0.3)", label: benchmarkDisplayName, shadow: "none" },
-            ].map((l) => (
+              {
+                color: "#facc15",
+                label: "Portfolio",
+                shadow: "0 0 6px rgba(250,204,21,0.5)",
+              },
+              {
+                color: "rgba(255,255,255,0.3)",
+                label: benchmarkDisplayName,
+                shadow: "none",
+              },
+            ].map((legend) => (
               <div
-                key={l.label}
+                key={legend.label}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -205,15 +294,16 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: l.color,
-                    boxShadow: l.shadow,
+                    background: legend.color,
+                    boxShadow: legend.shadow,
                     display: "inline-block",
                   }}
                 />
-                {l.label}
+                {legend.label}
               </div>
             ))}
           </div>
+
           <div
             style={{
               display: "flex",
@@ -230,6 +320,7 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
                 {formatNumber(chartData.portfolioEndNav)}x
               </strong>
             </span>
+
             <span>
               Benchmark End NAV:{" "}
               <strong style={{ color: "rgba(255,255,255,0.75)" }}>
@@ -246,17 +337,41 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
           role="img"
           aria-label="Portfolio and benchmark normalized NAV comparison"
         >
-          <line x1={CHART_PADDING_X} y1={CHART_HEIGHT - CHART_PADDING_Y}
-                x2={CHART_WIDTH - CHART_PADDING_X} y2={CHART_HEIGHT - CHART_PADDING_Y}
-                stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
-          <line x1={CHART_PADDING_X} y1={CHART_PADDING_Y}
-                x2={CHART_PADDING_X} y2={CHART_HEIGHT - CHART_PADDING_Y}
-                stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
-          <path d={chartData.benchmarkPath} fill="none"
-                stroke="rgba(255,255,255,0.28)" strokeWidth={1.5} strokeDasharray="5 3" />
-          <path d={chartData.portfolioPath} fill="none"
-                stroke="#facc15" strokeWidth={2}
-                style={{ filter: "drop-shadow(0 0 4px rgba(250,204,21,0.4))" }} />
+          <line
+            x1={CHART_PADDING_X}
+            y1={CHART_HEIGHT - CHART_PADDING_Y}
+            x2={CHART_WIDTH - CHART_PADDING_X}
+            y2={CHART_HEIGHT - CHART_PADDING_Y}
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth={1}
+          />
+
+          <line
+            x1={CHART_PADDING_X}
+            y1={CHART_PADDING_Y}
+            x2={CHART_PADDING_X}
+            y2={CHART_HEIGHT - CHART_PADDING_Y}
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth={1}
+          />
+
+          <path
+            d={chartData.benchmarkPath}
+            fill="none"
+            stroke="rgba(255,255,255,0.28)"
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
+          />
+
+          <path
+            d={chartData.portfolioPath}
+            fill="none"
+            stroke="#facc15"
+            strokeWidth={2}
+            style={{
+              filter: "drop-shadow(0 0 4px rgba(250,204,21,0.4))",
+            }}
+          />
         </svg>
 
         <div
@@ -277,12 +392,12 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   );
 };
 
-/* ── Main panel ─────────────────────────────────────────────────────────── */
 const PortfolioBacktestPanel: React.FC = () => {
-  const [strategyType, setStrategyType] = useState<StrategyType>("equal_weight");
-  const [data,         setData]         = useState<PortfolioBacktestResponse | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState("");
+  const [strategyType, setStrategyType] =
+    useState<StrategyType>("equal_weight");
+  const [data, setData] = useState<PortfolioBacktestResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -290,78 +405,268 @@ const PortfolioBacktestPanel: React.FC = () => {
     const run = async () => {
       setLoading(true);
       setError("");
+
       try {
         const symbols = await fetchWatchlistSymbols();
+
         if (!symbols || symbols.length === 0) {
-          if (!cancelled) { setLoading(false); setData(null); }
+          if (!cancelled) {
+            setLoading(false);
+            setData(null);
+          }
+
           return;
         }
+
         const result = await runWatchlistBacktest(symbols, strategyType);
-        if (!cancelled) setData(result);
+
+        if (!cancelled) {
+          setData(result);
+        }
       } catch (err) {
         console.error(err);
-        if (!cancelled) setError("Failed to run backtest. Please try again.");
+
+        if (!cancelled) {
+          setError("Failed to run backtest. Please try again.");
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     run();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [strategyType]);
 
-  const m            = data?.metrics;
+  const metrics = data?.metrics;
   const benchmarkMetrics = data?.benchmark_metrics;
-  const benchmarkLabel   = getBenchmarkDisplayName(data?.benchmark_name);
+  const benchmarkLabel = getBenchmarkDisplayName(data?.benchmark_name);
 
-  const metricCards: MetricCardItem[] = m
+  const metricCards: MetricCardItem[] = metrics
     ? [
-        { label: "Annualised Return",  value: formatPercent(m.annualised_return_pct),  tone: getTone(m.annualised_return_pct) },
-        { label: "Total Return",       value: formatPercent(m.total_return_pct),        tone: getTone(m.total_return_pct) },
-        { label: "Sharpe Ratio",       value: formatNumber(m.sharpe_ratio),             tone: getTone(m.sharpe_ratio) },
-        { label: "Sortino Ratio",      value: formatNumber(m.sortino_ratio),            tone: getTone(m.sortino_ratio) },
-        { label: "Max Drawdown",       value: formatPercent(m.max_drawdown_pct),        tone: getTone(m.max_drawdown_pct) },
-        { label: "Volatility",         value: formatPercent(m.volatility_pct),          tone: "neutral" },
-        { label: "1M Return",          value: formatPercent(m.return_1m_pct),           tone: getTone(m.return_1m_pct) },
-        { label: "3M Return",          value: formatPercent(m.return_3m_pct),           tone: getTone(m.return_3m_pct) },
-        { label: "6M Return",          value: formatPercent(m.return_6m_pct),           tone: getTone(m.return_6m_pct) },
-        { label: "VaR (95%)",          value: formatPercent(m.var_95_pct),              tone: "neutral" },
+        {
+          label: "CAGR",
+          value: formatPercent(metrics.cagr_pct),
+          tone: getTone(metrics.cagr_pct),
+        },
+        {
+          label: "Total Return",
+          value: formatPercent(metrics.cumulative_return_pct),
+          tone: getTone(metrics.cumulative_return_pct),
+        },
+        {
+          label: "Sharpe Ratio",
+          value: formatNumber(metrics.sharpe),
+          tone: getTone(metrics.sharpe),
+        },
+        {
+          label: "Max Drawdown",
+          value: formatPercent(metrics.max_drawdown_pct),
+          tone: getTone(metrics.max_drawdown_pct),
+        },
+        {
+          label: "Volatility",
+          value: formatPercent(metrics.annualized_volatility_pct),
+          tone: "neutral",
+        },
+        {
+          label: "1W Return",
+          value: formatPercent(metrics.return_1w_pct),
+          tone: getTone(metrics.return_1w_pct),
+        },
+        {
+          label: "1M Return",
+          value: formatPercent(metrics.return_1m_pct),
+          tone: getTone(metrics.return_1m_pct),
+        },
+        {
+          label: "3M Return",
+          value: formatPercent(metrics.return_3m_pct),
+          tone: getTone(metrics.return_3m_pct),
+        },
+        {
+          label: "6M Return",
+          value: formatPercent(metrics.return_6m_pct),
+          tone: getTone(metrics.return_6m_pct),
+        },
+        {
+          label: "VaR (95%)",
+          value: formatPercent(metrics.var_95_pct),
+          tone: "neutral",
+        },
       ]
     : [];
 
   const comparisonCards: MetricCardItem[] =
-    m && benchmarkMetrics
+    metrics && benchmarkMetrics
       ? [
           {
-            label: "Alpha (Ann. Return)",
-            value: formatSignedPercent((m.annualised_return_pct ?? 0) - (benchmarkMetrics.annualised_return_pct ?? 0)),
-            tone:  getTone((m.annualised_return_pct ?? 0) - (benchmarkMetrics.annualised_return_pct ?? 0)),
+            label: "Alpha (CAGR)",
+            value: formatSignedPercent(
+              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
+            ),
+            tone: getTone(
+              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
+            ),
           },
           {
             label: "Sharpe Spread",
-            value: formatSignedNumber((m.sharpe_ratio ?? 0) - (benchmarkMetrics.sharpe_ratio ?? 0)),
-            tone:  getTone((m.sharpe_ratio ?? 0) - (benchmarkMetrics.sharpe_ratio ?? 0)),
+            value: formatSignedNumber(
+              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
+            ),
+            tone: getTone(
+              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
+            ),
           },
           {
             label: "DD Improvement",
-            value: formatSignedPercent((m.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0)),
-            tone:  getTone(-((m.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0))),
+            value: formatSignedPercent(
+              (metrics.max_drawdown_pct ?? 0) -
+                (benchmarkMetrics.max_drawdown_pct ?? 0)
+            ),
+            tone: getTone(
+              -(
+                (metrics.max_drawdown_pct ?? 0) -
+                (benchmarkMetrics.max_drawdown_pct ?? 0)
+              )
+            ),
           },
         ]
       : [];
 
   const comparisonRows: ComparisonRow[] =
-    m && benchmarkMetrics
+    metrics && benchmarkMetrics
       ? [
-          { label: "Ann. Return",   portfolioValue: formatPercent(m.annualised_return_pct),  benchmarkValue: formatPercent(benchmarkMetrics.annualised_return_pct),  spreadValue: formatSignedPercent((m.annualised_return_pct ?? 0) - (benchmarkMetrics.annualised_return_pct ?? 0)),  spreadTone: getTone((m.annualised_return_pct ?? 0) - (benchmarkMetrics.annualised_return_pct ?? 0)) },
-          { label: "Sharpe Ratio",  portfolioValue: formatNumber(m.sharpe_ratio),             benchmarkValue: formatNumber(benchmarkMetrics.sharpe_ratio),             spreadValue: formatSignedNumber((m.sharpe_ratio ?? 0) - (benchmarkMetrics.sharpe_ratio ?? 0)),                          spreadTone: getTone((m.sharpe_ratio ?? 0) - (benchmarkMetrics.sharpe_ratio ?? 0)) },
-          { label: "Sortino Ratio", portfolioValue: formatNumber(m.sortino_ratio),            benchmarkValue: formatNumber(benchmarkMetrics.sortino_ratio),            spreadValue: formatSignedNumber((m.sortino_ratio ?? 0) - (benchmarkMetrics.sortino_ratio ?? 0)),                         spreadTone: getTone((m.sortino_ratio ?? 0) - (benchmarkMetrics.sortino_ratio ?? 0)) },
-          { label: "Max Drawdown",  portfolioValue: formatPercent(m.max_drawdown_pct),        benchmarkValue: formatPercent(benchmarkMetrics.max_drawdown_pct),        spreadValue: formatSignedPercent((m.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0)),                spreadTone: getTone(-((m.max_drawdown_pct ?? 0) - (benchmarkMetrics.max_drawdown_pct ?? 0))) },
-          { label: "Volatility",    portfolioValue: formatPercent(m.volatility_pct),          benchmarkValue: formatPercent(benchmarkMetrics.volatility_pct),          spreadValue: formatSignedPercent((m.volatility_pct ?? 0) - (benchmarkMetrics.volatility_pct ?? 0)),                    spreadTone: "neutral" },
-          { label: "1M Return",     portfolioValue: formatPercent(m.return_1m_pct),           benchmarkValue: formatPercent(benchmarkMetrics.return_1m_pct),           spreadValue: formatSignedPercent((m.return_1m_pct ?? 0) - (benchmarkMetrics.return_1m_pct ?? 0)),                     spreadTone: getTone((m.return_1m_pct ?? 0) - (benchmarkMetrics.return_1m_pct ?? 0)) },
-          { label: "3M Return",     portfolioValue: formatPercent(m.return_3m_pct),           benchmarkValue: formatPercent(benchmarkMetrics.return_3m_pct),           spreadValue: formatSignedPercent((m.return_3m_pct ?? 0) - (benchmarkMetrics.return_3m_pct ?? 0)),                     spreadTone: getTone((m.return_3m_pct ?? 0) - (benchmarkMetrics.return_3m_pct ?? 0)) },
-          { label: "6M Return",     portfolioValue: formatPercent(m.return_6m_pct),           benchmarkValue: formatPercent(benchmarkMetrics.return_6m_pct),           spreadValue: formatSignedPercent((m.return_6m_pct ?? 0) - (benchmarkMetrics.return_6m_pct ?? 0)),                     spreadTone: getTone((m.return_6m_pct ?? 0) - (benchmarkMetrics.return_6m_pct ?? 0)) },
-          { label: "VaR (95%)",     portfolioValue: formatPercent(m.var_95_pct),              benchmarkValue: formatPercent(benchmarkMetrics.var_95_pct),              spreadValue: formatSignedPercent((m.var_95_pct ?? 0) - (benchmarkMetrics.var_95_pct ?? 0)),                           spreadTone: "neutral" },
+          {
+            label: "CAGR",
+            portfolioValue: formatPercent(metrics.cagr_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.cagr_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.cagr_pct ?? 0) - (benchmarkMetrics.cagr_pct ?? 0)
+            ),
+          },
+          {
+            label: "Total Return",
+            portfolioValue: formatPercent(metrics.cumulative_return_pct),
+            benchmarkValue: formatPercent(
+              benchmarkMetrics.cumulative_return_pct
+            ),
+            spreadValue: formatSignedPercent(
+              (metrics.cumulative_return_pct ?? 0) -
+                (benchmarkMetrics.cumulative_return_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.cumulative_return_pct ?? 0) -
+                (benchmarkMetrics.cumulative_return_pct ?? 0)
+            ),
+          },
+          {
+            label: "Sharpe Ratio",
+            portfolioValue: formatNumber(metrics.sharpe),
+            benchmarkValue: formatNumber(benchmarkMetrics.sharpe),
+            spreadValue: formatSignedNumber(
+              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.sharpe ?? 0) - (benchmarkMetrics.sharpe ?? 0)
+            ),
+          },
+          {
+            label: "Max Drawdown",
+            portfolioValue: formatPercent(metrics.max_drawdown_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.max_drawdown_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.max_drawdown_pct ?? 0) -
+                (benchmarkMetrics.max_drawdown_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              -(
+                (metrics.max_drawdown_pct ?? 0) -
+                (benchmarkMetrics.max_drawdown_pct ?? 0)
+              )
+            ),
+          },
+          {
+            label: "Volatility",
+            portfolioValue: formatPercent(metrics.annualized_volatility_pct),
+            benchmarkValue: formatPercent(
+              benchmarkMetrics.annualized_volatility_pct
+            ),
+            spreadValue: formatSignedPercent(
+              (metrics.annualized_volatility_pct ?? 0) -
+                (benchmarkMetrics.annualized_volatility_pct ?? 0)
+            ),
+            spreadTone: "neutral",
+          },
+          {
+            label: "1W Return",
+            portfolioValue: formatPercent(metrics.return_1w_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.return_1w_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.return_1w_pct ?? 0) -
+                (benchmarkMetrics.return_1w_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.return_1w_pct ?? 0) -
+                (benchmarkMetrics.return_1w_pct ?? 0)
+            ),
+          },
+          {
+            label: "1M Return",
+            portfolioValue: formatPercent(metrics.return_1m_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.return_1m_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.return_1m_pct ?? 0) -
+                (benchmarkMetrics.return_1m_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.return_1m_pct ?? 0) -
+                (benchmarkMetrics.return_1m_pct ?? 0)
+            ),
+          },
+          {
+            label: "3M Return",
+            portfolioValue: formatPercent(metrics.return_3m_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.return_3m_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.return_3m_pct ?? 0) -
+                (benchmarkMetrics.return_3m_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.return_3m_pct ?? 0) -
+                (benchmarkMetrics.return_3m_pct ?? 0)
+            ),
+          },
+          {
+            label: "6M Return",
+            portfolioValue: formatPercent(metrics.return_6m_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.return_6m_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.return_6m_pct ?? 0) -
+                (benchmarkMetrics.return_6m_pct ?? 0)
+            ),
+            spreadTone: getTone(
+              (metrics.return_6m_pct ?? 0) -
+                (benchmarkMetrics.return_6m_pct ?? 0)
+            ),
+          },
+          {
+            label: "VaR (95%)",
+            portfolioValue: formatPercent(metrics.var_95_pct),
+            benchmarkValue: formatPercent(benchmarkMetrics.var_95_pct),
+            spreadValue: formatSignedPercent(
+              (metrics.var_95_pct ?? 0) - (benchmarkMetrics.var_95_pct ?? 0)
+            ),
+            spreadTone: "neutral",
+          },
         ]
       : [];
 
@@ -376,12 +681,10 @@ const PortfolioBacktestPanel: React.FC = () => {
           textAlign: "center",
         }}
       >
-        <div
-          className="lb-eyebrow"
-          style={{ marginBottom: 14, textAlign: "center" }}
-        >
+        <div className="lb-eyebrow" style={{ marginBottom: 14 }}>
           Portfolio Backtest
         </div>
+
         <p
           style={{
             fontFamily: "var(--font-mono)",
@@ -391,7 +694,11 @@ const PortfolioBacktestPanel: React.FC = () => {
         >
           Running backtest simulation…
         </p>
-        <div className="loading-track" style={{ maxWidth: 300, margin: "16px auto 0" }}>
+
+        <div
+          className="loading-track"
+          style={{ maxWidth: 300, margin: "16px auto 0" }}
+        >
           <div className="loading-bar" />
         </div>
       </div>
@@ -408,7 +715,14 @@ const PortfolioBacktestPanel: React.FC = () => {
           padding: 36,
         }}
       >
-        <p style={{ fontFamily: "var(--font-mono)", color: "#f87171", fontSize: 13, margin: 0 }}>
+        <p
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: "#f87171",
+            fontSize: 13,
+            margin: 0,
+          }}
+        >
           {error}
         </p>
       </div>
@@ -425,8 +739,18 @@ const PortfolioBacktestPanel: React.FC = () => {
           padding: 36,
         }}
       >
-        <div className="lb-eyebrow" style={{ marginBottom: 12 }}>Portfolio Backtest</div>
-        <p style={{ fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.38)", fontSize: 13, margin: 0 }}>
+        <div className="lb-eyebrow" style={{ marginBottom: 12 }}>
+          Portfolio Backtest
+        </div>
+
+        <p
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: "rgba(255,255,255,0.38)",
+            fontSize: 13,
+            margin: 0,
+          }}
+        >
           Add stocks to your Watchlist first to run a backtest.
         </p>
       </div>
@@ -449,9 +773,11 @@ const PortfolioBacktestPanel: React.FC = () => {
         overflow: "hidden",
       }}
     >
-      {/* Header */}
       <div style={{ padding: "24px 24px 0" }}>
-        <div className="lb-eyebrow" style={{ marginBottom: 8 }}>Research Lab</div>
+        <div className="lb-eyebrow" style={{ marginBottom: 8 }}>
+          Research Lab
+        </div>
+
         <h2
           style={{
             fontFamily: "var(--font-serif)",
@@ -463,6 +789,7 @@ const PortfolioBacktestPanel: React.FC = () => {
         >
           Portfolio Backtest
         </h2>
+
         <p
           style={{
             fontFamily: "var(--font-mono)",
@@ -478,39 +805,57 @@ const PortfolioBacktestPanel: React.FC = () => {
             : "Mean-variance optimized short-only watchlist portfolio over the last 1 year."}
         </p>
 
-        {/* Strategy tabs */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginBottom: 24,
+          }}
+        >
           {(
             [
-              { type: "equal_weight" as StrategyType, label: "Equal Weight"         },
-              { type: "mvo"          as StrategyType, label: "MVO Weights"          },
-              { type: "mvo_short"    as StrategyType, label: "MVO Short"            },
+              { type: "equal_weight" as StrategyType, label: "Equal Weight" },
+              { type: "mvo" as StrategyType, label: "MVO Weights" },
+              { type: "mvo_short" as StrategyType, label: "MVO Short" },
             ] as const
-          ).map((opt) => (
+          ).map((option) => (
             <button
-              key={opt.type}
-              onClick={() => setStrategyType(opt.type)}
+              key={option.type}
+              onClick={() => setStrategyType(option.type)}
               style={{
                 padding: "9px 16px",
                 borderRadius: 8,
-                border: `1px solid ${strategyType === opt.type ? "rgba(250,204,21,0.5)" : "rgba(250,204,21,0.15)"}`,
-                background: strategyType === opt.type ? "rgba(250,204,21,0.12)" : "rgba(250,204,21,0.04)",
-                color: strategyType === opt.type ? "#facc15" : "rgba(255,255,255,0.45)",
+                border: `1px solid ${
+                  strategyType === option.type
+                    ? "rgba(250,204,21,0.5)"
+                    : "rgba(250,204,21,0.15)"
+                }`,
+                background:
+                  strategyType === option.type
+                    ? "rgba(250,204,21,0.12)"
+                    : "rgba(250,204,21,0.04)",
+                color:
+                  strategyType === option.type
+                    ? "#facc15"
+                    : "rgba(255,255,255,0.45)",
                 fontFamily: "var(--font-mono)",
                 fontSize: 10,
                 letterSpacing: 1,
                 cursor: "pointer",
                 transition: "all 0.18s ease",
-                boxShadow: strategyType === opt.type ? "0 0 14px rgba(250,204,21,0.1)" : "none",
+                boxShadow:
+                  strategyType === option.type
+                    ? "0 0 14px rgba(250,204,21,0.1)"
+                    : "none",
               }}
             >
-              {opt.label}
+              {option.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Comparison summary cards */}
       {comparisonCards.length > 0 && (
         <div style={{ padding: "0 24px 20px" }}>
           <div
@@ -543,6 +888,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                 >
                   {item.label}
                 </span>
+
                 <div
                   style={{
                     fontFamily: "var(--font-serif)",
@@ -564,7 +910,6 @@ const PortfolioBacktestPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Chart */}
       <div style={{ padding: "0 24px" }}>
         <PerformanceComparisonChart
           portfolioCurve={data.curve}
@@ -573,7 +918,6 @@ const PortfolioBacktestPanel: React.FC = () => {
         />
       </div>
 
-      {/* Comparison rows */}
       {comparisonRows.length > 0 && (
         <div style={{ padding: "0 24px 24px" }}>
           <div style={{ marginBottom: 14 }}>
@@ -588,6 +932,7 @@ const PortfolioBacktestPanel: React.FC = () => {
             >
               Metric Comparison
             </h3>
+
             <p
               style={{
                 fontFamily: "var(--font-mono)",
@@ -599,6 +944,7 @@ const PortfolioBacktestPanel: React.FC = () => {
               Spread = Portfolio minus {benchmarkLabel}
             </p>
           </div>
+
           <div
             style={{
               overflowX: "auto",
@@ -606,42 +952,59 @@ const PortfolioBacktestPanel: React.FC = () => {
               border: "1px solid rgba(250,204,21,0.08)",
             }}
           >
-            <table
-              style={{ width: "100%", borderCollapse: "collapse" }}
-            >
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Metric", "Portfolio", benchmarkLabel, "Spread"].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 9,
-                        letterSpacing: 2,
-                        color: "rgba(250,204,21,0.55)",
-                        padding: "12px 14px",
-                        borderBottom: "1px solid rgba(250,204,21,0.08)",
-                        background: "rgba(0,0,0,0.3)",
-                        textAlign: h === "Metric" ? "left" : "right",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["Metric", "Portfolio", benchmarkLabel, "Spread"].map(
+                    (header) => (
+                      <th
+                        key={header}
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 9,
+                          letterSpacing: 2,
+                          color: "rgba(250,204,21,0.55)",
+                          padding: "12px 14px",
+                          borderBottom: "1px solid rgba(250,204,21,0.08)",
+                          background: "rgba(0,0,0,0.3)",
+                          textAlign: header === "Metric" ? "left" : "right",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {header}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
+
               <tbody>
                 {comparisonRows.map((row) => (
                   <tr key={row.label}>
                     {[
-                      { val: row.label,          tone: "neutral" as MetricTone, align: "left"  },
-                      { val: row.portfolioValue,  tone: "neutral" as MetricTone, align: "right" },
-                      { val: row.benchmarkValue,  tone: "neutral" as MetricTone, align: "right" },
-                      { val: row.spreadValue,     tone: row.spreadTone,          align: "right" },
-                    ].map((cell, ci) => (
+                      {
+                        value: row.label,
+                        tone: "neutral" as MetricTone,
+                        align: "left",
+                      },
+                      {
+                        value: row.portfolioValue,
+                        tone: "neutral" as MetricTone,
+                        align: "right",
+                      },
+                      {
+                        value: row.benchmarkValue,
+                        tone: "neutral" as MetricTone,
+                        align: "right",
+                      },
+                      {
+                        value: row.spreadValue,
+                        tone: row.spreadTone,
+                        align: "right",
+                      },
+                    ].map((cell, index) => (
                       <td
-                        key={ci}
+                        key={index}
                         style={{
                           padding: "11px 14px",
                           fontFamily: "var(--font-mono)",
@@ -651,15 +1014,15 @@ const PortfolioBacktestPanel: React.FC = () => {
                               ? "#4ade80"
                               : cell.tone === "negative"
                               ? "#f87171"
-                              : ci === 0
+                              : index === 0
                               ? "rgba(255,255,255,0.85)"
                               : "rgba(255,255,255,0.6)",
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
                           textAlign: cell.align as "left" | "right",
-                          fontWeight: ci === 0 ? 500 : 400,
+                          fontWeight: index === 0 ? 500 : 400,
                         }}
                       >
-                        {cell.val}
+                        {cell.value}
                       </td>
                     ))}
                   </tr>
@@ -670,7 +1033,6 @@ const PortfolioBacktestPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Portfolio metrics */}
       <div style={{ padding: "0 24px 24px" }}>
         <div style={{ marginBottom: 14 }}>
           <h3
@@ -684,6 +1046,7 @@ const PortfolioBacktestPanel: React.FC = () => {
           >
             {sectionTitle} Metrics
           </h3>
+
           <p
             style={{
               fontFamily: "var(--font-mono)",
@@ -695,6 +1058,7 @@ const PortfolioBacktestPanel: React.FC = () => {
             Standalone watchlist performance statistics.
           </p>
         </div>
+
         <div
           style={{
             display: "grid",
@@ -725,6 +1089,7 @@ const PortfolioBacktestPanel: React.FC = () => {
               >
                 {item.label}
               </span>
+
               <div
                 style={{
                   fontFamily: "var(--font-serif)",
@@ -745,7 +1110,6 @@ const PortfolioBacktestPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Holdings */}
       {data.holdings && data.holdings.length > 0 && (
         <div style={{ padding: "0 24px 28px" }}>
           <div
@@ -773,6 +1137,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                 ? "Optimized Holdings"
                 : "Optimized Short Holdings"}
             </h3>
+
             <span
               style={{
                 fontFamily: "var(--font-mono)",
@@ -802,14 +1167,14 @@ const PortfolioBacktestPanel: React.FC = () => {
               <thead>
                 <tr>
                   {[
-                    { label: "Symbol",       align: "left"   },
-                    { label: "Weight",       align: "center" },
-                    { label: "Start Price",  align: "right"  },
-                    { label: "End Price",    align: "right"  },
-                    { label: "Total Return", align: "right"  },
-                  ].map((h) => (
+                    { label: "Symbol", align: "left" },
+                    { label: "Weight", align: "center" },
+                    { label: "Start Price", align: "right" },
+                    { label: "End Price", align: "right" },
+                    { label: "Total Return", align: "right" },
+                  ].map((header) => (
                     <th
-                      key={h.label}
+                      key={header.label}
                       style={{
                         fontFamily: "var(--font-mono)",
                         fontSize: 9,
@@ -818,18 +1183,23 @@ const PortfolioBacktestPanel: React.FC = () => {
                         padding: "12px 14px",
                         borderBottom: "1px solid rgba(250,204,21,0.08)",
                         background: "rgba(0,0,0,0.3)",
-                        textAlign: h.align as "left" | "center" | "right",
+                        textAlign: header.align as
+                          | "left"
+                          | "center"
+                          | "right",
                         textTransform: "uppercase",
                       }}
                     >
-                      {h.label}
+                      {header.label}
                     </th>
                   ))}
                 </tr>
               </thead>
+
               <tbody>
                 {data.holdings.map((row) => {
-                  const retTone = getTone(row.total_return_pct);
+                  const returnTone = getTone(row.total_return_pct);
+
                   return (
                     <tr key={row.symbol}>
                       <td
@@ -845,6 +1215,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                       >
                         {row.symbol}
                       </td>
+
                       <td
                         style={{
                           padding: "11px 14px",
@@ -857,6 +1228,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                       >
                         {(row.weight * 100).toFixed(2)}%
                       </td>
+
                       <td
                         style={{
                           padding: "11px 14px",
@@ -869,6 +1241,7 @@ const PortfolioBacktestPanel: React.FC = () => {
                       >
                         {row.start_price.toFixed(2)}
                       </td>
+
                       <td
                         style={{
                           padding: "11px 14px",
@@ -881,15 +1254,16 @@ const PortfolioBacktestPanel: React.FC = () => {
                       >
                         {row.end_price.toFixed(2)}
                       </td>
+
                       <td
                         style={{
                           padding: "11px 14px",
                           fontFamily: "var(--font-mono)",
                           fontSize: 12,
                           color:
-                            retTone === "positive"
+                            returnTone === "positive"
                               ? "#4ade80"
-                              : retTone === "negative"
+                              : returnTone === "negative"
                               ? "#f87171"
                               : "rgba(255,255,255,0.6)",
                           borderBottom: "1px solid rgba(255,255,255,0.04)",
