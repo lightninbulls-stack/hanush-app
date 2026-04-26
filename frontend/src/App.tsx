@@ -53,7 +53,7 @@ const App: React.FC = () => {
             }
           />
 
-          <Route path="/payment-success" element={<Navigate to="/pricing" replace />} />
+          <Route path="/payment-success" element={<Pricing />} />
 
           <Route path="/factors/:slug" element={<FactorPage />} />
 
