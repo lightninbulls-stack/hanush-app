@@ -11,11 +11,8 @@ declare global {
     Cashfree: any;
   }
 }
+const CASHFREE_MODE = "production";
 
-const CASHFREE_MODE =
-  import.meta.env.VITE_CASHFREE_MODE === "production"
-    ? "production"
-    : "sandbox";
 
 // ✅ FIX 3: Wait for Cashfree SDK to be available on window (it loads async).
 // Polls every 200ms for up to 5 seconds instead of checking only once at click time.
