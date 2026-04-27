@@ -452,6 +452,9 @@ const Auth: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [signUpForm, setSignUpForm] = useState(initialSignUpState);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -616,7 +619,24 @@ const Auth: React.FC = () => {
                 </div>
                 <div className="input-group">
                   <label className="input-label">PASSWORD</label>
-                  <input type="password" placeholder="••••••••••" value={password} onChange={e => setPassword(e.target.value)} className="input" required />
+                  <div className="password-input-wrap">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      placeholder="••••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="input password-input"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowLoginPassword(prev => !prev)}
+                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    >
+                      {showLoginPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
                 </div>
                 <button className="btn" disabled={loading} type="submit">
                   {loading ? <span className="btn-loading"><span className="spinner" /> Authenticating...</span> : <span>Access Dashboard →</span>}
@@ -643,11 +663,45 @@ const Auth: React.FC = () => {
                 <div className="signup-grid">
                   <div className="input-group">
                     <label className="input-label">PASSWORD</label>
-                    <input type="password" placeholder="••••••••" value={signUpForm.password} onChange={handleSignUpChange("password")} className="input" required />
+                    <div className="password-input-wrap">
+                      <input
+                        type={showSignupPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={signUpForm.password}
+                        onChange={handleSignUpChange("password")}
+                        className="input password-input"
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle-btn"
+                        onClick={() => setShowSignupPassword(prev => !prev)}
+                        aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                      >
+                        {showSignupPassword ? "🙈" : "👁️"}
+                      </button>
+                    </div>
                   </div>
                   <div className="input-group">
                     <label className="input-label">CONFIRM</label>
-                    <input type="password" placeholder="••••••••" value={signUpForm.confirmPassword} onChange={handleSignUpChange("confirmPassword")} className="input" required />
+                    <div className="password-input-wrap">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={signUpForm.confirmPassword}
+                        onChange={handleSignUpChange("confirmPassword")}
+                        className="input password-input"
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle-btn"
+                        onClick={() => setShowConfirmPassword(prev => !prev)}
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? "🙈" : "👁️"}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button className="btn" disabled={loading} type="submit">
@@ -1020,6 +1074,42 @@ const Auth: React.FC = () => {
         }
         .input:focus { border-color: rgba(250,204,21,0.52); background: rgba(250,204,21,0.04); box-shadow: 0 0 16px rgba(250,204,21,0.16); }
         .input::placeholder { color: rgba(255,255,255,0.17); }
+
+        .password-input-wrap {
+          position: relative;
+          width: 100%;
+        }
+
+        .password-input {
+          padding-right: 42px;
+        }
+
+        .password-toggle-btn {
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 26px;
+          height: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          background: transparent;
+          color: #facc15;
+          cursor: pointer;
+          font-size: 14px;
+          line-height: 1;
+          padding: 0;
+          opacity: 0.78;
+          transition: opacity 0.2s, transform 0.2s, text-shadow 0.2s;
+        }
+
+        .password-toggle-btn:hover {
+          opacity: 1;
+          transform: translateY(-50%) scale(1.08);
+          text-shadow: 0 0 12px rgba(250,204,21,0.85);
+        }
 
         .btn {
           width: 100%; padding: 11px; border-radius: 3px;
