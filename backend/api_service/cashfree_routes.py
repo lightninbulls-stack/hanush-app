@@ -1,18 +1,6 @@
 """
 api_service/cashfree_routes.py
-───────────────────────────────
 Production-grade Cashfree payment integration.
-
-What's here:
-  ✅ PostgreSQL storage (replaces CSV)
-  ✅ Webhook signature validation (HMAC-SHA256)
-  ✅ Idempotent order creation & payment recording
-  ✅ Payment state tracking: PENDING → PAID / FAILED / REFUNDED
-  ✅ Retry logic on Cashfree API calls
-  ✅ Structured logging throughout
-  ✅ Backend enforces subscription (not just frontend)
-  ✅ Admin bypass using ADMIN_EMAILS env variable
-  ✅ Audit trail: raw CF payment ID + status stored
 """
 
 from __future__ import annotations
@@ -46,7 +34,7 @@ CASHFREE_WEBHOOK_KEY = os.getenv("CASHFREE_WEBHOOK_KEY", CASHFREE_SECRET)
 
 ADMIN_EMAILS = {
     email.strip().lower()
-    for email in os.getenv("lightninbulls", "").split(",")
+    for email in os.getenv("ADMIN_EMAILS", "").split(",")
     if email.strip()
 }
 
@@ -67,7 +55,9 @@ def get_db():
 
 
 def is_admin_user(user: User) -> bool:
-    return (user.email or "").strip().lower() in 
+    if not user or not user.email:
+        return False
+    return user.email.strip().lower() in ADMIN_EMAILS
 
 
 def get_cashfree_base_url() -> str:
