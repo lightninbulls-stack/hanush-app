@@ -13,17 +13,11 @@ declare global {
   }
 }
 
-/**
- * FIXED: Properly resolve mode as STRING (not boolean)
- */
 const CASHFREE_MODE: "production" | "sandbox" =
   String(import.meta.env.VITE_CASHFREE_MODE || "").toLowerCase() === "production"
     ? "production"
     : "sandbox";
 
-/**
- * Wait for Cashfree SDK
- */
 function waitForCashfreeSDK(timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window.Cashfree === "function") {
@@ -58,6 +52,7 @@ const Pricing: React.FC = () => {
 
   const validTillText = useMemo(() => {
     if (!subscription?.valid_till) return "";
+
     return new Date(subscription.valid_till).toLocaleString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -78,9 +73,6 @@ const Pricing: React.FC = () => {
     }
   };
 
-  /**
-   * Verify payment instantly after redirect
-   */
   useEffect(() => {
     if (orderId) {
       setVerifying(true);
@@ -99,16 +91,14 @@ const Pricing: React.FC = () => {
     } else {
       loadSubscription();
     }
-  }, []); // eslint-disable-line
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /**
-   * Auto redirect after success
-   */
   useEffect(() => {
     if (subscription?.is_active && orderId) {
       const timer = window.setTimeout(() => {
         navigate("/dashboard", { replace: true });
       }, 1500);
+
       return () => window.clearTimeout(timer);
     }
   }, [subscription, orderId, navigate]);
@@ -135,7 +125,6 @@ const Pricing: React.FC = () => {
         redirectTarget: "_self",
         returnUrl: `https://lightninbull.com/payment-success?order_id=${data.order_id}`,
       });
-
     } catch (error: any) {
       console.error("Payment error:", error);
       alert(error?.message || "Payment failed. Please try again.");
@@ -232,3 +221,107 @@ const Pricing: React.FC = () => {
 };
 
 export default Pricing;
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top, rgba(226,184,75,0.16), transparent 35%), #000",
+    color: "#fff",
+    display: "grid",
+    placeItems: "center",
+    padding: 24,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 560,
+    background: "rgba(12,12,12,0.95)",
+    border: "1px solid rgba(226,184,75,0.35)",
+    borderRadius: 22,
+    padding: 32,
+    boxShadow: "0 0 40px rgba(226,184,75,0.14)",
+    textAlign: "center",
+  },
+  badge: {
+    color: "#e2b84b",
+    fontSize: 12,
+    letterSpacing: 2,
+    marginBottom: 14,
+    fontWeight: 700,
+  },
+  title: {
+    margin: 0,
+    color: "#fff",
+    fontSize: 36,
+    lineHeight: 1.1,
+  },
+  subtitle: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 15,
+    lineHeight: 1.7,
+    marginTop: 16,
+  },
+  priceBox: {
+    margin: "28px 0 20px",
+  },
+  price: {
+    color: "#e2b84b",
+    fontSize: 44,
+    fontWeight: 800,
+  },
+  duration: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 16,
+  },
+  features: {
+    listStyle: "none",
+    padding: 0,
+    margin: "24px 0",
+    textAlign: "left",
+    color: "rgba(255,255,255,0.78)",
+    lineHeight: 2,
+  },
+  button: {
+    width: "100%",
+    background: "#e2b84b",
+    color: "#000",
+    border: "none",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+  },
+  successBox: {
+    margin: "28px 0",
+    padding: 20,
+    borderRadius: 16,
+    background: "rgba(0, 180, 90, 0.12)",
+    border: "1px solid rgba(0, 255, 150, 0.25)",
+  },
+  successTitle: {
+    margin: "0 0 10px",
+    color: "#66ffb2",
+  },
+  text: {
+    color: "rgba(255,255,255,0.72)",
+  },
+  expiry: {
+    color: "rgba(255,255,255,0.78)",
+    margin: "8px 0",
+  },
+  warningBox: {
+    margin: "24px 0 8px",
+    padding: 14,
+    borderRadius: 14,
+    background: "rgba(226,184,75,0.12)",
+    border: "1px solid rgba(226,184,75,0.28)",
+    color: "#e2b84b",
+    fontSize: 13,
+  },
+  modeText: {
+    marginTop: 14,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: 1,
+  },
+};
