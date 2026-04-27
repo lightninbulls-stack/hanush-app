@@ -32,18 +32,24 @@ CASHFREE_SECRET = os.getenv("CASHFREE_SECRET")
 CASHFREE_ENV = os.getenv("CASHFREE_ENV", "sandbox").lower()
 CASHFREE_WEBHOOK_KEY = os.getenv("CASHFREE_WEBHOOK_KEY", CASHFREE_SECRET)
 
-ADMIN_EMAILS = {
-    email.strip().lower()
-    for email in os.getenv("ADMIN_EMAILS", "").split(",")
-    if email.strip()
-}
-
 PLAN_AMOUNT = 1.0
 PLAN_DAYS = 1
 
 CF_API_VERSION = "2023-08-01"
 CF_TIMEOUT = 20
 CF_MAX_RETRIES = 3
+
+
+def normalise_phone(raw_phone: Optional[str]) -> str:
+    digits = "".join(ch for ch in str(raw_phone or "") if ch.isdigit())
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+ADMIN_PHONES = {
+    normalise_phone(phone)
+    for phone in os.getenv("ADMIN_PHONES", "").split(",")
+    if phone.strip()
+}
 
 
 def get_db():
@@ -55,9 +61,11 @@ def get_db():
 
 
 def is_admin_user(user: User) -> bool:
-    if not user or not user.email:
+    if not user:
         return False
-    return user.email.strip().lower() in ADMIN_EMAILS
+
+    user_phone = normalise_phone(getattr(user, "phone", None))
+    return bool(user_phone and user_phone in ADMIN_PHONES)
 
 
 def get_cashfree_base_url() -> str:
@@ -271,7 +279,7 @@ def create_order(
         "customer_details": {
             "customer_id": str(user.id),
             "customer_name": (user.name or "LightninBull User")[:50],
-            "customer_email": user.email,
+            "customer_email": user.email or f"user{user.id}@lightninbull.com",
             "customer_phone": sanitise_phone(getattr(user, "phone", None)),
         },
         "order_meta": {"return_url": return_url},
@@ -379,7 +387,6 @@ async def webhook(
         body = await request.json()
     except Exception:
         import json
-
         body = json.loads(raw_body)
 
     data = body.get("data", {})
