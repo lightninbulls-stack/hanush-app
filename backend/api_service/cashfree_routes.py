@@ -46,7 +46,7 @@ CASHFREE_WEBHOOK_KEY = os.getenv("CASHFREE_WEBHOOK_KEY", CASHFREE_SECRET)
 
 ADMIN_EMAILS = {
     email.strip().lower()
-    for email in os.getenv("ADMIN_EMAILS", "").split(",")
+    for email in os.getenv("lightninbulls", "").split(",")
     if email.strip()
 }
 
@@ -67,7 +67,7 @@ def get_db():
 
 
 def is_admin_user(user: User) -> bool:
-    return (user.email or "").strip().lower() in ADMIN_EMAILS
+    return (user.email or "").strip().lower() in 
 
 
 def get_cashfree_base_url() -> str:
