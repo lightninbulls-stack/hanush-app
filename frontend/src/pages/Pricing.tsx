@@ -15,9 +15,6 @@ declare global {
 
 const CASHFREE_MODE =
   import.meta.env.VITE_CASHFREE_MODE === "production"
-    ? "production"
-    : "sandbox";
-
 // Wait for Cashfree SDK to load (it arrives via async <script> tag)
 function waitForCashfreeSDK(timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
