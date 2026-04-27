@@ -43,7 +43,7 @@ CASHFREE_SECRET      = os.getenv("CASHFREE_SECRET")
 CASHFREE_ENV         = os.getenv("CASHFREE_ENV", "sandbox").lower()
 CASHFREE_WEBHOOK_KEY = os.getenv("CASHFREE_WEBHOOK_KEY", CASHFREE_SECRET)  # same secret used for signature
 
-PLAN_AMOUNT = 399.0
+PLAN_AMOUNT = 9.0
 PLAN_DAYS   = 14
 
 CF_API_VERSION = "2023-08-01"
