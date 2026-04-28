@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import traceback
+from collections import deque
 from dataclasses import asdict, dataclass
 from typing import Optional
 
@@ -12,8 +13,9 @@ from shared.intraday_spreads_state import spread_state
 from api_service.lightnin_bull_upside_intraday_signal import (
     INDEX_NAME,
     SPREAD_TYPE,
-    FAST_EMA_SPAN,
-    SLOW_EMA_SPAN,
+    FAST_SMA_WINDOW,
+    SLOW_SMA_WINDOW,
+    MIN_TICKS_FOR_SIGNAL,
     INSTRUMENT_FILE_CANDIDATES,
     current_ist,
     market_status_ist,
@@ -25,20 +27,54 @@ from api_service.lightnin_bull_upside_intraday_signal import (
 
 STRATEGY_NAME = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL"
 
-REGIME_FILE_CANDIDATES = [
-    "data/regime_downside_latest.csv",
-    "backend/data/regime_downside_latest.csv",
-]
+REGIME_FILE_CANDIDATES = ["data/regime_downside_latest.csv", "backend/data/regime_downside_latest.csv"]
 
-DOWNSIDE_TARGET_PCT = 0.017      # target = entry * 0.983
-DOWNSIDE_STOP_LOSS_PCT = 0.01    # stop loss = entry * 1.01
+DOWNSIDE_TARGET_PCT = 0.017      # Target = entry * 0.983
+DOWNSIDE_STOP_LOSS_PCT = 0.01    # Stop loss = entry * 1.01
+
+
+def load_downside_signal_tokens() -> pd.DataFrame:
+    regime_file_path = resolve_existing_file(REGIME_FILE_CANDIDATES, "downside regime")
+    instrument_file_path = resolve_existing_file(INSTRUMENT_FILE_CANDIDATES, "instrument")
+    regime_df = pd.read_csv(regime_file_path)
+    inst_df = pd.read_csv(instrument_file_path)
+
+    symbol_col = next((col for col in ["symbol", "Symbol", "stock", "Stock", "tradingsymbol", "TradingSymbol", "ticker", "Ticker"] if col in regime_df.columns), None)
+    if symbol_col is None:
+        raise ValueError(f"Could not find downside regime symbol column. Available columns: {regime_df.columns.tolist()}")
+
+    regime_symbols = regime_df[symbol_col].astype(str).str.strip().str.upper().dropna().unique().tolist()
+    if not regime_symbols:
+        raise ValueError("No symbols found in downside regime file.")
+
+    required_cols = ["instrument_token", "exchange_token", "tradingsymbol", "name", "instrument_type", "segment", "exchange"]
+    missing_cols = [col for col in required_cols if col not in inst_df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing columns in instrument file: {missing_cols}")
+
+    for col in ["tradingsymbol", "exchange", "segment", "instrument_type"]:
+        inst_df[col] = inst_df[col].astype(str).str.strip().str.upper()
+
+    equity_df = inst_df[(inst_df["exchange"] == "NSE") & (inst_df["segment"] == "NSE") & (inst_df["instrument_type"] == "EQ")].copy()
+    if equity_df.empty:
+        log_and_print("No strict NSE EQ rows found for downside. Falling back to all NSE rows.", "warning")
+        equity_df = inst_df[inst_df["exchange"] == "NSE"].copy()
+
+    matched_df = equity_df[equity_df["tradingsymbol"].isin(regime_symbols)].copy()
+    if matched_df.empty:
+        raise ValueError("No matching downside regime symbols found in NSE equity instruments.")
+
+    matched_df = matched_df[required_cols].drop_duplicates(subset=["tradingsymbol"]).reset_index(drop=True)
+    matched_df = matched_df.rename(columns={"tradingsymbol": "symbol"})
+    log_and_print(f"Matched {len(matched_df)} downside regime stocks with NSE cash tokens.")
+    return matched_df
 
 
 @dataclass
 class StockSignalState:
     symbol: str
     instrument_token: int
-    signal_status: str = "WAITING"  # WAITING / ENTERED / TARGET_HIT / STOP_LOSS_HIT
+    signal_status: str = "WAITING"
     entry_time: Optional[str] = None
     exit_time: Optional[str] = None
     avg_price: Optional[float] = None
@@ -50,115 +86,38 @@ class StockSignalState:
     exit_reason: Optional[str] = None
     pnl_points: Optional[float] = None
     pnl_pct: Optional[float] = None
-    fast_ema: Optional[float] = None
-    slow_ema: Optional[float] = None
+    fast_sma: Optional[float] = None
+    slow_sma: Optional[float] = None
+    tick_count: int = 0
 
 
-class EMAState:
-    def __init__(self, fast_span: int, slow_span: int):
-        self.fast_alpha = 2 / (fast_span + 1)
-        self.slow_alpha = 2 / (slow_span + 1)
-        self.fast_ema: Optional[float] = None
-        self.slow_ema: Optional[float] = None
-        self.prev_fast_ema: Optional[float] = None
-        self.prev_slow_ema: Optional[float] = None
+class SMAState:
+    def __init__(self, fast_window: int, slow_window: int):
+        self.fast_window = fast_window
+        self.slow_window = slow_window
+        self.prices = deque(maxlen=slow_window)
+        self.tick_count = 0
+        self.prev_fast_sma: Optional[float] = None
+        self.prev_slow_sma: Optional[float] = None
+        self.fast_sma: Optional[float] = None
+        self.slow_sma: Optional[float] = None
 
     def update(self, price: float) -> None:
-        self.prev_fast_ema = self.fast_ema
-        self.prev_slow_ema = self.slow_ema
+        self.tick_count += 1
+        self.prices.append(float(price))
+        if len(self.prices) < self.slow_window:
+            return
+        self.prev_fast_sma = self.fast_sma
+        self.prev_slow_sma = self.slow_sma
+        prices = list(self.prices)
+        self.fast_sma = sum(prices[-self.fast_window:]) / self.fast_window
+        self.slow_sma = sum(prices) / self.slow_window
 
-        if self.fast_ema is None:
-            self.fast_ema = price
-        else:
-            self.fast_ema = price * self.fast_alpha + self.fast_ema * (1 - self.fast_alpha)
-
-        if self.slow_ema is None:
-            self.slow_ema = price
-        else:
-            self.slow_ema = price * self.slow_alpha + self.slow_ema * (1 - self.slow_alpha)
+    def is_ready(self) -> bool:
+        return len(self.prices) >= self.slow_window and self.prev_fast_sma is not None and self.prev_slow_sma is not None
 
     def bearish_crossover(self) -> bool:
-        if None in (self.prev_fast_ema, self.prev_slow_ema, self.fast_ema, self.slow_ema):
-            return False
-        return self.prev_fast_ema >= self.prev_slow_ema and self.fast_ema < self.slow_ema
-
-
-def load_downside_signal_tokens() -> pd.DataFrame:
-    regime_file_path = resolve_existing_file(REGIME_FILE_CANDIDATES, "downside regime")
-    instrument_file_path = resolve_existing_file(INSTRUMENT_FILE_CANDIDATES, "instrument")
-
-    regime_df = pd.read_csv(regime_file_path)
-    inst_df = pd.read_csv(instrument_file_path)
-
-    possible_symbol_cols = [
-        "symbol",
-        "Symbol",
-        "stock",
-        "Stock",
-        "tradingsymbol",
-        "TradingSymbol",
-        "ticker",
-        "Ticker",
-    ]
-    symbol_col = next((col for col in possible_symbol_cols if col in regime_df.columns), None)
-    if symbol_col is None:
-        raise ValueError(f"Could not find downside regime symbol column. Available columns: {regime_df.columns.tolist()}")
-
-    regime_symbols = (
-        regime_df[symbol_col]
-        .astype(str)
-        .str.strip()
-        .str.upper()
-        .dropna()
-        .unique()
-        .tolist()
-    )
-
-    if not regime_symbols:
-        raise ValueError("No symbols found in downside regime file.")
-
-    required_cols = [
-        "instrument_token",
-        "exchange_token",
-        "tradingsymbol",
-        "name",
-        "instrument_type",
-        "segment",
-        "exchange",
-    ]
-    missing_cols = [col for col in required_cols if col not in inst_df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns in instrument file: {missing_cols}")
-
-    inst_df["tradingsymbol"] = inst_df["tradingsymbol"].astype(str).str.strip().str.upper()
-    inst_df["exchange"] = inst_df["exchange"].astype(str).str.strip().str.upper()
-    inst_df["segment"] = inst_df["segment"].astype(str).str.strip().str.upper()
-    inst_df["instrument_type"] = inst_df["instrument_type"].astype(str).str.strip().str.upper()
-
-    equity_df = inst_df[
-        (inst_df["exchange"] == "NSE")
-        & (inst_df["segment"] == "NSE")
-        & (inst_df["instrument_type"] == "EQ")
-    ].copy()
-
-    if equity_df.empty:
-        log_and_print("No strict NSE EQ rows found for downside. Falling back to all NSE rows.", "warning")
-        equity_df = inst_df[inst_df["exchange"] == "NSE"].copy()
-
-    matched_df = equity_df[equity_df["tradingsymbol"].isin(regime_symbols)].copy()
-    if matched_df.empty:
-        raise ValueError(
-            "No matching downside regime symbols found in NSE equity instruments. "
-            f"Sample regime={regime_symbols[:10]} sample instruments={equity_df['tradingsymbol'].head(10).tolist()}"
-        )
-
-    matched_df = matched_df[
-        ["instrument_token", "exchange_token", "tradingsymbol", "name", "instrument_type", "segment", "exchange"]
-    ].drop_duplicates(subset=["tradingsymbol"]).reset_index(drop=True)
-
-    matched_df = matched_df.rename(columns={"tradingsymbol": "symbol"})
-    log_and_print(f"Matched {len(matched_df)} downside regime stocks with NSE cash tokens.")
-    return matched_df
+        return self.is_ready() and self.prev_fast_sma >= self.prev_slow_sma and self.fast_sma < self.slow_sma
 
 
 class LightninBearDownsideIntradaySignal:
@@ -167,48 +126,32 @@ class LightninBearDownsideIntradaySignal:
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_publish_time = 0.0
-        self.ema_states: dict[int, EMAState] = {}
+        self.sma_states: dict[int, SMAState] = {}
         self.signal_states: dict[int, StockSignalState] = {}
 
         for _, row in regime_tokens_df.iterrows():
             token = int(row["instrument_token"])
             symbol = str(row["symbol"]).strip().upper()
-            self.ema_states[token] = EMAState(FAST_EMA_SPAN, SLOW_EMA_SPAN)
+            self.sma_states[token] = SMAState(FAST_SMA_WINDOW, SLOW_SMA_WINDOW)
             self.signal_states[token] = StockSignalState(symbol=symbol, instrument_token=token)
+        log_and_print(f"Initialized {len(self.signal_states)} downside stocks with SMA{FAST_SMA_WINDOW}/SMA{SLOW_SMA_WINDOW}. Minimum ticks={MIN_TICKS_FOR_SIGNAL}.")
 
-        log_and_print(f"Initialized {len(self.signal_states)} downside regime stocks.")
-
-    def _build_payload(self, ui_state: str = "RUNNING", message: str = "Monitoring downside regime stocks for bearish EMA crossover.") -> dict:
-        # IMPORTANT: frontend receives only actual signal rows.
-        # WAITING stocks are hidden. ENTERED/TARGET_HIT/STOP_LOSS_HIT are shown.
+    def _build_payload(self, ui_state: str = "RUNNING", message: str = "Monitoring downside SMA crossover stocks.") -> dict:
         signals = [asdict(state) for state in self.signal_states.values() if state.signal_status != "WAITING"]
-        signals = sorted(signals, key=lambda item: item["symbol"])
-
+        signals = sorted(signals, key=lambda row: row["symbol"])
         active_count = sum(1 for row in signals if row["signal_status"] == "ENTERED")
         target_hit_count = sum(1 for row in signals if row["signal_status"] == "TARGET_HIT")
         stop_loss_hit_count = sum(1 for row in signals if row["signal_status"] == "STOP_LOSS_HIT")
-
         return {
-            "index": INDEX_NAME,
-            "spread_type": SPREAD_TYPE,
-            "strategy_name": STRATEGY_NAME,
-            "status": ui_state,
-            "ui_state": ui_state,
-            "message": message,
+            "index": INDEX_NAME, "spread_type": SPREAD_TYPE, "strategy_name": STRATEGY_NAME,
+            "status": ui_state, "ui_state": ui_state, "message": message,
             "progress_text": f"{active_count} active, {target_hit_count} target hit, {stop_loss_hit_count} stop loss hit",
-            "signals": signals,
-            "entered_count": len(signals),
-            "active_count": active_count,
-            "target_hit_count": target_hit_count,
-            "stop_loss_hit_count": stop_loss_hit_count,
-            "total_count": len(self.signal_states),
-            "updated_at": current_ist().isoformat(),
-            "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
-            "net_pnl": 0.0,
-            "fast_ema_span": FAST_EMA_SPAN,
-            "slow_ema_span": SLOW_EMA_SPAN,
-            "target_pct": DOWNSIDE_TARGET_PCT * 100,
-            "stop_loss_pct": DOWNSIDE_STOP_LOSS_PCT * 100,
+            "signals": signals, "entered_count": len(signals), "active_count": active_count,
+            "target_hit_count": target_hit_count, "stop_loss_hit_count": stop_loss_hit_count, "total_count": len(self.signal_states),
+            "updated_at": current_ist().isoformat(), "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
+            "net_pnl": round(sum(float(row.get("pnl_points") or 0.0) for row in signals), 2),
+            "fast_sma_window": FAST_SMA_WINDOW, "slow_sma_window": SLOW_SMA_WINDOW, "min_ticks_for_signal": MIN_TICKS_FOR_SIGNAL,
+            "target_pct": DOWNSIDE_TARGET_PCT * 100, "stop_loss_pct": DOWNSIDE_STOP_LOSS_PCT * 100,
         }
 
     def _publish(self, force: bool = False) -> None:
@@ -218,90 +161,81 @@ class LightninBearDownsideIntradaySignal:
         spread_state.update(STRATEGY_NAME, self._build_payload())
         self.last_publish_time = now
 
-    def _enter_trade(self, signal_state: StockSignalState, ltp: float) -> None:
+    def _enter_trade(self, state: StockSignalState, ltp: float) -> None:
         entry = round(float(ltp), 2)
-        signal_state.signal_status = "ENTERED"
-        signal_state.entry_time = current_ist().strftime("%H:%M:%S")
-        signal_state.avg_price = entry
-        signal_state.entry_price = entry
-        signal_state.current_ltp = entry
-        signal_state.target_price = round(entry * (1 - DOWNSIDE_TARGET_PCT), 2)
-        signal_state.stop_loss_price = round(entry * (1 + DOWNSIDE_STOP_LOSS_PCT), 2)
-        signal_state.pnl_points = 0.0
-        signal_state.pnl_pct = 0.0
-        log_and_print(
-            f"DOWNSIDE ENTRY | {signal_state.symbol} | entry={entry:.2f} | "
-            f"target={signal_state.target_price:.2f} | stop_loss={signal_state.stop_loss_price:.2f}"
-        )
+        state.signal_status = "ENTERED"
+        state.entry_time = current_ist().strftime("%H:%M:%S")
+        state.avg_price = entry
+        state.entry_price = entry
+        state.current_ltp = entry
+        state.target_price = round(entry * (1 - DOWNSIDE_TARGET_PCT), 2)
+        state.stop_loss_price = round(entry * (1 + DOWNSIDE_STOP_LOSS_PCT), 2)
+        state.pnl_points = 0.0
+        state.pnl_pct = 0.0
+        log_and_print(f"DOWNSIDE SMA CROSSOVER ENTRY | {state.symbol} | entry={entry:.2f} | target={state.target_price:.2f} | stop_loss={state.stop_loss_price:.2f} | ticks={state.tick_count}")
 
-    def _exit_trade(self, signal_state: StockSignalState, ltp: float, reason: str) -> None:
-        if signal_state.entry_price is None:
+    def _update_live_pnl(self, state: StockSignalState, ltp: float) -> None:
+        if state.entry_price is None:
             return
+        pnl_points = float(state.entry_price) - float(ltp)
+        state.pnl_points = round(pnl_points, 2)
+        state.pnl_pct = round((pnl_points / float(state.entry_price)) * 100, 2) if state.entry_price else 0.0
 
+    def _exit_trade(self, state: StockSignalState, ltp: float, reason: str) -> None:
+        if state.entry_price is None:
+            return
         exit_price = round(float(ltp), 2)
-        signal_state.signal_status = "TARGET_HIT" if reason == "TARGET" else "STOP_LOSS_HIT"
-        signal_state.exit_reason = reason
-        signal_state.exit_time = current_ist().strftime("%H:%M:%S")
-        signal_state.exit_price = exit_price
-        signal_state.current_ltp = exit_price
-
-        # Downside paper trade earns when price falls below entry.
-        pnl_points = float(signal_state.entry_price) - exit_price
-        signal_state.pnl_points = round(pnl_points, 2)
-        signal_state.pnl_pct = round((pnl_points / float(signal_state.entry_price)) * 100, 2) if signal_state.entry_price else 0.0
-        log_and_print(
-            f"DOWNSIDE EXIT | {signal_state.symbol} | reason={reason} | "
-            f"exit={exit_price:.2f} | pnl_pct={signal_state.pnl_pct:.2f}%"
-        )
+        state.signal_status = "TARGET_HIT" if reason == "TARGET" else "STOP_LOSS_HIT"
+        state.exit_reason = reason
+        state.exit_time = current_ist().strftime("%H:%M:%S")
+        state.exit_price = exit_price
+        state.current_ltp = exit_price
+        self._update_live_pnl(state, exit_price)
+        log_and_print(f"DOWNSIDE EXIT | {state.symbol} | reason={reason} | exit={exit_price:.2f} | pnl_points={state.pnl_points:.2f} | pnl_pct={state.pnl_pct:.2f}%")
 
     def _handle_tick(self, token: int, ltp: float) -> None:
-        if token not in self.ema_states:
+        if token not in self.sma_states:
             return
-
-        ema_state = self.ema_states[token]
+        sma_state = self.sma_states[token]
         signal_state = self.signal_states[token]
-        ema_state.update(ltp)
-
+        sma_state.update(float(ltp))
+        signal_state.tick_count = sma_state.tick_count
         signal_state.current_ltp = round(float(ltp), 2)
-        signal_state.fast_ema = round(float(ema_state.fast_ema), 4) if ema_state.fast_ema is not None else None
-        signal_state.slow_ema = round(float(ema_state.slow_ema), 4) if ema_state.slow_ema is not None else None
+        signal_state.fast_sma = round(float(sma_state.fast_sma), 4) if sma_state.fast_sma is not None else None
+        signal_state.slow_sma = round(float(sma_state.slow_sma), 4) if sma_state.slow_sma is not None else None
+
+        if signal_state.tick_count <= 5 or signal_state.tick_count % 100 == 0:
+            log_and_print(f"DOWNSIDE SMA TICK | {signal_state.symbol} | LTP={signal_state.current_ltp:.2f} | ticks={signal_state.tick_count}/{MIN_TICKS_FOR_SIGNAL} | SMA{FAST_SMA_WINDOW}={signal_state.fast_sma} | SMA{SLOW_SMA_WINDOW}={signal_state.slow_sma} | status={signal_state.signal_status}")
 
         if signal_state.signal_status == "ENTERED":
+            self._update_live_pnl(signal_state, float(ltp))
             if signal_state.target_price is not None and float(ltp) <= float(signal_state.target_price):
                 self._exit_trade(signal_state, float(ltp), "TARGET")
             elif signal_state.stop_loss_price is not None and float(ltp) >= float(signal_state.stop_loss_price):
                 self._exit_trade(signal_state, float(ltp), "STOP_LOSS")
             return
-
-        # After target/SL exit, do not re-enter same stock again today.
         if signal_state.signal_status != "WAITING":
             return
-
-        # This is the only entry condition. Stock appears in frontend only after this bearish crossover.
-        if ema_state.bearish_crossover():
+        if sma_state.bearish_crossover():
             self._enter_trade(signal_state, float(ltp))
 
     def start(self) -> None:
         tokens = list(self.signal_states.keys())
         if not tokens:
             raise ValueError("No instrument tokens available for downside websocket subscription.")
-
         self.ws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
         self.is_running = True
-
-        spread_state.update(STRATEGY_NAME, self._build_payload("BOOTING", f"Preparing {len(tokens)} downside regime stocks."))
+        spread_state.update(STRATEGY_NAME, self._build_payload("BOOTING", f"Preparing {len(tokens)} downside SMA signal stocks."))
 
         def on_ticks(ws, ticks):
             if not self.is_running:
                 return
-
             status = market_status_ist()
             if status != "OPEN":
                 log_and_print(f"Market status={status}. Stopping downside stock signal engine.")
                 self.stop()
                 spread_state.update(STRATEGY_NAME, self._build_payload("STOPPED", "Trading window closed for the day."))
                 return
-
             for tick in ticks:
                 token = tick.get("instrument_token")
                 ltp = tick.get("last_price")
@@ -311,14 +245,13 @@ class LightninBearDownsideIntradaySignal:
                     self._handle_tick(int(token), float(ltp))
                 except Exception as exc:
                     log_and_print(f"Downside tick error for token={token}: {exc}", "error")
-
             self._publish()
 
         def on_connect(ws, response):
             log_and_print(f"Connected to downside websocket. Subscribing {len(tokens)} NSE cash tokens.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
-            spread_state.update(STRATEGY_NAME, self._build_payload("RUNNING", "Live feed connected. Monitoring downside crossover signals."))
+            spread_state.update(STRATEGY_NAME, self._build_payload("RUNNING", "Live feed connected. Waiting for true SMA crossover entries."))
 
         def on_close(ws, code, reason):
             log_and_print(f"Downside WebSocket closed: {code} - {reason}", "warning")
@@ -333,10 +266,8 @@ class LightninBearDownsideIntradaySignal:
         self.ws.on_connect = on_connect
         self.ws.on_close = on_close
         self.ws.on_error = on_error
-
         self._publish(force=True)
         self.ws.connect(threaded=True)
-
         while self.is_running:
             time.sleep(1)
 
@@ -356,36 +287,17 @@ class LightninBearDownsideIntradaySignal:
 
 
 def main() -> None:
-    log_and_print("Downside stock signal main() entered")
-
+    log_and_print("Downside stock SMA signal main() entered")
     try:
         if not wait_until_market_open():
             return
-
         cred = load_creds()
         regime_tokens_df = load_downside_signal_tokens()
-        engine = LightninBearDownsideIntradaySignal(cred=cred, regime_tokens_df=regime_tokens_df)
-        engine.start()
-        log_and_print("Downside intraday stock signal engine stopped.")
-
+        LightninBearDownsideIntradaySignal(cred=cred, regime_tokens_df=regime_tokens_df).start()
     except Exception as exc:
         log_and_print(f"Downside strategy failed: {exc}", "error")
         log_and_print(traceback.format_exc(), "error")
-        spread_state.update(
-            STRATEGY_NAME,
-            {
-                "index": INDEX_NAME,
-                "spread_type": SPREAD_TYPE,
-                "strategy_name": STRATEGY_NAME,
-                "status": "ERROR",
-                "ui_state": "ERROR",
-                "message": f"Downside strategy failed: {exc}",
-                "signals": [],
-                "entered_count": 0,
-                "total_count": 0,
-                "updated_at": current_ist().isoformat(),
-            },
-        )
+        spread_state.update(STRATEGY_NAME, {"index": INDEX_NAME, "spread_type": SPREAD_TYPE, "strategy_name": STRATEGY_NAME, "status": "ERROR", "ui_state": "ERROR", "message": f"Downside strategy failed: {exc}", "signals": [], "entered_count": 0, "total_count": 0, "updated_at": current_ist().isoformat()})
 
 
 if __name__ == "__main__":
