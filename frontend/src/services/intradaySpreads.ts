@@ -24,17 +24,27 @@ export type StockSignalRow = {
   symbol: string;
   instrument_token: number;
   name?: string | null;
-  signal_status: "WAITING" | "ENTERED" | string;
+  signal_status: "WAITING" | "ENTERED" | "TARGET_HIT" | "STOP_LOSS_HIT" | string;
   paper_trade?: boolean;
   entry_time?: string | null;
+  exit_time?: string | null;
   avg_price?: number | null;
+  entry_price?: number | null;
   current_ltp?: number | null;
+  target_price?: number | null;
+  stop_loss_price?: number | null;
+  exit_price?: number | null;
+  exit_reason?: string | null;
+  trade_status?: string | null;
   max_ltp?: number | null;
   min_ltp?: number | null;
   favorable_price?: number | null;
   points_captured?: number | null;
   pct_captured?: number | null;
+  pnl_points?: number | null;
+  pnl_pct?: number | null;
 };
+
 export type IntradaySpread = {
   index: string;
   spread_type: string;
@@ -48,10 +58,15 @@ export type IntradaySpread = {
   stop_loss?: number;
   target?: number;
   updated_at?: string;
+  updated_at_ist?: string;
   entry_time?: string | null;
   legs?: SpreadLeg[];
   pnl_curve?: PnlPoint[];
   entered_count?: number;
+  active_count?: number;
+  exited_count?: number;
+  target_hit_count?: number;
+  stop_loss_hit_count?: number;
   total_count?: number;
   signals?: StockSignalRow[];
 };
