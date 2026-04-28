@@ -548,6 +548,18 @@ class PaperSpreadMTMTracker:
             pass
         self._done_event.set()
 
+    def force_close_positions(self) -> None:
+        """Called by watchdog when market closes and ticks have gone silent."""
+        log_and_print("WATCHDOG FORCE CLOSE | Closing all positions at market end.")
+        self.paper_book.close_all_positions()
+        self._publish_current_state()
+        self.is_running = False
+        try:
+            if self.ws:
+                self.ws.close()
+        except Exception:
+            pass
+
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
         if orders_df.empty or len(orders_df) < 2:
@@ -564,7 +576,7 @@ class PaperSpreadMTMTracker:
             if not self.is_running:
                 return
 
-            # Market close protection
+            # Market close protection (tick-driven path)
             if is_after_market_close_ist():
                 log_and_print("MARKET CLOSED | Closing bull call spread and stopping MTM websocket.")
                 self._shutdown(ws, tokens, "MARKET_CLOSE")
@@ -609,14 +621,22 @@ class PaperSpreadMTMTracker:
             ws.set_mode(ws.MODE_LTP, tokens)
 
         def on_error(ws, code, reason):
-            # ── FIX: also set done_event so main thread is not left hanging ──
+            # Publish ERROR to frontend and unblock main thread
             log_and_print(f"MTM WS ERROR | code={code} reason={reason}", "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"MTM websocket error: {reason}",
+                progress_text=f"code={code}",
+                is_loading=False,
+            )
             self.is_running = False
             self._done_event.set()
 
         def on_close(ws, code, reason):
             log_and_print(f"MTM WS CLOSED | code={code} reason={reason}")
-            # If closed unexpectedly while still live, unblock main
             if self.is_running:
                 self.is_running = False
                 self._done_event.set()
@@ -790,7 +810,7 @@ class AlphaBullCall:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EMA CROSSOVER  (NIFTY spot signal detection)
+# EMA CROSSOVER  (NIFTY spot signal detection — bullish: EMA5 crosses above EMA55)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class EMACrossover1Min:
@@ -813,6 +833,12 @@ class EMACrossover1Min:
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
         self._done_event = done_event
+        # ── LIVE CANDLE CONFIRMATION ─────────────────────────────────────────
+        # Counts only candles completed from live tick data (not history).
+        # Signal is blocked until at least 2 live candles have completed,
+        # preventing a false crossover built on 1 historical + 1 live candle.
+        self.live_completed_candles: int = 0
+        # ─────────────────────────────────────────────────────────────────────
 
     def _load_history(self) -> pd.DataFrame:
         try:
@@ -846,8 +872,28 @@ class EMACrossover1Min:
             ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
             if not ohlc.empty:
                 ohlc["signal"] = 0
-                self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
-                self._update_ema_crossover(rider)
+
+                # Keep only genuinely new live candles.
+                # Historical data is used only to warm EMA values.
+                # This prevents duplicate timestamps from historical_data + live resample.
+                if not self.onemin_bars.empty:
+                    last_existing_ts = self.onemin_bars.index.max()
+                    ohlc = ohlc[ohlc.index > last_existing_ts]
+
+                if not ohlc.empty:
+                    self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
+                    self.onemin_bars = self.onemin_bars[~self.onemin_bars.index.duplicated(keep="last")]
+                    self.onemin_bars = self.onemin_bars.sort_index()
+
+                    # Count only completed live candles, not historical candles.
+                    self.live_completed_candles += len(ohlc)
+                    log_and_print(
+                        f"LIVE CANDLE COMPLETED | live_completed_candles={self.live_completed_candles} | "
+                        f"Last={self.onemin_bars.index[-1].strftime('%H:%M:%S')}"
+                    )
+
+                    self._update_ema_crossover(rider)
+
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
@@ -889,7 +935,27 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # ── CROSSOVER CHECK ──────────────────────────────────────────────────
+        # ── LIVE CANDLE GATE ─────────────────────────────────────────────────
+        # Block any signal until at least 2 fully live candles have completed.
+        # This prevents a false crossover where prev candle is historical and
+        # latest candle is the very first live one.
+        if self.live_completed_candles < 2:
+            log_and_print(
+                f"WAITING LIVE CONFIRMATION | live_completed_candles={self.live_completed_candles} < 2"
+            )
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text="Live NIFTY 50 feed active",
+                is_loading=True,
+            )
+            return
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── BULLISH CROSSOVER CHECK ──────────────────────────────────────────
         # Fires ONLY when EMA5 transitions from <= EMA55  →  > EMA55.
         # Prevents false entry when EMA5 is already above EMA55 at startup.
         signal_condition = bool(
@@ -905,9 +971,10 @@ class EMACrossover1Min:
 
         if signal_condition and self.last_trade_signal != 1:
             log_and_print(
-                f"✅ EMA CROSSOVER SIGNAL | EMA5 crossed above EMA55 | "
+                f"✅ EMA BULLISH CROSSOVER SIGNAL | EMA5 crossed above EMA55 | "
                 f"PrevEMA5={prev['EMA5']:.2f} PrevEMA55={prev['EMA55']:.2f} | "
-                f"CurrEMA5={latest['EMA5']:.2f} CurrEMA55={latest['EMA55']:.2f}"
+                f"CurrEMA5={latest['EMA5']:.2f} CurrEMA55={latest['EMA55']:.2f} | "
+                f"live_completed_candles={self.live_completed_candles}"
             )
             self.last_trade_signal = 1
             self._stop_nifty_stream()
@@ -940,7 +1007,7 @@ class EMACrossover1Min:
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
                 message="Monitoring market conditions for bullish entry trigger...",
-                progress_text=f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}",
+                progress_text="Live NIFTY 50 feed active",
                 is_loading=True,
             )
 
@@ -965,7 +1032,6 @@ class EMACrossover1Min:
                     progress_text="Market closed",
                     is_loading=False,
                 )
-                # No trade happened — unblock main so process exits cleanly
                 self._done_event.set()
                 return
 
@@ -996,13 +1062,21 @@ class EMACrossover1Min:
             )
 
         def on_error(ws, code, reason):
-            # ── FIX: set done_event so main thread is not left hanging ──
+            # Publish ERROR to frontend and unblock main thread
             log_and_print(f"EMA WS ERROR | code={code} reason={reason}", "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"EMA websocket error: {reason}",
+                progress_text=f"code={code}",
+                is_loading=False,
+            )
             self._done_event.set()
 
         def on_close(ws, code, reason):
             log_and_print(f"EMA WS CLOSED | code={code} reason={reason}")
-            # Closed before any crossover fired — unblock main
             if not self._stop_flag and self.last_trade_signal == 0:
                 self._done_event.set()
 
@@ -1075,12 +1149,7 @@ def main():
 
     log_and_print("MAIN 2: inside market hours — proceeding")
 
-    # ── threading.Event keeps main thread alive until strategy fully finishes ─
-    # All terminal paths — SL, target, market close, WS error, exception —
-    # call done_event.set(). Without this, main() returns immediately after
-    # nifty_ema.start() and Python kills every daemon thread (both websockets).
     done_event = threading.Event()
-
     try:
         cred = load_creds()
         log_and_print(f"MAIN 3: creds loaded | expiry={cred['i_expiry_date_nifty']}")
@@ -1099,6 +1168,7 @@ def main():
             instrument_token=NIFTY_SPOT_TOKEN,
             preload_days=PRELOAD_DAYS,
         )
+
         alpha_bull = AlphaBullCall(
             kite=kite,
             cred=cred,
@@ -1109,9 +1179,47 @@ def main():
         log_and_print("MAIN 6: starting EMA crossover stream")
         nifty_ema.start(alpha_bull)
 
-        # Block until strategy finishes (SL / Target / Market close / Error / WS drop)
+        # Block until strategy finishes (SL / Target / Market close / Error / WS drop).
+        #
+        # IMPORTANT PRODUCTION SAFETY:
+        # We do not use plain done_event.wait() forever because websocket ticks can stop.
+        # If no tick arrives after market close, on_ticks will not run and the process
+        # can remain alive on Render unnecessarily. This loop wakes every 2 seconds
+        # and force-closes the paper spread after market close.
         log_and_print("MAIN 7: waiting for strategy completion...")
-        done_event.wait()
+
+        while not done_event.is_set():
+            if is_after_market_close_ist():
+                log_and_print("MAIN MARKET CLOSE WATCHDOG | Force closing bull call strategy and exiting.")
+
+                try:
+                    if alpha_bull.mtm_tracker is not None and alpha_bull.mtm_tracker.is_running:
+                        alpha_bull.mtm_tracker.force_close_positions()
+                    else:
+                        paper_book.close_all_positions()
+                        final_payload = build_spread_payload(
+                            paper_book=paper_book,
+                            index_name=INDEX_NAME,
+                            spread_type=SPREAD_TYPE,
+                            strategy_name=STRATEGY_NAME,
+                            stop_loss_amount=STOP_LOSS_AMOUNT,
+                            target_amount=TARGET_AMOUNT,
+                        )
+                        publish_spread_update(final_payload)
+
+                    nifty_ema._stop_nifty_stream()
+
+                except Exception as close_exc:
+                    log_and_print(
+                        f"MAIN MARKET CLOSE WATCHDOG failed to publish final state: {close_exc}",
+                        "error",
+                    )
+
+                done_event.set()
+                break
+
+            done_event.wait(timeout=2.0)
+
         log_and_print("MAIN 8: strategy complete — exiting cleanly.")
 
     except Exception as e:
@@ -1126,6 +1234,7 @@ def main():
             progress_text="Check logs",
             is_loading=False,
         )
+        done_event.set()
 
 
 if __name__ == "__main__":
