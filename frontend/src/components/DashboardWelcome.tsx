@@ -88,8 +88,8 @@ const stagger: Variants = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Sparkle canvas — subtle gold dust, spawns only at card edges
-// intensity 0–1 controls count; kept minimal and tasteful
+// Canvas sparkle system: spawns 4-pointed gold stars from edges
+// intensity 0-1 controls spawn rate and size
 // ─────────────────────────────────────────────────────────────
 interface SParticle {
   x: number; y: number;
@@ -123,56 +123,59 @@ const SparkleCanvas: React.FC<{ active: boolean; intensity: number }> = ({ activ
       const W = canvas.width, H = canvas.height;
       ctx.clearRect(0, 0, W, H);
 
-      // Very few spawns — max 2 per frame even at full intensity
-      const spawnN = a ? Math.random() < (iv * 0.35) ? 1 : 0 : 0;
+      // Spawn from frame edges
+      const spawnN = a ? Math.ceil(iv * 5) : 0;
       for (let i = 0; i < spawnN; i++) {
-        // Only spawn along the 4 edges (glass frame effect)
         const edge = Math.floor(Math.random() * 4);
         let sx = 0, sy = 0;
         if (edge === 0) { sx = Math.random() * W; sy = 0; }
         else if (edge === 1) { sx = W; sy = Math.random() * H; }
         else if (edge === 2) { sx = Math.random() * W; sy = H; }
         else { sx = 0; sy = Math.random() * H; }
-
-        const spd = 0.3 + iv * 1.2;
-        const ang = Math.atan2(H / 2 - sy, W / 2 - sx) + (Math.random() - 0.5) * 0.8;
+        const spd = 0.5 + iv * 2.5 + Math.random();
+        const ang = Math.atan2(H / 2 - sy, W / 2 - sx) + (Math.random() - 0.5) * 1.6;
         particles.current.push({
           x: sx, y: sy,
           vx: Math.cos(ang) * spd,
           vy: Math.sin(ang) * spd,
-          size: 0.8 + Math.random() * 1.4,
-          life: 0, maxLife: 40 + Math.random() * 30,
+          size: 1 + Math.random() * (1.5 + iv * 3),
+          life: 0, maxLife: 28 + Math.random() * 36,
         });
       }
 
-      // Cap total particles — never more than 18 on screen
-      if (particles.current.length > 18) particles.current.splice(0, particles.current.length - 18);
       particles.current = particles.current.filter(p => p.life < p.maxLife);
-
       for (const p of particles.current) {
         p.life++;
         p.x += p.vx; p.y += p.vy;
-        p.vy -= 0.012; // gentle upward float
-
+        p.vy -= 0.018;
         const t = p.life / p.maxLife;
-        const alpha = (t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8) * 0.85;
+        const alpha = (t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75) * (0.65 + iv * 0.35);
         const s = p.size;
 
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.globalAlpha = alpha;
 
-        // Pure gold glow halo
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 5);
-        g.addColorStop(0, "rgba(250,204,21,1)");
-        g.addColorStop(0.4, "rgba(214,168,31,0.6)");
+        // Outer glow halo
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 4);
+        g.addColorStop(0, "rgba(255,248,160,1)");
+        g.addColorStop(0.4, "rgba(250,204,21,0.8)");
         g.addColorStop(1, "rgba(250,204,21,0)");
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(0, 0, s * 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, s * 4, 0, Math.PI * 2); ctx.fill();
 
-        // Bright gold core dot
-        ctx.fillStyle = "#fef08a";
-        ctx.beginPath(); ctx.arc(0, 0, s * 0.8, 0, Math.PI * 2); ctx.fill();
+        // 4-pointed star
+        ctx.fillStyle = "#fffde0";
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 2.8);
+        ctx.lineTo(s * 0.38, -s * 0.38);
+        ctx.lineTo(s * 2.8, 0);
+        ctx.lineTo(s * 0.38, s * 0.38);
+        ctx.lineTo(0, s * 2.8);
+        ctx.lineTo(-s * 0.38, s * 0.38);
+        ctx.lineTo(-s * 2.8, 0);
+        ctx.lineTo(-s * 0.38, -s * 0.38);
+        ctx.closePath(); ctx.fill();
 
         ctx.restore();
       }
@@ -1003,29 +1006,18 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           z-index: 0;
         }
 
-        /* ── Glass face — deep frosted cinematic panel ── */
+        /* ── Glass face — sits in front, translateZ ── */
         .lb-gp-face {
           position: absolute;
           inset: 0;
-          /* Thick beveled gold frame via outline + inset shadow */
-          box-shadow:
-            inset 0 0 0 1px rgba(250,204,21,0.55),
-            inset 0 0 0 3px rgba(0,0,0,0.6),
-            inset 0 0 0 5px rgba(250,204,21,0.18),
-            inset 0 1px 0 rgba(255,248,160,0.5),
-            0 2px 40px rgba(0,0,0,0.5);
           background:
-            /* Top-left bright corner catch */
-            radial-gradient(ellipse 60% 30% at 0% 0%, rgba(255,248,160,0.07), transparent 60%),
-            /* Subtle central glow */
-            radial-gradient(ellipse 80% 50% at 50% 40%, rgba(250,204,21,0.04), transparent 70%),
-            /* Base glass: semi-transparent dark tint */
-            linear-gradient(160deg,
-              rgba(30,26,15,0.72) 0%,
-              rgba(12,11,8,0.85) 50%,
-              rgba(20,18,10,0.78) 100%
-            );
-          backdrop-filter: blur(24px) saturate(1.4) brightness(1.05);
+            linear-gradient(130deg,
+              rgba(255,255,255,0.08) 0%,
+              rgba(255,255,255,0.02) 45%,
+              rgba(255,255,255,0.06) 100%
+            ),
+            rgba(8,9,12,0.76);
+          backdrop-filter: blur(18px) saturate(1.25);
           overflow: hidden;
         }
 
@@ -1037,88 +1029,55 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           z-index: 2;
         }
 
-        /* Single top highlight — the brightest glass refraction */
+        /* Gold refraction edge lines — like real thick-glass spectacle frames */
         .lb-gp-edge {
           position: absolute;
           pointer-events: none;
           z-index: 3;
         }
-
-        /* Top bevel — bright catch light, most visible on glass */
         .lb-gp-edge-top {
-          top: 0; left: 0; right: 0; height: 3px;
+          top: 0; left: 0; right: 0; height: 2px;
           background: linear-gradient(90deg,
-            rgba(250,204,21,0.08) 0%,
-            rgba(255,248,160,0.75) 20%,
-            rgba(255,255,220,0.95) 50%,
-            rgba(255,248,160,0.75) 80%,
-            rgba(250,204,21,0.08) 100%);
-          filter: blur(0.4px);
+            transparent 3%,
+            rgba(250,204,21,0.35) 18%,
+            rgba(255,255,200,0.85) 50%,
+            rgba(250,204,21,0.35) 82%,
+            transparent 97%);
         }
-
-        /* Left bevel */
-        .lb-gp-edge-left {
-          top: 0; left: 0; bottom: 0; width: 3px;
-          background: linear-gradient(180deg,
-            rgba(255,248,160,0.6) 0%,
-            rgba(250,204,21,0.35) 30%,
-            rgba(250,204,21,0.15) 70%,
-            rgba(250,204,21,0.05) 100%);
-          filter: blur(0.3px);
-        }
-
-        /* Right bevel — slightly dimmer (light comes from top-left) */
-        .lb-gp-edge-right {
-          top: 0; right: 0; bottom: 0; width: 2px;
-          background: linear-gradient(180deg,
-            rgba(250,204,21,0.25) 0%,
-            rgba(250,204,21,0.12) 40%,
-            transparent 100%);
-        }
-
-        /* Bottom edge — darkest, shadow side */
         .lb-gp-edge-bottom {
           bottom: 0; left: 0; right: 0; height: 1px;
           background: linear-gradient(90deg,
-            transparent 10%,
-            rgba(250,204,21,0.22) 40%,
-            rgba(250,204,21,0.3) 50%,
-            rgba(250,204,21,0.22) 60%,
-            transparent 90%);
+            transparent 5%,
+            rgba(250,204,21,0.2) 30%,
+            rgba(250,204,21,0.4) 50%,
+            rgba(250,204,21,0.2) 70%,
+            transparent 95%);
+        }
+        .lb-gp-edge-left {
+          top: 0; left: 0; bottom: 0; width: 2px;
+          background: linear-gradient(180deg,
+            transparent 5%,
+            rgba(250,204,21,0.4) 30%,
+            rgba(255,255,200,0.6) 50%,
+            rgba(250,204,21,0.3) 75%,
+            transparent 95%);
+        }
+        .lb-gp-edge-right {
+          top: 0; right: 0; bottom: 0; width: 2px;
+          background: linear-gradient(180deg,
+            transparent 5%,
+            rgba(250,204,21,0.3) 30%,
+            rgba(255,255,200,0.5) 55%,
+            rgba(250,204,21,0.3) 75%,
+            transparent 95%);
         }
 
-        /* Corner jewel catches — tiny bright spots at corners */
-        .lb-gp-face::before {
-          content: "";
-          position: absolute;
-          top: 0; left: 0;
-          width: 12px; height: 12px;
-          background: radial-gradient(circle at 0% 0%, rgba(255,248,160,0.9), transparent 70%);
-          pointer-events: none;
-          z-index: 4;
-        }
-
-        .lb-gp-face::after {
-          content: "";
-          position: absolute;
-          top: 0; right: 0;
-          width: 10px; height: 10px;
-          background: radial-gradient(circle at 100% 0%, rgba(255,248,160,0.55), transparent 70%);
-          pointer-events: none;
-          z-index: 4;
-        }
-
-        /* ── 3D depth layer — visible thickness behind glass ── */
+        /* ── 3D depth layer just behind glass ── */
         .lb-gp-depth {
           position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(160deg, rgba(250,204,21,0.08), rgba(10,9,5,0.9));
-          box-shadow:
-            0 0 0 1px rgba(250,204,21,0.35),
-            0 8px 60px rgba(0,0,0,0.7),
-            0 0 40px rgba(250,204,21,0.1);
-          transform: translateZ(-12px) scale(0.99);
+          inset: 3px;
+          background: rgba(250,204,21,0.03);
+          box-shadow: 0 0 50px rgba(250,204,21,0.16);
         }
 
         /* ── Glowing frame overlay ── */
@@ -1282,21 +1241,25 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
         }
 
         .lb-selection-card {
-          border: none;
-          background: transparent;
+          border-color: rgba(250,204,21,0.30);
+          background:
+            radial-gradient(ellipse at 0% 0%, rgba(250,204,21,0.09), transparent 54%),
+            rgba(8,9,12,0.90);
           box-shadow:
-            0 40px 80px rgba(0,0,0,0.65),
-            0 0 0 1px rgba(250,204,21,0.28),
-            0 0 60px rgba(250,204,21,0.06);
+            0 28px 70px rgba(0,0,0,0.55),
+            0 0 90px rgba(250,204,21,0.07),
+            inset 0 1px 0 rgba(255,255,255,0.04);
         }
 
         .lb-allocation-card {
-          border: none;
-          background: transparent;
+          border-color: rgba(250,204,21,0.30);
+          background:
+            radial-gradient(ellipse at 100% 0%, rgba(250,204,21,0.09), transparent 54%),
+            rgba(8,9,12,0.90);
           box-shadow:
-            0 40px 80px rgba(0,0,0,0.65),
-            0 0 0 1px rgba(250,204,21,0.28),
-            0 0 60px rgba(250,204,21,0.06);
+            0 28px 70px rgba(0,0,0,0.55),
+            0 0 90px rgba(250,204,21,0.07),
+            inset 0 1px 0 rgba(255,255,255,0.04);
         }
 
         .lb-flow-card::before {
