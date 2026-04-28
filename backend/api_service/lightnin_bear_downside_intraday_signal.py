@@ -30,18 +30,26 @@ REGIME_FILE_CANDIDATES = [
     "backend/data/regime_downside_latest.csv",
 ]
 
+DOWNSIDE_TARGET_PCT = 0.017      # target = entry * 0.983
+DOWNSIDE_STOP_LOSS_PCT = 0.01    # stop loss = entry * 1.01
+
 
 @dataclass
 class StockSignalState:
     symbol: str
     instrument_token: int
-    signal_status: str = "WAITING"
+    signal_status: str = "WAITING"  # WAITING / ENTERED / TARGET_HIT / STOP_LOSS_HIT
     entry_time: Optional[str] = None
+    exit_time: Optional[str] = None
     avg_price: Optional[float] = None
+    entry_price: Optional[float] = None
     current_ltp: Optional[float] = None
-    min_ltp: Optional[float] = None
-    points_captured: Optional[float] = None
-    pct_captured: Optional[float] = None
+    target_price: Optional[float] = None
+    stop_loss_price: Optional[float] = None
+    exit_price: Optional[float] = None
+    exit_reason: Optional[str] = None
+    pnl_points: Optional[float] = None
+    pnl_pct: Optional[float] = None
     fast_ema: Optional[float] = None
     slow_ema: Optional[float] = None
 
@@ -171,8 +179,14 @@ class LightninBearDownsideIntradaySignal:
         log_and_print(f"Initialized {len(self.signal_states)} downside regime stocks.")
 
     def _build_payload(self, ui_state: str = "RUNNING", message: str = "Monitoring downside regime stocks for bearish EMA crossover.") -> dict:
-        signals = [asdict(state) for state in self.signal_states.values() if state.signal_status == "ENTERED"]
+        # IMPORTANT: frontend receives only actual signal rows.
+        # WAITING stocks are hidden. ENTERED/TARGET_HIT/STOP_LOSS_HIT are shown.
+        signals = [asdict(state) for state in self.signal_states.values() if state.signal_status != "WAITING"]
         signals = sorted(signals, key=lambda item: item["symbol"])
+
+        active_count = sum(1 for row in signals if row["signal_status"] == "ENTERED")
+        target_hit_count = sum(1 for row in signals if row["signal_status"] == "TARGET_HIT")
+        stop_loss_hit_count = sum(1 for row in signals if row["signal_status"] == "STOP_LOSS_HIT")
 
         return {
             "index": INDEX_NAME,
@@ -181,14 +195,20 @@ class LightninBearDownsideIntradaySignal:
             "status": ui_state,
             "ui_state": ui_state,
             "message": message,
+            "progress_text": f"{active_count} active, {target_hit_count} target hit, {stop_loss_hit_count} stop loss hit",
             "signals": signals,
             "entered_count": len(signals),
+            "active_count": active_count,
+            "target_hit_count": target_hit_count,
+            "stop_loss_hit_count": stop_loss_hit_count,
             "total_count": len(self.signal_states),
             "updated_at": current_ist().isoformat(),
             "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
             "net_pnl": 0.0,
             "fast_ema_span": FAST_EMA_SPAN,
             "slow_ema_span": SLOW_EMA_SPAN,
+            "target_pct": DOWNSIDE_TARGET_PCT * 100,
+            "stop_loss_pct": DOWNSIDE_STOP_LOSS_PCT * 100,
         }
 
     def _publish(self, force: bool = False) -> None:
@@ -197,6 +217,42 @@ class LightninBearDownsideIntradaySignal:
             return
         spread_state.update(STRATEGY_NAME, self._build_payload())
         self.last_publish_time = now
+
+    def _enter_trade(self, signal_state: StockSignalState, ltp: float) -> None:
+        entry = round(float(ltp), 2)
+        signal_state.signal_status = "ENTERED"
+        signal_state.entry_time = current_ist().strftime("%H:%M:%S")
+        signal_state.avg_price = entry
+        signal_state.entry_price = entry
+        signal_state.current_ltp = entry
+        signal_state.target_price = round(entry * (1 - DOWNSIDE_TARGET_PCT), 2)
+        signal_state.stop_loss_price = round(entry * (1 + DOWNSIDE_STOP_LOSS_PCT), 2)
+        signal_state.pnl_points = 0.0
+        signal_state.pnl_pct = 0.0
+        log_and_print(
+            f"DOWNSIDE ENTRY | {signal_state.symbol} | entry={entry:.2f} | "
+            f"target={signal_state.target_price:.2f} | stop_loss={signal_state.stop_loss_price:.2f}"
+        )
+
+    def _exit_trade(self, signal_state: StockSignalState, ltp: float, reason: str) -> None:
+        if signal_state.entry_price is None:
+            return
+
+        exit_price = round(float(ltp), 2)
+        signal_state.signal_status = "TARGET_HIT" if reason == "TARGET" else "STOP_LOSS_HIT"
+        signal_state.exit_reason = reason
+        signal_state.exit_time = current_ist().strftime("%H:%M:%S")
+        signal_state.exit_price = exit_price
+        signal_state.current_ltp = exit_price
+
+        # Downside paper trade earns when price falls below entry.
+        pnl_points = float(signal_state.entry_price) - exit_price
+        signal_state.pnl_points = round(pnl_points, 2)
+        signal_state.pnl_pct = round((pnl_points / float(signal_state.entry_price)) * 100, 2) if signal_state.entry_price else 0.0
+        log_and_print(
+            f"DOWNSIDE EXIT | {signal_state.symbol} | reason={reason} | "
+            f"exit={exit_price:.2f} | pnl_pct={signal_state.pnl_pct:.2f}%"
+        )
 
     def _handle_tick(self, token: int, ltp: float) -> None:
         if token not in self.ema_states:
@@ -211,24 +267,19 @@ class LightninBearDownsideIntradaySignal:
         signal_state.slow_ema = round(float(ema_state.slow_ema), 4) if ema_state.slow_ema is not None else None
 
         if signal_state.signal_status == "ENTERED":
-            signal_state.min_ltp = round(min(float(signal_state.min_ltp or ltp), float(ltp)), 2)
-            if signal_state.avg_price is not None:
-                points = float(signal_state.avg_price) - float(signal_state.min_ltp)
-                signal_state.points_captured = round(points, 2)
-                signal_state.pct_captured = round((points / float(signal_state.avg_price)) * 100, 2) if signal_state.avg_price else 0.0
+            if signal_state.target_price is not None and float(ltp) <= float(signal_state.target_price):
+                self._exit_trade(signal_state, float(ltp), "TARGET")
+            elif signal_state.stop_loss_price is not None and float(ltp) >= float(signal_state.stop_loss_price):
+                self._exit_trade(signal_state, float(ltp), "STOP_LOSS")
             return
 
+        # After target/SL exit, do not re-enter same stock again today.
+        if signal_state.signal_status != "WAITING":
+            return
+
+        # This is the only entry condition. Stock appears in frontend only after this bearish crossover.
         if ema_state.bearish_crossover():
-            signal_state.signal_status = "ENTERED"
-            signal_state.entry_time = current_ist().strftime("%H:%M:%S")
-            signal_state.avg_price = round(float(ltp), 2)
-            signal_state.min_ltp = round(float(ltp), 2)
-            signal_state.points_captured = 0.0
-            signal_state.pct_captured = 0.0
-            log_and_print(
-                f"DOWNSIDE ENTRY | {signal_state.symbol} | avg_price={signal_state.avg_price:.2f} | "
-                f"fast_ema={signal_state.fast_ema} | slow_ema={signal_state.slow_ema}"
-            )
+            self._enter_trade(signal_state, float(ltp))
 
     def start(self) -> None:
         tokens = list(self.signal_states.keys())
