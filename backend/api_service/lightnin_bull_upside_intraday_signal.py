@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 import warnings
+from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -25,27 +26,21 @@ SPREAD_TYPE = "intraday_stock_signal"
 
 REGIME_FILE_CANDIDATES = ["data/regime_upside_latest.csv", "backend/data/regime_upside_latest.csv"]
 INSTRUMENT_FILE_CANDIDATES = [
-    "data/inst_zerodha_eq.csv",
-    "data/inst_zerodha_nse.csv",
-    "data/inst_zerodha.csv",
-    "data/inst_zerodha_nfo.csv",
-    "backend/data/inst_zerodha_eq.csv",
-    "backend/data/inst_zerodha_nse.csv",
-    "backend/data/inst_zerodha.csv",
-    "backend/data/inst_zerodha_nfo.csv",
+    "data/inst_zerodha_eq.csv", "data/inst_zerodha_nse.csv", "data/inst_zerodha.csv", "data/inst_zerodha_nfo.csv",
+    "backend/data/inst_zerodha_eq.csv", "backend/data/inst_zerodha_nse.csv", "backend/data/inst_zerodha.csv", "backend/data/inst_zerodha_nfo.csv",
 ]
 
-FAST_EMA_SPAN = 500
-SLOW_EMA_SPAN = 3000
-MIN_TICKS_FOR_SIGNAL = SLOW_EMA_SPAN
+FAST_SMA_WINDOW = 500
+SLOW_SMA_WINDOW = 3000
+MIN_TICKS_FOR_SIGNAL = SLOW_SMA_WINDOW
 
 MARKET_OPEN_HOUR = 10
 MARKET_OPEN_MINUTE = 0
 MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
 
-UPSIDE_TARGET_PCT = 0.017
-UPSIDE_STOP_LOSS_PCT = 0.01
+UPSIDE_TARGET_PCT = 0.017      # Target = entry * 1.017
+UPSIDE_STOP_LOSS_PCT = 0.01    # Stop loss = entry * 0.99
 
 LOG_FILE_NAME = "lightnin_bull_upside_intraday_signal.log"
 IST = pytz.timezone("Asia/Kolkata")
@@ -93,30 +88,13 @@ def market_status_ist(ref: Optional[datetime] = None) -> str:
     return "OPEN"
 
 
-def publish_strategy_state(
-    *,
-    strategy_name: str,
-    index_name: str,
-    spread_type: str,
-    ui_state: str,
-    message: str,
-    progress_text: str | None = None,
-    is_loading: bool = False,
-    extra: dict | None = None,
-) -> None:
+def publish_strategy_state(*, strategy_name: str, index_name: str, spread_type: str, ui_state: str, message: str,
+                           progress_text: str | None = None, is_loading: bool = False, extra: dict | None = None) -> None:
     payload = {
-        "index": index_name,
-        "spread_type": spread_type,
-        "strategy_name": strategy_name,
-        "status": ui_state,
-        "ui_state": ui_state,
-        "message": message,
-        "progress_text": progress_text,
-        "is_loading": is_loading,
-        "updated_at": current_ist().isoformat(),
-        "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
-        "net_pnl": 0.0,
-        "signals": [],
+        "index": index_name, "spread_type": spread_type, "strategy_name": strategy_name,
+        "status": ui_state, "ui_state": ui_state, "message": message, "progress_text": progress_text,
+        "is_loading": is_loading, "updated_at": current_ist().isoformat(),
+        "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"), "net_pnl": 0.0, "signals": [],
     }
     if extra:
         payload.update(extra)
@@ -129,29 +107,16 @@ def wait_until_market_open() -> bool:
         status = market_status_ist(now_ist)
         market_open, _ = get_market_open_close_ist(now_ist)
         if status == "OPEN":
-            log_and_print("Market window is open. Starting upside stock signal engine.")
+            log_and_print("Market window is open. Starting UPSIDE SMA stock signal engine.")
             return True
         if status in {"CLOSED_WEEKEND", "CLOSED_DAY"}:
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                index_name=INDEX_NAME,
-                spread_type=SPREAD_TYPE,
-                ui_state="STOPPED",
-                message="Trading window closed / inactive.",
-                progress_text="Stopped",
-                is_loading=False,
-            )
+            publish_strategy_state(strategy_name=STRATEGY_NAME, index_name=INDEX_NAME, spread_type=SPREAD_TYPE,
+                                   ui_state="STOPPED", message="Trading window closed / inactive.", progress_text="Stopped")
             return False
         remaining = max(int((market_open - now_ist).total_seconds()), 1)
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="WAITING_START_TIME",
-            message="Upside stock signal will start at 10:00 AM IST.",
-            progress_text=f"Start in {remaining} seconds",
-            is_loading=True,
-        )
+        publish_strategy_state(strategy_name=STRATEGY_NAME, index_name=INDEX_NAME, spread_type=SPREAD_TYPE,
+                               ui_state="WAITING_START_TIME", message="Upside stock signal will start at 10:00 AM IST.",
+                               progress_text=f"Start in {remaining} seconds", is_loading=True)
         time.sleep(min(remaining, 30))
 
 
@@ -189,13 +154,12 @@ def load_signal_tokens() -> pd.DataFrame:
     if missing_cols:
         raise ValueError(f"Missing columns in instrument file: {missing_cols}")
 
-    inst_df["tradingsymbol"] = inst_df["tradingsymbol"].astype(str).str.strip().str.upper()
-    inst_df["exchange"] = inst_df["exchange"].astype(str).str.strip().str.upper()
-    inst_df["segment"] = inst_df["segment"].astype(str).str.strip().str.upper()
-    inst_df["instrument_type"] = inst_df["instrument_type"].astype(str).str.strip().str.upper()
+    for col in ["tradingsymbol", "exchange", "segment", "instrument_type"]:
+        inst_df[col] = inst_df[col].astype(str).str.strip().str.upper()
 
     equity_df = inst_df[(inst_df["exchange"] == "NSE") & (inst_df["segment"] == "NSE") & (inst_df["instrument_type"] == "EQ")].copy()
     if equity_df.empty:
+        log_and_print("No strict NSE EQ rows found. Falling back to all NSE rows.", "warning")
         equity_df = inst_df[inst_df["exchange"] == "NSE"].copy()
 
     matched_df = equity_df[equity_df["tradingsymbol"].isin(regime_symbols)].copy()
@@ -226,37 +190,38 @@ class StockSignalState:
     exit_reason: Optional[str] = None
     pnl_points: Optional[float] = None
     pnl_pct: Optional[float] = None
-    fast_ema: Optional[float] = None
-    slow_ema: Optional[float] = None
+    fast_sma: Optional[float] = None
+    slow_sma: Optional[float] = None
     tick_count: int = 0
 
 
-class EMAState:
-    def __init__(self, fast_span: int, slow_span: int):
-        self.fast_alpha = 2 / (fast_span + 1)
-        self.slow_alpha = 2 / (slow_span + 1)
-        self.fast_ema: Optional[float] = None
-        self.slow_ema: Optional[float] = None
-        self.prev_fast_ema: Optional[float] = None
-        self.prev_slow_ema: Optional[float] = None
-        self.tick_count: int = 0
+class SMAState:
+    def __init__(self, fast_window: int, slow_window: int):
+        self.fast_window = fast_window
+        self.slow_window = slow_window
+        self.prices = deque(maxlen=slow_window)
+        self.tick_count = 0
+        self.prev_fast_sma: Optional[float] = None
+        self.prev_slow_sma: Optional[float] = None
+        self.fast_sma: Optional[float] = None
+        self.slow_sma: Optional[float] = None
 
     def update(self, price: float) -> None:
         self.tick_count += 1
-        self.prev_fast_ema = self.fast_ema
-        self.prev_slow_ema = self.slow_ema
-        self.fast_ema = price if self.fast_ema is None else (price * self.fast_alpha) + (self.fast_ema * (1 - self.fast_alpha))
-        self.slow_ema = price if self.slow_ema is None else (price * self.slow_alpha) + (self.slow_ema * (1 - self.slow_alpha))
+        self.prices.append(float(price))
+        if len(self.prices) < self.slow_window:
+            return
+        self.prev_fast_sma = self.fast_sma
+        self.prev_slow_sma = self.slow_sma
+        prices = list(self.prices)
+        self.fast_sma = sum(prices[-self.fast_window:]) / self.fast_window
+        self.slow_sma = sum(prices) / self.slow_window
 
     def is_ready(self) -> bool:
-        return self.tick_count >= MIN_TICKS_FOR_SIGNAL
+        return len(self.prices) >= self.slow_window and self.prev_fast_sma is not None and self.prev_slow_sma is not None
 
     def bullish_crossover(self) -> bool:
-        if not self.is_ready():
-            return False
-        if None in (self.prev_fast_ema, self.prev_slow_ema, self.fast_ema, self.slow_ema):
-            return False
-        return self.prev_fast_ema <= self.prev_slow_ema and self.fast_ema > self.slow_ema
+        return self.is_ready() and self.prev_fast_sma <= self.prev_slow_sma and self.fast_sma > self.slow_sma
 
 
 class LightninBullUpsideIntradaySignal:
@@ -266,7 +231,7 @@ class LightninBullUpsideIntradaySignal:
         self.is_running = False
         self.last_publish_time = 0.0
         self.token_to_symbol: dict[int, str] = {}
-        self.ema_states: dict[int, EMAState] = {}
+        self.sma_states: dict[int, SMAState] = {}
         self.signal_states: dict[int, StockSignalState] = {}
 
         for _, row in regime_tokens_df.iterrows():
@@ -274,38 +239,26 @@ class LightninBullUpsideIntradaySignal:
             symbol = str(row["symbol"]).strip().upper()
             name = str(row["name"]).strip() if "name" in row and pd.notna(row["name"]) else None
             self.token_to_symbol[token] = symbol
-            self.ema_states[token] = EMAState(FAST_EMA_SPAN, SLOW_EMA_SPAN)
+            self.sma_states[token] = SMAState(FAST_SMA_WINDOW, SLOW_SMA_WINDOW)
             self.signal_states[token] = StockSignalState(symbol=symbol, instrument_token=token, name=name)
-        log_and_print(f"Initialized {len(self.signal_states)} upside regime stocks with EMA{FAST_EMA_SPAN}/EMA{SLOW_EMA_SPAN}. Waiting {MIN_TICKS_FOR_SIGNAL} ticks before allowing entries.")
+        log_and_print(f"Initialized {len(self.signal_states)} upside stocks with SMA{FAST_SMA_WINDOW}/SMA{SLOW_SMA_WINDOW}. Minimum ticks={MIN_TICKS_FOR_SIGNAL}.")
 
-    def _build_frontend_payload(self, ui_state: str = "RUNNING", message: str = "Monitoring upside regime stocks.") -> dict:
-        signals = [asdict(s) for s in self.signal_states.values() if s.signal_status != "WAITING"]
-        active_count = sum(1 for s in signals if s["signal_status"] == "ENTERED")
-        target_hit_count = sum(1 for s in signals if s["signal_status"] == "TARGET_HIT")
-        stop_loss_hit_count = sum(1 for s in signals if s["signal_status"] == "STOP_LOSS_HIT")
+    def _build_frontend_payload(self, ui_state: str = "RUNNING", message: str = "Monitoring upside SMA crossover stocks.") -> dict:
+        signals = [asdict(state) for state in self.signal_states.values() if state.signal_status != "WAITING"]
+        signals = sorted(signals, key=lambda row: row["symbol"])
+        active_count = sum(1 for row in signals if row["signal_status"] == "ENTERED")
+        target_hit_count = sum(1 for row in signals if row["signal_status"] == "TARGET_HIT")
+        stop_loss_hit_count = sum(1 for row in signals if row["signal_status"] == "STOP_LOSS_HIT")
         return {
-            "index": INDEX_NAME,
-            "spread_type": SPREAD_TYPE,
-            "strategy_name": STRATEGY_NAME,
-            "status": ui_state,
-            "ui_state": ui_state,
-            "message": message,
+            "index": INDEX_NAME, "spread_type": SPREAD_TYPE, "strategy_name": STRATEGY_NAME,
+            "status": ui_state, "ui_state": ui_state, "message": message,
             "progress_text": f"{active_count} active, {target_hit_count} target hit, {stop_loss_hit_count} stop loss hit",
-            "is_loading": False,
-            "updated_at": current_ist().isoformat(),
-            "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
-            "signals": sorted(signals, key=lambda x: x["symbol"]),
-            "net_pnl": 0.0,
-            "entered_count": len(signals),
-            "active_count": active_count,
-            "target_hit_count": target_hit_count,
-            "stop_loss_hit_count": stop_loss_hit_count,
-            "total_count": len(self.signal_states),
-            "fast_ema_span": FAST_EMA_SPAN,
-            "slow_ema_span": SLOW_EMA_SPAN,
-            "min_ticks_for_signal": MIN_TICKS_FOR_SIGNAL,
-            "target_pct": UPSIDE_TARGET_PCT * 100,
-            "stop_loss_pct": UPSIDE_STOP_LOSS_PCT * 100,
+            "is_loading": False, "updated_at": current_ist().isoformat(), "updated_at_ist": current_ist().strftime("%Y-%m-%d %H:%M:%S"),
+            "signals": signals, "net_pnl": round(sum(float(row.get("pnl_points") or 0.0) for row in signals), 2),
+            "entered_count": len(signals), "active_count": active_count, "target_hit_count": target_hit_count,
+            "stop_loss_hit_count": stop_loss_hit_count, "total_count": len(self.signal_states),
+            "fast_sma_window": FAST_SMA_WINDOW, "slow_sma_window": SLOW_SMA_WINDOW, "min_ticks_for_signal": MIN_TICKS_FOR_SIGNAL,
+            "target_pct": UPSIDE_TARGET_PCT * 100, "stop_loss_pct": UPSIDE_STOP_LOSS_PCT * 100,
         }
 
     def _publish(self, force: bool = False) -> None:
@@ -327,7 +280,14 @@ class LightninBullUpsideIntradaySignal:
         state.stop_loss_price = round(entry * (1 - UPSIDE_STOP_LOSS_PCT), 2)
         state.pnl_points = 0.0
         state.pnl_pct = 0.0
-        log_and_print(f"UPSIDE TRUE CROSSOVER ENTRY | {state.symbol} | entry={entry:.2f} | target={state.target_price:.2f} | stop_loss={state.stop_loss_price:.2f} | ticks={state.tick_count}")
+        log_and_print(f"UPSIDE SMA CROSSOVER ENTRY | {state.symbol} | entry={entry:.2f} | target={state.target_price:.2f} | stop_loss={state.stop_loss_price:.2f} | ticks={state.tick_count}")
+
+    def _update_live_pnl(self, state: StockSignalState, ltp: float) -> None:
+        if state.entry_price is None:
+            return
+        pnl_points = float(ltp) - float(state.entry_price)
+        state.pnl_points = round(pnl_points, 2)
+        state.pnl_pct = round((pnl_points / float(state.entry_price)) * 100, 2) if state.entry_price else 0.0
 
     def _exit_trade(self, state: StockSignalState, ltp: float, reason: str) -> None:
         if state.entry_price is None:
@@ -338,36 +298,34 @@ class LightninBullUpsideIntradaySignal:
         state.exit_time = current_ist().strftime("%H:%M:%S")
         state.exit_price = exit_price
         state.current_ltp = exit_price
-        pnl_points = exit_price - float(state.entry_price)
-        state.pnl_points = round(pnl_points, 2)
-        state.pnl_pct = round((pnl_points / float(state.entry_price)) * 100, 2)
-        log_and_print(f"UPSIDE EXIT | {state.symbol} | reason={reason} | exit={exit_price:.2f} | pnl_pct={state.pnl_pct:.2f}%")
+        self._update_live_pnl(state, exit_price)
+        log_and_print(f"UPSIDE EXIT | {state.symbol} | reason={reason} | exit={exit_price:.2f} | pnl_points={state.pnl_points:.2f} | pnl_pct={state.pnl_pct:.2f}%")
 
     def _handle_tick(self, token: int, ltp: float) -> None:
-        if token not in self.ema_states:
+        if token not in self.sma_states:
             return
-        ema = self.ema_states[token]
-        state = self.signal_states[token]
-        ema.update(float(ltp))
-        state.tick_count = ema.tick_count
-        state.current_ltp = round(float(ltp), 2)
-        state.fast_ema = round(float(ema.fast_ema), 4) if ema.fast_ema is not None else None
-        state.slow_ema = round(float(ema.slow_ema), 4) if ema.slow_ema is not None else None
+        sma_state = self.sma_states[token]
+        signal_state = self.signal_states[token]
+        sma_state.update(float(ltp))
+        signal_state.tick_count = sma_state.tick_count
+        signal_state.current_ltp = round(float(ltp), 2)
+        signal_state.fast_sma = round(float(sma_state.fast_sma), 4) if sma_state.fast_sma is not None else None
+        signal_state.slow_sma = round(float(sma_state.slow_sma), 4) if sma_state.slow_sma is not None else None
 
-        log_and_print(
-            f"UPSIDE TICK | {state.symbol} | LTP={state.current_ltp:.2f} | ticks={state.tick_count}/{MIN_TICKS_FOR_SIGNAL} | EMA{FAST_EMA_SPAN}={state.fast_ema} | EMA{SLOW_EMA_SPAN}={state.slow_ema} | status={state.signal_status}"
-        )
+        if signal_state.tick_count <= 5 or signal_state.tick_count % 100 == 0:
+            log_and_print(f"UPSIDE SMA TICK | {signal_state.symbol} | LTP={signal_state.current_ltp:.2f} | ticks={signal_state.tick_count}/{MIN_TICKS_FOR_SIGNAL} | SMA{FAST_SMA_WINDOW}={signal_state.fast_sma} | SMA{SLOW_SMA_WINDOW}={signal_state.slow_sma} | status={signal_state.signal_status}")
 
-        if state.signal_status == "ENTERED":
-            if state.target_price is not None and float(ltp) >= float(state.target_price):
-                self._exit_trade(state, float(ltp), "TARGET")
-            elif state.stop_loss_price is not None and float(ltp) <= float(state.stop_loss_price):
-                self._exit_trade(state, float(ltp), "STOP_LOSS")
+        if signal_state.signal_status == "ENTERED":
+            self._update_live_pnl(signal_state, float(ltp))
+            if signal_state.target_price is not None and float(ltp) >= float(signal_state.target_price):
+                self._exit_trade(signal_state, float(ltp), "TARGET")
+            elif signal_state.stop_loss_price is not None and float(ltp) <= float(signal_state.stop_loss_price):
+                self._exit_trade(signal_state, float(ltp), "STOP_LOSS")
             return
-        if state.signal_status != "WAITING":
+        if signal_state.signal_status != "WAITING":
             return
-        if ema.bullish_crossover():
-            self._enter_trade(state, float(ltp))
+        if sma_state.bullish_crossover():
+            self._enter_trade(signal_state, float(ltp))
 
     def start(self) -> None:
         tokens = list(self.token_to_symbol.keys())
@@ -375,7 +333,7 @@ class LightninBullUpsideIntradaySignal:
             raise ValueError("No instrument tokens available for websocket subscription.")
         self.ws = KiteTicker(self.cred["z_api_key"], self.cred["z_access_token"])
         self.is_running = True
-        spread_state.update(STRATEGY_NAME, self._build_frontend_payload("BOOTING", "Preparing upside signal engine."))
+        spread_state.update(STRATEGY_NAME, self._build_frontend_payload("BOOTING", "Preparing upside SMA signal engine."))
 
         def on_ticks(ws, ticks):
             if not self.is_running:
@@ -399,7 +357,7 @@ class LightninBullUpsideIntradaySignal:
             log_and_print(f"Connected to upside websocket. Subscribing {len(tokens)} NSE cash tokens.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
-            spread_state.update(STRATEGY_NAME, self._build_frontend_payload("RUNNING", "Live feed connected. Waiting for true EMA crossover entries."))
+            spread_state.update(STRATEGY_NAME, self._build_frontend_payload("RUNNING", "Live feed connected. Waiting for true SMA crossover entries."))
 
         def on_close(ws, code, reason):
             log_and_print(f"Upside WebSocket closed: {code} - {reason}", "warning")
@@ -435,7 +393,7 @@ class LightninBullUpsideIntradaySignal:
 
 
 def main() -> None:
-    log_and_print("Upside stock signal main() entered")
+    log_and_print("Upside stock SMA signal main() entered")
     try:
         if not wait_until_market_open():
             return
@@ -448,15 +406,8 @@ def main() -> None:
     except Exception as exc:
         log_and_print(f"Upside strategy failed: {exc}", "error")
         log_and_print(traceback.format_exc(), "error")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ERROR",
-            message=f"Upside strategy failed: {exc}",
-            progress_text="Check Render logs",
-            is_loading=False,
-        )
+        publish_strategy_state(strategy_name=STRATEGY_NAME, index_name=INDEX_NAME, spread_type=SPREAD_TYPE,
+                               ui_state="ERROR", message=f"Upside strategy failed: {exc}", progress_text="Check Render logs")
 
 
 if __name__ == "__main__":
