@@ -269,7 +269,7 @@ const IntradaySpreadsPanel: React.FC<Props> = ({ spreadType }) => {
     };
 
     load();
-    intervalId = window.setInterval(load, 5000);
+    intervalId = window.setInterval(load, 1000);
     return () => {
       isMounted = false;
       if (intervalId) window.clearInterval(intervalId);
