@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 import Auth from "./pages/Auth";
-
+import FloatingAIAgent from "./components/FloatingAIAgent";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
@@ -24,6 +24,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <FloatingAIAgent />
+
       <Suspense
         fallback={
           <div
