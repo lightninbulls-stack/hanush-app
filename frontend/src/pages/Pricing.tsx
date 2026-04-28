@@ -185,9 +185,23 @@ const Pricing: React.FC = () => {
               </div>
             )}
 
+            <div style={styles.offerStrip}>LIMITED TIME OFFER</div>
+
             <div style={styles.priceBox}>
-              <span style={styles.price}>₹399</span>
-              <span style={styles.duration}> / 14 days</span>
+              <div style={styles.originalPriceBox}>
+                <span style={styles.originalPrice}>₹799</span>
+                <span style={styles.originalPriceLabel}>Original Price</span>
+              </div>
+
+              <div style={styles.discountBox}>
+                <span style={styles.discountPercent}>50%</span>
+                <span style={styles.discountLabel}>DISCOUNT</span>
+              </div>
+
+              <div style={styles.finalPriceBox}>
+                <span style={styles.price}>₹399</span>
+                <span style={styles.duration}> / 14 days</span>
+              </div>
             </div>
 
             <ul style={styles.features}>
@@ -207,7 +221,7 @@ const Pricing: React.FC = () => {
               onClick={handlePayment}
               disabled={paying}
             >
-              {paying ? "Opening Payment..." : "Subscribe Now"}
+              {paying ? "Opening Payment..." : "Subscribe Now at ₹399"}
             </button>
 
             <p style={styles.modeText}>
@@ -234,12 +248,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     width: "100%",
-    maxWidth: 560,
+    maxWidth: 720,
     background: "rgba(12,12,12,0.95)",
-    border: "1px solid rgba(226,184,75,0.35)",
+    border: "1px solid rgba(226,184,75,0.45)",
     borderRadius: 22,
     padding: 32,
-    boxShadow: "0 0 40px rgba(226,184,75,0.14)",
+    boxShadow: "0 0 46px rgba(226,184,75,0.18)",
     textAlign: "center",
   },
   badge: {
@@ -252,34 +266,113 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     margin: 0,
     color: "#fff",
-    fontSize: 36,
+    fontSize: 40,
     lineHeight: 1.1,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 15,
+    color: "rgba(255,255,255,0.68)",
+    fontSize: 16,
     lineHeight: 1.7,
-    marginTop: 16,
+    margin: "16px auto 0",
+    maxWidth: 600,
+  },
+  offerStrip: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+    padding: "8px 18px",
+    borderRadius: 999,
+    background: "rgba(226,184,75,0.12)",
+    border: "1px solid rgba(226,184,75,0.42)",
+    color: "#e2b84b",
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 1.5,
   },
   priceBox: {
-    margin: "28px 0 20px",
+    margin: "24px 0 22px",
+    display: "grid",
+    gridTemplateColumns: "1fr 1.15fr 1fr",
+    gap: 16,
+    alignItems: "center",
+  },
+  originalPriceBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 105,
+    borderRight: "1px solid rgba(226,184,75,0.32)",
+  },
+  originalPrice: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 40,
+    fontWeight: 900,
+    textDecoration: "line-through",
+    textDecorationColor: "#ff2e2e",
+    textDecorationThickness: 3,
+  },
+  originalPriceLabel: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.52)",
+    fontSize: 13,
+  },
+  discountBox: {
+    minHeight: 105,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid rgba(226,184,75,0.85)",
+    borderRadius: 16,
+    background: "linear-gradient(180deg, rgba(226,184,75,0.16), rgba(226,184,75,0.05))",
+    boxShadow: "0 0 20px rgba(226,184,75,0.22)",
+  },
+  discountPercent: {
+    color: "#ffd24d",
+    fontSize: 48,
+    fontWeight: 950,
+    lineHeight: 1,
+  },
+  discountLabel: {
+    marginTop: 8,
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 900,
+    letterSpacing: 4,
+  },
+  finalPriceBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 105,
+    borderLeft: "1px solid rgba(226,184,75,0.32)",
   },
   price: {
     color: "#e2b84b",
-    fontSize: 44,
-    fontWeight: 800,
+    fontSize: 48,
+    fontWeight: 950,
+    lineHeight: 1,
   },
   duration: {
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(255,255,255,0.65)",
     fontSize: 16,
+    marginTop: 8,
   },
   features: {
     listStyle: "none",
-    padding: 0,
-    margin: "24px 0",
+    padding: "24px 0 0",
+    margin: "18px 0 28px",
+    borderTop: "1px solid rgba(226,184,75,0.28)",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    columnGap: 32,
+    rowGap: 12,
     textAlign: "left",
-    color: "rgba(255,255,255,0.78)",
-    lineHeight: 2,
+    color: "rgba(255,255,255,0.82)",
+    lineHeight: 1.6,
   },
   button: {
     width: "100%",
@@ -287,9 +380,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#000",
     border: "none",
     borderRadius: 14,
-    padding: "14px 18px",
-    fontSize: 15,
-    fontWeight: 800,
+    padding: "16px 18px",
+    fontSize: 18,
+    fontWeight: 900,
   },
   successBox: {
     margin: "28px 0",
