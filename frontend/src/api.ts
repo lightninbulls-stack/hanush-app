@@ -48,6 +48,12 @@ export interface RegisterPayload {
   password: string;
 }
 
+export interface ResetPasswordPayload {
+  phone: string;
+  email: string;
+  new_password: string;
+}
+
 export interface RegisterResponse {
   message?: string;
   detail?: string;
@@ -400,6 +406,28 @@ export async function registerUser(
       email: payload.email.trim(),
       phone: payload.phone.trim(),
       password: payload.password,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseErrorResponse(response));
+  }
+
+  return response.json();
+}
+
+export async function resetPassword(
+  payload: ResetPasswordPayload
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      phone: payload.phone.trim(),
+      email: payload.email.trim(),
+      new_password: payload.new_password,
     }),
   });
 
