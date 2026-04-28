@@ -408,7 +408,6 @@ const Dashboard: React.FC = () => {
           background:
             "linear-gradient(135deg, rgba(226,184,75,0.10), rgba(0,0,0,0.45))",
         }}
-        
       >
         <div className="lb-eyebrow" style={{ marginBottom: 10 }}>
           Free Preview
@@ -425,6 +424,55 @@ const Dashboard: React.FC = () => {
 
         <button className="lb-gold-button" onClick={() => navigate("/pricing")}>
           Unlock Full List
+        </button>
+      </div>
+    );
+  };
+
+  const WatchlistLimitBanner = () => {
+    if (isPremium) return null;
+    if (activeTab !== "Watchlist") return null;
+    if (starredSymbols.length < FREE_WATCHLIST_ADD_LIMIT) return null;
+
+    return (
+      <div
+        className="lb-card"
+        style={{
+          marginTop: 20,
+          padding: 20,
+          border: "1px solid rgba(250,204,21,0.35)",
+          background:
+            "linear-gradient(135deg, rgba(250,204,21,0.08), rgba(0,0,0,0.45))",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "#facc15",
+            marginBottom: 6,
+            letterSpacing: 1,
+          }}
+        >
+          WATCHLIST LIMIT REACHED
+        </div>
+
+        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+          You’ve reached your free limit ({FREE_WATCHLIST_ADD_LIMIT} stocks)
+        </div>
+
+        <div
+          style={{
+            fontSize: 13,
+            color: "rgba(255,255,255,0.6)",
+            marginBottom: 16,
+          }}
+        >
+          Upgrade to track more opportunities.
+        </div>
+
+        <button className="lb-gold-button" onClick={() => navigate("/pricing")}>
+          Upgrade to Premium
         </button>
       </div>
     );
@@ -647,8 +695,6 @@ const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <StockTable
-                  <FreeLimitCard />
-                  <WatchlistLimitBanner />
                     category={activeTab}
                     stocks={visibleStocks}
                     starredSymbols={starredSymbols}
@@ -659,6 +705,7 @@ const Dashboard: React.FC = () => {
                   />
 
                   <FreeLimitCard />
+                  <WatchlistLimitBanner />
                 </>
               )}
             </>
