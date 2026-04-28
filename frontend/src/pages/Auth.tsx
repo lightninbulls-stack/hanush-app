@@ -669,7 +669,7 @@ const Auth: React.FC = () => {
                       onClick={() => setShowLoginPassword(prev => !prev)}
                       aria-label={showLoginPassword ? "Hide password" : "Show password"}
                     >
-                      {showLoginPassword ? "🙈" : "👁️"}
+                      {showLoginPassword ? "😑" : "👁️"}
                     </button>
                   </div>
                 </div>
