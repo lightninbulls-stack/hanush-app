@@ -104,6 +104,84 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
       <div className="lb-welcome-orb lb-welcome-orb-two" />
 
       <motion.section
+        className="lb-portfolio-engine"
+        variants={stagger}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.18 }}
+      >
+        <motion.div className="lb-section-heading lb-portfolio-heading" variants={fadeUp}>
+          <span>PORTFOLIO CONSTRUCTION ENGINE</span>
+          <h2>
+            How to create a risk-adjusted portfolio
+            <br />
+            <em>that can beat the benchmark.</em>
+          </h2>
+          <p>
+            The edge is created by separating the two most important portfolio decisions:
+            selection generates alpha, allocation controls volatility.
+          </p>
+        </motion.div>
+
+        <motion.div className="lb-construction-flow" variants={fadeUp}>
+          <div className="lb-flow-card lb-selection-card">
+            <div className="lb-flow-card-top">
+              <span>01</span>
+              <p>ALPHA ENGINE</p>
+            </div>
+            <h3>Selection</h3>
+            <strong>Where returns come from</strong>
+            <small>Powered by LightninBull AI Quant Engine</small>
+            <ul>
+              <li>Regime-based filtering</li>
+              <li>Momentum ranking</li>
+              <li>Factor model screening</li>
+            </ul>
+            <div className="lb-flow-output">→ High-probability alpha stocks</div>
+          </div>
+
+          <div className="lb-flow-connector">
+            <span />
+            <p>+</p>
+            <span />
+          </div>
+
+          <div className="lb-flow-card lb-allocation-card">
+            <div className="lb-flow-card-top">
+              <span>02</span>
+              <p>RISK ENGINE</p>
+            </div>
+            <h3>Allocation</h3>
+            <strong>How volatility is controlled</strong>
+            <small>Powered by LightninBull AI Quant Engine</small>
+            <ul>
+              <li>Equal weight institutional baseline</li>
+              <li>Minimum variance optimization</li>
+              <li>Risk-adjusted portfolio weights</li>
+            </ul>
+            <div className="lb-flow-output">→ Optimized portfolio allocation</div>
+          </div>
+        </motion.div>
+
+        <motion.div className="lb-risk-output" variants={fadeUp}>
+          <div className="lb-output-glow" />
+          <span>FINAL OUTPUT</span>
+          <h3>Risk-Adjusted Portfolio</h3>
+          <p>Diversified. Systematic. Optimized for risk and return.</p>
+          <div className="lb-output-tags">
+            <em>Discover</em>
+            <i />
+            <em>Select</em>
+            <i />
+            <em>Backtest</em>
+            <i />
+            <em>Rebalance</em>
+          </div>
+        </motion.div>
+      </motion.section>
+
+
+      <motion.section
         className="lb-welcome-hero"
         variants={stagger}
         initial="hidden"
@@ -182,83 +260,6 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
             </div>
           </motion.div>
         </div>
-      </motion.section>
-
-      <motion.section
-        className="lb-portfolio-engine"
-        variants={stagger}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.18 }}
-      >
-        <motion.div className="lb-section-heading lb-portfolio-heading" variants={fadeUp}>
-          <span>PORTFOLIO CONSTRUCTION ENGINE</span>
-          <h2>
-            How to create a risk-adjusted portfolio
-            <br />
-            <em>that can beat the benchmark.</em>
-          </h2>
-          <p>
-            The edge is created by separating the two most important portfolio decisions:
-            selection generates alpha, allocation controls volatility.
-          </p>
-        </motion.div>
-
-        <motion.div className="lb-construction-flow" variants={fadeUp}>
-          <div className="lb-flow-card lb-selection-card">
-            <div className="lb-flow-card-top">
-              <span>01</span>
-              <p>ALPHA ENGINE</p>
-            </div>
-            <h3>Selection</h3>
-            <strong>Where returns come from</strong>
-            <small>Powered by LightninBull AI Quant Engine</small>
-            <ul>
-              <li>Regime-based filtering</li>
-              <li>Momentum ranking</li>
-              <li>Factor model screening</li>
-            </ul>
-            <div className="lb-flow-output">→ High-probability alpha stocks</div>
-          </div>
-
-          <div className="lb-flow-connector">
-            <span />
-            <p>+</p>
-            <span />
-          </div>
-
-          <div className="lb-flow-card lb-allocation-card">
-            <div className="lb-flow-card-top">
-              <span>02</span>
-              <p>RISK ENGINE</p>
-            </div>
-            <h3>Allocation</h3>
-            <strong>How volatility is controlled</strong>
-            <small>Powered by LightninBull AI Quant Engine</small>
-            <ul>
-              <li>Equal weight institutional baseline</li>
-              <li>Minimum variance optimization</li>
-              <li>Risk-adjusted portfolio weights</li>
-            </ul>
-            <div className="lb-flow-output">→ Optimized portfolio allocation</div>
-          </div>
-        </motion.div>
-
-        <motion.div className="lb-risk-output" variants={fadeUp}>
-          <div className="lb-output-glow" />
-          <span>FINAL OUTPUT</span>
-          <h3>Risk-Adjusted Portfolio</h3>
-          <p>Diversified. Systematic. Optimized for risk and return.</p>
-          <div className="lb-output-tags">
-            <em>Discover</em>
-            <i />
-            <em>Select</em>
-            <i />
-            <em>Backtest</em>
-            <i />
-            <em>Rebalance</em>
-          </div>
-        </motion.div>
       </motion.section>
 
       <motion.section
