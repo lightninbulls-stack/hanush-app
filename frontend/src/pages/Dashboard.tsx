@@ -31,10 +31,10 @@ import {
 const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
 
-const FREE_STOCK_LIMIT = 3;
+const FREE_STOCK_LIMIT = 2;
+const FREE_LOCKED_PREVIEW_LIMIT = 3;
 
 const PREMIUM_LOCKED_TABS = [
-  "Portfolio Backtest",
   "Bull Call Spreads",
   "Bear Put Spreads",
   "Upside Trend Stocks",
@@ -166,7 +166,6 @@ const Dashboard: React.FC = () => {
     };
 
     handleResize();
-
     window.addEventListener("resize", handleResize);
 
     return () => window.removeEventListener("resize", handleResize);
@@ -265,11 +264,9 @@ const Dashboard: React.FC = () => {
         }
 
         setLoading(true);
-
         const data = await fetchStocksByCategory(activeTab);
 
         if (cancelled) return;
-
         setStocks(data.stocks || []);
       } catch (error) {
         console.error(`Failed to load ${activeTab} stocks:`, error);
@@ -361,7 +358,9 @@ const Dashboard: React.FC = () => {
   const isLockedPremiumTab =
     !isPremium && PREMIUM_LOCKED_TABS.includes(activeTab);
 
-  const visibleStocks = isPremium ? stocks : stocks.slice(0, FREE_STOCK_LIMIT);
+  const visibleStocks = isPremium
+    ? stocks
+    : stocks.slice(0, FREE_LOCKED_PREVIEW_LIMIT);
 
   const showFeatureBackButton =
     !selectedStock && activeTab && !NON_FEATURE_TABS.includes(activeTab);
@@ -377,15 +376,11 @@ const Dashboard: React.FC = () => {
       </h2>
 
       <p className="lb-text" style={{ marginBottom: 20 }}>
-        Free users can explore the top 3 stock ideas. Subscribe to unlock all
-        stocks, intraday option spreads, intraday stock signals, and portfolio
-        backtesting.
+        Free users can explore the top {FREE_STOCK_LIMIT} stock ideas with one locked preview.
+        Subscribe to unlock all stocks, intraday option spreads, and intraday stock signals.
       </p>
 
-      <button
-        className="lb-gold-button"
-        onClick={() => navigate("/pricing")}
-      >
+      <button className="lb-gold-button" onClick={() => navigate("/pricing")}>
         Unlock Premium
       </button>
     </div>
@@ -410,7 +405,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <h3 className="lb-title" style={{ fontSize: 24, marginBottom: 8 }}>
-          Showing Top {FREE_STOCK_LIMIT} Stocks Only
+          Showing Top {FREE_STOCK_LIMIT} Stocks + 1 Locked Preview
         </h3>
 
         <p className="lb-text" style={{ marginBottom: 18 }}>
@@ -418,10 +413,7 @@ const Dashboard: React.FC = () => {
           premium signals, and full dashboard features.
         </p>
 
-        <button
-          className="lb-gold-button"
-          onClick={() => navigate("/pricing")}
-        >
+        <button className="lb-gold-button" onClick={() => navigate("/pricing")}>
           Unlock Full List
         </button>
       </div>
@@ -468,10 +460,7 @@ const Dashboard: React.FC = () => {
 
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             {!isPremium && (
-              <button
-                className="lb-gold-button"
-                onClick={() => navigate("/pricing")}
-              >
+              <button className="lb-gold-button" onClick={() => navigate("/pricing")}>
                 Upgrade
               </button>
             )}
@@ -530,9 +519,9 @@ const Dashboard: React.FC = () => {
 
                 <p className="lb-text">
                   Welcome to Lightninbull Financial Analytics. Free users can
-                  view the top 3 stocks from each model. Premium users unlock
-                  the full dashboard, option spreads, intraday signals, and
-                  portfolio backtesting.
+                  view the top {FREE_STOCK_LIMIT} stocks plus one locked preview from each model.
+                  Premium users unlock the full dashboard, option spreads, and intraday signals.
+                  Equal weight portfolio backtesting is available for every user.
                 </p>
               </div>
             </>
@@ -553,8 +542,7 @@ const Dashboard: React.FC = () => {
               <div style={{ marginTop: 20 }}>
                 {isPremium ? (
                   <p style={{ color: "#66ffb2" }}>
-                    Premium subscription active. Days left:{" "}
-                    {subscription.days_left}
+                    Premium subscription active. Days left: {subscription.days_left}
                   </p>
                 ) : (
                   <button
@@ -569,7 +557,7 @@ const Dashboard: React.FC = () => {
           ) : isLockedPremiumTab ? (
             <PremiumLockCard />
           ) : activeTab === "Portfolio Backtest" ? (
-            <PortfolioBacktestPanel />
+            <PortfolioBacktestPanel isPremium={isPremium} />
           ) : activeTab === "Bull Call Spreads" ? (
             <IntradaySpreadsPanel spreadType="bull_call" />
           ) : activeTab === "Bear Put Spreads" ? (
@@ -619,7 +607,7 @@ const Dashboard: React.FC = () => {
                 >
                   {isPremium
                     ? `Full premium list for ${activeTab}`
-                    : `Free preview: top ${FREE_STOCK_LIMIT} stocks from ${activeTab}`}
+                    : `Free preview: top ${FREE_STOCK_LIMIT} stocks + 1 locked preview from ${activeTab}`}
                 </p>
               </div>
 
@@ -654,6 +642,8 @@ const Dashboard: React.FC = () => {
                     starredSymbols={starredSymbols}
                     onStarClick={handleStarClick}
                     onStockClick={handleStockClick}
+                    lockedFromIndex={isPremium ? undefined : FREE_STOCK_LIMIT}
+                    onUnlockClick={() => navigate("/pricing")}
                   />
 
                   <FreeLimitCard />
@@ -668,4 +658,3 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
-
