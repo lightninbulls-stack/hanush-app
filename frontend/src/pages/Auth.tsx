@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { loginUser, registerUser, saveAuthToken } from "../api";
+import { loginUser, registerUser, resetPassword, saveAuthToken } from "../api";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "signup" | "forgot";
 
 type FeatureInfo = {
   name: string;
@@ -455,6 +455,14 @@ const Auth: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
+  const [forgotForm, setForgotForm] = useState({
+    phone: "",
+    email: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -466,10 +474,11 @@ const Auth: React.FC = () => {
   const contactRef = useRef<HTMLElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const heading = useMemo(
-    () => mode === "login" ? "access your trading dashboard" : "create your lightninbull account",
-    [mode]
-  );
+  const heading = useMemo(() => {
+    if (mode === "login") return "access your trading dashboard";
+    if (mode === "signup") return "create your lightninbull account";
+    return "reset your lightninbull password";
+  }, [mode]);
 
   const resetMessages = () => { setErrorMessage(""); setSuccessMessage(""); };
 
@@ -516,6 +525,32 @@ const Auth: React.FC = () => {
       window.location.href = "/dashboard";
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Sign up failed");
+    } finally { setLoading(false); }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault(); resetMessages();
+
+    if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetPassword({
+        phone: forgotForm.phone,
+        email: forgotForm.email,
+        new_password: forgotForm.newPassword,
+      });
+
+      setSuccessMessage("Password reset successfully. Please login with your new password.");
+      setForgotForm({ phone: "", email: "", newPassword: "", confirmPassword: "" });
+      setShowForgotPassword(false);
+      setShowForgotConfirmPassword(false);
+      setMode("login");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Password reset failed");
     } finally { setLoading(false); }
   };
 
@@ -644,9 +679,18 @@ const Auth: React.FC = () => {
                 <button type="button" className="signup-ghost-btn" onClick={openSignUp}>
                   New to LightninBull? Create Account →
                 </button>
-                <p className="forgot-link">Forgot credentials? <a href="#support">Contact support</a></p>
+                <p className="forgot-link">
+                  Forgot password?{" "}
+                  <button
+                    type="button"
+                    className="forgot-inline-btn"
+                    onClick={() => { setMode("forgot"); resetMessages(); }}
+                  >
+                    Reset here
+                  </button>
+                </p>
               </form>
-            ) : (
+            ) : mode === "signup" ? (
               <form onSubmit={handleRegister} className="login-form">
                 <div className="input-group">
                   <label className="input-label">FULL NAME</label>
@@ -709,6 +753,83 @@ const Auth: React.FC = () => {
                 </button>
                 <button type="button" className="signup-ghost-btn" onClick={() => { setMode("login"); resetMessages(); }}>
                   Already have an account? Login →
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="login-form">
+                <div className="input-group">
+                  <label className="input-label">PHONE NUMBER</label>
+                  <input
+                    placeholder="+91 00000 00000"
+                    value={forgotForm.phone}
+                    onChange={e => setForgotForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">REGISTERED EMAIL</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={forgotForm.email}
+                    onChange={e => setForgotForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="input"
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">NEW PASSWORD</label>
+                  <div className="password-input-wrap">
+                    <input
+                      type={showForgotPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={forgotForm.newPassword}
+                      onChange={e => setForgotForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                      className="input password-input"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowForgotPassword(prev => !prev)}
+                      aria-label={showForgotPassword ? "Hide password" : "Show password"}
+                    >
+                      {showForgotPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">CONFIRM PASSWORD</label>
+                  <div className="password-input-wrap">
+                    <input
+                      type={showForgotConfirmPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={forgotForm.confirmPassword}
+                      onChange={e => setForgotForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="input password-input"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowForgotConfirmPassword(prev => !prev)}
+                      aria-label={showForgotConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showForgotConfirmPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <button className="btn" disabled={loading} type="submit">
+                  {loading ? <span className="btn-loading"><span className="spinner" /> Resetting...</span> : <span>Reset Password →</span>}
+                </button>
+
+                <button type="button" className="signup-ghost-btn" onClick={() => { setMode("login"); resetMessages(); }}>
+                  Back to Login →
                 </button>
               </form>
             )}
@@ -1143,6 +1264,19 @@ const Auth: React.FC = () => {
         .forgot-link { text-align: center; font-family: 'DM Mono', monospace; font-size: 9.5px; color: rgba(255,255,255,0.24); letter-spacing: 0.4px; margin: 0; }
         .forgot-link a { color: rgba(250,204,21,0.68); text-decoration: none; }
         .forgot-link a:hover { color: #facc15; }
+        .forgot-inline-btn {
+          background: transparent;
+          border: none;
+          color: rgba(250,204,21,0.75);
+          cursor: pointer;
+          font-family: 'DM Mono', monospace;
+          font-size: 9.5px;
+          padding: 0;
+        }
+        .forgot-inline-btn:hover {
+          color: #facc15;
+          text-shadow: 0 0 12px rgba(250,204,21,0.45);
+        }
 
         .auth-alert { margin-bottom: 10px; padding: 9px 11px; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 9.5px; line-height: 1.55; }
         .auth-alert.error { background: rgba(220,38,38,0.14); border: 1px solid rgba(248,113,113,0.35); color: #fecaca; }
