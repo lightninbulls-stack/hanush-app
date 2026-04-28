@@ -26,7 +26,6 @@ from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
 from api_service.lightnin_bull_upside_intraday_signal import main as upside_stock_signal_main
 from api_service.lightnin_bear_downside_intraday_signal import main as downside_stock_signal_main
 
-
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
     DataService,
@@ -49,237 +48,134 @@ LOGIN_EVENTS_FILE = DATA_DIR / "login_events.csv"
 
 _bull_call_strategy_thread: threading.Thread | None = None
 _bull_call_strategy_lock = threading.Lock()
-
 _bull_call_sensex_strategy_thread: threading.Thread | None = None
 _bull_call_sensex_strategy_lock = threading.Lock()
-
 _bear_put_strategy_thread: threading.Thread | None = None
 _bear_put_strategy_lock = threading.Lock()
-
 _bear_put_sensex_strategy_thread: threading.Thread | None = None
 _bear_put_sensex_strategy_lock = threading.Lock()
-
 _upside_stock_signal_thread: threading.Thread | None = None
 _upside_stock_signal_lock = threading.Lock()
-
 _downside_stock_signal_thread: threading.Thread | None = None
 _downside_stock_signal_lock = threading.Lock()
 
 
-def start_bull_call_strategy() -> bool:
-    global _bull_call_strategy_thread
-
-    with _bull_call_strategy_lock:
-        if (
-            _bull_call_strategy_thread is not None
-            and _bull_call_strategy_thread.is_alive()
-        ):
-            logger.info("⚠️ Bull Call strategy thread already running.")
+def _start_thread_once(lock, thread_getter, thread_setter, target, thread_name: str, label: str) -> bool:
+    with lock:
+        current_thread = thread_getter()
+        if current_thread is not None and current_thread.is_alive():
+            logger.info("⚠️ %s thread already running.", label)
             return False
 
         def run() -> None:
             try:
-                logger.info("✅ Bull Call strategy thread started.")
-                bull_call_main()
+                logger.info("✅ %s thread started.", label)
+                target()
             except Exception as exc:
-                logger.error("❌ Bull call strategy crashed: %s", exc, exc_info=True)
+                logger.error("❌ %s crashed: %s", label, exc, exc_info=True)
             finally:
-                logger.info("ℹ️ Bull Call strategy thread finished.")
+                logger.info("ℹ️ %s thread finished.", label)
 
-        _bull_call_strategy_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="bull-call-strategy-thread",
-        )
-        _bull_call_strategy_thread.start()
+        new_thread = threading.Thread(target=run, daemon=True, name=thread_name)
+        thread_setter(new_thread)
+        new_thread.start()
         return True
+
+
+def start_bull_call_strategy() -> bool:
+    global _bull_call_strategy_thread
+    return _start_thread_once(
+        _bull_call_strategy_lock,
+        lambda: _bull_call_strategy_thread,
+        lambda t: globals().__setitem__("_bull_call_strategy_thread", t),
+        bull_call_main,
+        "bull-call-strategy-thread",
+        "Bull Call strategy",
+    )
 
 
 def start_bull_call_sensex_strategy() -> bool:
     global _bull_call_sensex_strategy_thread
-
-    with _bull_call_sensex_strategy_lock:
-        if (
-            _bull_call_sensex_strategy_thread is not None
-            and _bull_call_sensex_strategy_thread.is_alive()
-        ):
-            logger.info("⚠️ Bull Call SENSEX strategy thread already running.")
-            return False
-
-        def run() -> None:
-            try:
-                logger.info("✅ Bull Call SENSEX strategy thread started.")
-                bull_call_sensex_main()
-            except Exception as exc:
-                logger.error("❌ Bull Call SENSEX strategy crashed: %s", exc, exc_info=True)
-            finally:
-                logger.info("ℹ️ Bull Call SENSEX strategy thread finished.")
-
-        _bull_call_sensex_strategy_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="bull-call-sensex-strategy-thread",
-        )
-        _bull_call_sensex_strategy_thread.start()
-        return True
+    return _start_thread_once(
+        _bull_call_sensex_strategy_lock,
+        lambda: _bull_call_sensex_strategy_thread,
+        lambda t: globals().__setitem__("_bull_call_sensex_strategy_thread", t),
+        bull_call_sensex_main,
+        "bull-call-sensex-strategy-thread",
+        "Bull Call SENSEX strategy",
+    )
 
 
 def start_bear_put_strategy() -> bool:
     global _bear_put_strategy_thread
-
-    with _bear_put_strategy_lock:
-        if (
-            _bear_put_strategy_thread is not None
-            and _bear_put_strategy_thread.is_alive()
-        ):
-            logger.info("⚠️ Bear Put strategy thread already running.")
-            return False
-
-        def run() -> None:
-            try:
-                logger.info("✅ Bear Put strategy thread started.")
-                bear_put_main()
-            except Exception as exc:
-                logger.error("❌ Bear put strategy crashed: %s", exc, exc_info=True)
-            finally:
-                logger.info("ℹ️ Bear Put strategy thread finished.")
-
-        _bear_put_strategy_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="bear-put-strategy-thread",
-        )
-        _bear_put_strategy_thread.start()
-        return True
+    return _start_thread_once(
+        _bear_put_strategy_lock,
+        lambda: _bear_put_strategy_thread,
+        lambda t: globals().__setitem__("_bear_put_strategy_thread", t),
+        bear_put_main,
+        "bear-put-strategy-thread",
+        "Bear Put strategy",
+    )
 
 
 def start_bear_put_sensex_strategy() -> bool:
     global _bear_put_sensex_strategy_thread
-
-    with _bear_put_sensex_strategy_lock:
-        if (
-            _bear_put_sensex_strategy_thread is not None
-            and _bear_put_sensex_strategy_thread.is_alive()
-        ):
-            logger.info("⚠️ Bear Put SENSEX strategy thread already running.")
-            return False
-
-        def run() -> None:
-            try:
-                logger.info("✅ Bear Put SENSEX strategy thread started.")
-                bear_put_sensex_main()
-            except Exception as exc:
-                logger.error("❌ Bear Put SENSEX strategy crashed: %s", exc, exc_info=True)
-            finally:
-                logger.info("ℹ️ Bear Put SENSEX strategy thread finished.")
-
-        _bear_put_sensex_strategy_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="bear-put-sensex-strategy-thread",
-        )
-        _bear_put_sensex_strategy_thread.start()
-        return True
+    return _start_thread_once(
+        _bear_put_sensex_strategy_lock,
+        lambda: _bear_put_sensex_strategy_thread,
+        lambda t: globals().__setitem__("_bear_put_sensex_strategy_thread", t),
+        bear_put_sensex_main,
+        "bear-put-sensex-strategy-thread",
+        "Bear Put SENSEX strategy",
+    )
 
 
 def start_upside_stock_signal_strategy() -> bool:
     global _upside_stock_signal_thread
-
-    with _upside_stock_signal_lock:
-        if (
-            _upside_stock_signal_thread is not None
-            and _upside_stock_signal_thread.is_alive()
-        ):
-            logger.info("⚠️ Upside stock signal strategy thread already running.")
-            return False
-
-        def run() -> None:
-            try:
-                logger.info("✅ Upside stock signal strategy thread started.")
-                upside_stock_signal_main()
-            except Exception as exc:
-                logger.error("❌ Upside stock signal strategy crashed: %s", exc, exc_info=True)
-            finally:
-                logger.info("ℹ️ Upside stock signal strategy thread finished.")
-
-        _upside_stock_signal_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="upside-stock-signal-strategy-thread",
-        )
-        _upside_stock_signal_thread.start()
-        return True
+    return _start_thread_once(
+        _upside_stock_signal_lock,
+        lambda: _upside_stock_signal_thread,
+        lambda t: globals().__setitem__("_upside_stock_signal_thread", t),
+        upside_stock_signal_main,
+        "upside-stock-signal-websocket-thread",
+        "Upside stock signal websocket strategy",
+    )
 
 
 def start_downside_stock_signal_strategy() -> bool:
     global _downside_stock_signal_thread
-
-    with _downside_stock_signal_lock:
-        if (
-            _downside_stock_signal_thread is not None
-            and _downside_stock_signal_thread.is_alive()
-        ):
-            logger.info("⚠️ Downside stock signal strategy thread already running.")
-            return False
-
-        def run() -> None:
-            try:
-                logger.info("✅ Downside stock signal strategy thread started.")
-                downside_stock_signal_main()
-            except Exception as exc:
-                logger.error("❌ Downside stock signal strategy crashed: %s", exc, exc_info=True)
-            finally:
-                logger.info("ℹ️ Downside stock signal strategy thread finished.")
-
-        _downside_stock_signal_thread = threading.Thread(
-            target=run,
-            daemon=True,
-            name="downside-stock-signal-strategy-thread",
-        )
-        _downside_stock_signal_thread.start()
-        return True
+    return _start_thread_once(
+        _downside_stock_signal_lock,
+        lambda: _downside_stock_signal_thread,
+        lambda t: globals().__setitem__("_downside_stock_signal_thread", t),
+        downside_stock_signal_main,
+        "downside-stock-signal-websocket-thread",
+        "Downside stock signal websocket strategy",
+    )
 
 
 def is_strategy_running() -> bool:
-    return (
-        _bull_call_strategy_thread is not None
-        and _bull_call_strategy_thread.is_alive()
-    )
+    return _bull_call_strategy_thread is not None and _bull_call_strategy_thread.is_alive()
 
 
 def is_bull_call_sensex_strategy_running() -> bool:
-    return (
-        _bull_call_sensex_strategy_thread is not None
-        and _bull_call_sensex_strategy_thread.is_alive()
-    )
+    return _bull_call_sensex_strategy_thread is not None and _bull_call_sensex_strategy_thread.is_alive()
 
 
 def is_bear_put_strategy_running() -> bool:
-    return (
-        _bear_put_strategy_thread is not None
-        and _bear_put_strategy_thread.is_alive()
-    )
+    return _bear_put_strategy_thread is not None and _bear_put_strategy_thread.is_alive()
 
 
 def is_bear_put_sensex_strategy_running() -> bool:
-    return (
-        _bear_put_sensex_strategy_thread is not None
-        and _bear_put_sensex_strategy_thread.is_alive()
-    )
+    return _bear_put_sensex_strategy_thread is not None and _bear_put_sensex_strategy_thread.is_alive()
 
 
 def is_upside_stock_signal_strategy_running() -> bool:
-    return (
-        _upside_stock_signal_thread is not None
-        and _upside_stock_signal_thread.is_alive()
-    )
+    return _upside_stock_signal_thread is not None and _upside_stock_signal_thread.is_alive()
 
 
 def is_downside_stock_signal_strategy_running() -> bool:
-    return (
-        _downside_stock_signal_thread is not None
-        and _downside_stock_signal_thread.is_alive()
-    )
+    return _downside_stock_signal_thread is not None and _downside_stock_signal_thread.is_alive()
 
 
 @app.on_event("startup")
@@ -287,37 +183,35 @@ def startup_event() -> None:
     logger.info("✅ FastAPI startup triggered.")
 
     bull_started = start_bull_call_strategy()
-    if bull_started:
-        logger.info("✅ Bull Call strategy launched from startup.")
-    else:
-        logger.info("⚠️ Bull Call strategy was already running.")
+    logger.info("✅ Bull Call strategy launched from startup." if bull_started else "⚠️ Bull Call strategy was already running.")
 
     def delayed_start_bear_put() -> None:
-        bear_started = start_bear_put_strategy()
-        if bear_started:
-            logger.info("✅ Bear Put strategy launched from delayed startup.")
-        else:
-            logger.info("⚠️ Bear Put strategy was already running.")
+        started = start_bear_put_strategy()
+        logger.info("✅ Bear Put strategy launched from delayed startup." if started else "⚠️ Bear Put strategy was already running.")
 
     def delayed_start_bull_call_sensex() -> None:
-        bull_sensex_started = start_bull_call_sensex_strategy()
-        if bull_sensex_started:
-            logger.info("✅ Bull Call SENSEX strategy launched from delayed startup.")
-        else:
-            logger.info("⚠️ Bull Call SENSEX strategy was already running.")
+        started = start_bull_call_sensex_strategy()
+        logger.info("✅ Bull Call SENSEX strategy launched from delayed startup." if started else "⚠️ Bull Call SENSEX strategy was already running.")
 
     def delayed_start_bear_put_sensex() -> None:
-        bear_sensex_started = start_bear_put_sensex_strategy()
-        if bear_sensex_started:
-            logger.info("✅ Bear Put SENSEX strategy launched from delayed startup.")
-        else:
-            logger.info("⚠️ Bear Put SENSEX strategy was already running.")
+        started = start_bear_put_sensex_strategy()
+        logger.info("✅ Bear Put SENSEX strategy launched from delayed startup." if started else "⚠️ Bear Put SENSEX strategy was already running.")
+
+    def delayed_start_upside_stock_signal() -> None:
+        started = start_upside_stock_signal_strategy()
+        logger.info("✅ Upside stock signal websocket launched from delayed startup." if started else "⚠️ Upside stock signal websocket was already running.")
+
+    def delayed_start_downside_stock_signal() -> None:
+        started = start_downside_stock_signal_strategy()
+        logger.info("✅ Downside stock signal websocket launched from delayed startup." if started else "⚠️ Downside stock signal websocket was already running.")
 
     threading.Timer(10.0, delayed_start_bear_put).start()
     threading.Timer(20.0, delayed_start_bull_call_sensex).start()
     threading.Timer(30.0, delayed_start_bear_put_sensex).start()
+    threading.Timer(40.0, delayed_start_upside_stock_signal).start()
+    threading.Timer(50.0, delayed_start_downside_stock_signal).start()
 
-    logger.info("⏳ Delayed startup scheduling completed.")
+    logger.info("⏳ Delayed startup scheduling completed, including intraday stock signal websockets.")
 
 
 app.add_middleware(
@@ -352,10 +246,7 @@ def get_admin_secret() -> str:
 
 
 def verify_admin_secret(secret: str) -> None:
-    provided = (secret or "").strip()
-    expected = get_admin_secret()
-
-    if provided != expected:
+    if (secret or "").strip() != get_admin_secret():
         raise HTTPException(status_code=403, detail="Unauthorized")
 
 
@@ -366,11 +257,9 @@ def utc_now() -> datetime:
 def parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
-
     raw = value.strip()
     if not raw:
         return None
-
     try:
         if raw.endswith("Z"):
             raw = raw.replace("Z", "+00:00")
@@ -385,27 +274,20 @@ def parse_iso_datetime(value: str | None) -> datetime | None:
 def load_login_events() -> list[dict[str, str]]:
     if not LOGIN_EVENTS_FILE.exists():
         return []
-
     with LOGIN_EVENTS_FILE.open("r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        return list(reader)
+        return list(csv.DictReader(file))
 
 
 def build_login_dates_by_user() -> dict[int, set]:
     login_dates_by_user: dict[int, set] = defaultdict(set)
-
     for row in load_login_events():
         try:
             user_id = int(str(row.get("user_id", "")).strip())
         except Exception:
             continue
-
         event_at = parse_iso_datetime(row.get("event_at"))
-        if event_at is None:
-            continue
-
-        login_dates_by_user[user_id].add(event_at.date())
-
+        if event_at is not None:
+            login_dates_by_user[user_id].add(event_at.date())
     return login_dates_by_user
 
 
@@ -415,11 +297,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error", "error": str(exc)},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        },
+        headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*"},
     )
 
 
@@ -445,85 +323,44 @@ def health():
 @app.get("/admin/secret-status")
 def admin_secret_status():
     secret = get_admin_secret()
-    return {
-        "admin_secret_configured": bool(secret),
-        "admin_secret_length": len(secret),
-    }
+    return {"admin_secret_configured": bool(secret), "admin_secret_length": len(secret)}
 
 
 @app.get("/admin/users")
-def admin_users(
-    secret: str = Query(...),
-    db: Session = Depends(get_db),
-):
+def admin_users(secret: str = Query(...), db: Session = Depends(get_db)):
     verify_admin_secret(secret)
-
     from models.user import User
-
     users = db.query(User).order_by(User.created_at.desc()).all()
-
     return [
-        {
-            "id": u.id,
-            "name": u.name,
-            "email": u.email,
-            "phone": u.phone,
-            "created_at": (
-                u.created_at.isoformat()
-                if getattr(u, "created_at", None)
-                else None
-            ),
-        }
+        {"id": u.id, "name": u.name, "email": u.email, "phone": u.phone, "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None}
         for u in users
     ]
 
 
 @app.get("/admin/analytics/summary")
-def admin_analytics_summary(
-    secret: str = Query(...),
-    db: Session = Depends(get_db),
-):
+def admin_analytics_summary(secret: str = Query(...), db: Session = Depends(get_db)):
     verify_admin_secret(secret)
-
     from models.user import User
-
     now = utc_now()
     today = now.date()
     last_1_day = today - timedelta(days=1)
     last_7_days = today - timedelta(days=7)
     last_30_days = today - timedelta(days=30)
-
     users = db.query(User).all()
     login_dates_by_user = build_login_dates_by_user()
-
-    signups_today = 0
-    signups_last_7_days = 0
-    signups_last_30_days = 0
-
-    active_1d = 0
-    active_7d = 0
-    active_30d = 0
-
+    signups_today = signups_last_7_days = signups_last_30_days = 0
+    active_1d = active_7d = active_30d = 0
     for user in users:
         created_at = user.created_at
         if created_at is not None:
             created_date = created_at.date()
-            if created_date == today:
-                signups_today += 1
-            if created_date >= last_7_days:
-                signups_last_7_days += 1
-            if created_date >= last_30_days:
-                signups_last_30_days += 1
-
+            signups_today += int(created_date == today)
+            signups_last_7_days += int(created_date >= last_7_days)
+            signups_last_30_days += int(created_date >= last_30_days)
         login_dates = login_dates_by_user.get(user.id, set())
-
-        if any(d >= last_1_day for d in login_dates):
-            active_1d += 1
-        if any(d >= last_7_days for d in login_dates):
-            active_7d += 1
-        if any(d >= last_30_days for d in login_dates):
-            active_30d += 1
-
+        active_1d += int(any(d >= last_1_day for d in login_dates))
+        active_7d += int(any(d >= last_7_days for d in login_dates))
+        active_30d += int(any(d >= last_30_days for d in login_dates))
     return {
         "total_users": len(users),
         "signups_today": signups_today,
@@ -537,270 +374,139 @@ def admin_analytics_summary(
 
 
 @app.get("/admin/analytics/daily-signups")
-def admin_daily_signups(
-    secret: str = Query(...),
-    days: int = Query(30, ge=1, le=365),
-    db: Session = Depends(get_db),
-):
+def admin_daily_signups(secret: str = Query(...), days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
     verify_admin_secret(secret)
-
     from models.user import User
-
     today = utc_now().date()
     start_date = today - timedelta(days=days - 1)
-
     signups_map: dict[str, int] = {}
     current = start_date
     while current <= today:
         signups_map[current.isoformat()] = 0
         current += timedelta(days=1)
-
-    users = db.query(User).all()
-    for user in users:
-        if user.created_at is None:
-            continue
-
-        created_date = user.created_at.date()
-        if start_date <= created_date <= today:
-            key = created_date.isoformat()
-            signups_map[key] = signups_map.get(key, 0) + 1
-
-    return {
-        "days": days,
-        "series": [
-            {"date": date_str, "signups": count}
-            for date_str, count in signups_map.items()
-        ],
-    }
+    for user in db.query(User).all():
+        if user.created_at is not None:
+            created_date = user.created_at.date()
+            if start_date <= created_date <= today:
+                signups_map[created_date.isoformat()] = signups_map.get(created_date.isoformat(), 0) + 1
+    return {"days": days, "series": [{"date": d, "signups": c} for d, c in signups_map.items()]}
 
 
 @app.get("/admin/analytics/active-users")
-def admin_active_users(
-    secret: str = Query(...),
-):
+def admin_active_users(secret: str = Query(...)):
     verify_admin_secret(secret)
-
     today = utc_now().date()
     login_dates_by_user = build_login_dates_by_user()
-
-    active_1d_users = 0
-    active_7d_users = 0
-    active_30d_users = 0
-
-    last_1_day = today - timedelta(days=1)
-    last_7_days = today - timedelta(days=7)
-    last_30_days = today - timedelta(days=30)
-
-    for login_dates in login_dates_by_user.values():
-        if any(d >= last_1_day for d in login_dates):
-            active_1d_users += 1
-        if any(d >= last_7_days for d in login_dates):
-            active_7d_users += 1
-        if any(d >= last_30_days for d in login_dates):
-            active_30d_users += 1
-
     return {
-        "active_users_1d": active_1d_users,
-        "active_users_7d": active_7d_users,
-        "active_users_30d": active_30d_users,
+        "active_users_1d": sum(any(d >= today - timedelta(days=1) for d in dates) for dates in login_dates_by_user.values()),
+        "active_users_7d": sum(any(d >= today - timedelta(days=7) for d in dates) for dates in login_dates_by_user.values()),
+        "active_users_30d": sum(any(d >= today - timedelta(days=30) for d in dates) for dates in login_dates_by_user.values()),
     }
 
 
 @app.get("/admin/analytics/retention")
-def admin_retention(
-    secret: str = Query(...),
-    db: Session = Depends(get_db),
-):
+def admin_retention(secret: str = Query(...), db: Session = Depends(get_db)):
     verify_admin_secret(secret)
-
     from models.user import User
-
     today = utc_now().date()
     users = db.query(User).all()
     login_dates_by_user = build_login_dates_by_user()
-
     def compute_retention(day_n: int) -> dict:
-        eligible = 0
-        retained = 0
-
+        eligible = retained = 0
         for user in users:
             if user.created_at is None:
                 continue
-
-            signup_date = user.created_at.date()
-            target_date = signup_date + timedelta(days=day_n)
-
+            target_date = user.created_at.date() + timedelta(days=day_n)
             if target_date > today:
                 continue
-
             eligible += 1
-            if target_date in login_dates_by_user.get(user.id, set()):
-                retained += 1
-
-        rate = round((retained / eligible) * 100, 2) if eligible > 0 else 0.0
-
-        return {
-            "eligible_users": eligible,
-            "retained_users": retained,
-            "retention_rate_pct": rate,
-        }
-
-    return {
-        "d1": compute_retention(1),
-        "d7": compute_retention(7),
-        "d30": compute_retention(30),
-        "note": "This uses exact-day retention based on login_events.csv. Historical cohorts before login event tracking started may understate retention.",
-    }
+            retained += int(target_date in login_dates_by_user.get(user.id, set()))
+        return {"eligible_users": eligible, "retained_users": retained, "retention_rate_pct": round((retained / eligible) * 100, 2) if eligible else 0.0}
+    return {"d1": compute_retention(1), "d7": compute_retention(7), "d30": compute_retention(30), "note": "This uses exact-day retention based on login_events.csv."}
 
 
 @app.post("/api/strategy/start")
 def start_strategy():
     started = start_bull_call_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_strategy_running(),
-        "message": "Strategy started." if started else "Strategy already running.",
-    }
+    return {"started": started, "strategy_running": is_strategy_running(), "message": "Strategy started." if started else "Strategy already running."}
 
 
 @app.get("/api/strategy/status")
 def strategy_status():
-    return {
-        "strategy_running": is_strategy_running(),
-    }
+    return {"strategy_running": is_strategy_running()}
 
 
 @app.post("/api/bull-call-sensex-strategy/start")
 def start_bull_call_sensex():
     started = start_bull_call_sensex_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_bull_call_sensex_strategy_running(),
-        "message": (
-            "Bull call SENSEX strategy started."
-            if started
-            else "Bull call SENSEX strategy already running."
-        ),
-    }
+    return {"started": started, "strategy_running": is_bull_call_sensex_strategy_running(), "message": "Bull call SENSEX strategy started." if started else "Bull call SENSEX strategy already running."}
 
 
 @app.get("/api/bull-call-sensex-strategy/status")
 def bull_call_sensex_strategy_status():
-    return {
-        "strategy_running": is_bull_call_sensex_strategy_running(),
-    }
+    return {"strategy_running": is_bull_call_sensex_strategy_running()}
 
 
 @app.post("/api/bear-put-strategy/start")
 def start_bear_put():
     started = start_bear_put_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_bear_put_strategy_running(),
-        "message": (
-            "Bear put strategy started."
-            if started
-            else "Bear put strategy already running."
-        ),
-    }
+    return {"started": started, "strategy_running": is_bear_put_strategy_running(), "message": "Bear put strategy started." if started else "Bear put strategy already running."}
 
 
 @app.get("/api/bear-put-strategy/status")
 def bear_put_strategy_status():
-    return {
-        "strategy_running": is_bear_put_strategy_running(),
-    }
+    return {"strategy_running": is_bear_put_strategy_running()}
 
 
 @app.post("/api/bear-put-sensex-strategy/start")
 def start_bear_put_sensex():
     started = start_bear_put_sensex_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_bear_put_sensex_strategy_running(),
-        "message": (
-            "Bear put SENSEX strategy started."
-            if started
-            else "Bear put SENSEX strategy already running."
-        ),
-    }
+    return {"started": started, "strategy_running": is_bear_put_sensex_strategy_running(), "message": "Bear put SENSEX strategy started." if started else "Bear put SENSEX strategy already running."}
 
 
 @app.get("/api/bear-put-sensex-strategy/status")
 def bear_put_sensex_strategy_status():
-    return {
-        "strategy_running": is_bear_put_sensex_strategy_running(),
-    }
+    return {"strategy_running": is_bear_put_sensex_strategy_running()}
 
 
 @app.post("/api/upside-stock-signal-strategy/start")
 def start_upside_stock_signal():
     started = start_upside_stock_signal_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_upside_stock_signal_strategy_running(),
-        "message": (
-            "Upside stock signal strategy started."
-            if started
-            else "Upside stock signal strategy already running."
-        ),
-    }
+    return {"started": started, "strategy_running": is_upside_stock_signal_strategy_running(), "message": "Upside stock signal strategy started." if started else "Upside stock signal strategy already running."}
 
 
 @app.get("/api/upside-stock-signal-strategy/status")
 def upside_stock_signal_strategy_status():
-    return {
-        "strategy_running": is_upside_stock_signal_strategy_running(),
-    }
+    return {"strategy_running": is_upside_stock_signal_strategy_running()}
 
 
 @app.post("/api/downside-stock-signal-strategy/start")
 def start_downside_stock_signal():
     started = start_downside_stock_signal_strategy()
-    return {
-        "started": started,
-        "strategy_running": is_downside_stock_signal_strategy_running(),
-        "message": (
-            "Downside stock signal strategy started."
-            if started
-            else "Downside stock signal strategy already running."
-        ),
-    }
+    return {"started": started, "strategy_running": is_downside_stock_signal_strategy_running(), "message": "Downside stock signal strategy started." if started else "Downside stock signal strategy already running."}
 
 
 @app.get("/api/downside-stock-signal-strategy/status")
 def downside_stock_signal_strategy_status():
-    return {
-        "strategy_running": is_downside_stock_signal_strategy_running(),
-    }
+    return {"strategy_running": is_downside_stock_signal_strategy_running()}
 
 
 @app.get("/debug/migrations")
 def check_migrations():
     from sqlalchemy import text
-
     with engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
-        columns = conn.execute(
-            text(
-                """
-                SELECT column_name, data_type
-                FROM information_schema.columns
-                WHERE table_name = 'users'
-                """
-            )
-        ).fetchall()
-
-    return {
-        "alembic_version": version[0] if version else None,
-        "users_columns": [{"name": c[0], "type": c[1]} for c in columns],
-    }
+        columns = conn.execute(text("""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_name = 'users'
+        """)).fetchall()
+    return {"alembic_version": version[0] if version else None, "users_columns": [{"name": c[0], "type": c[1]} for c in columns]}
 
 
 @app.get("/stocks/{category}", response_model=StockListResponse)
 async def get_stocks(category: str):
     logger.info("Fetching stocks for category: %s", category)
-
     try:
         try:
             cached_data = data_service.get_cached_stock_list(category)
@@ -809,7 +515,6 @@ async def get_stocks(category: str):
                 return StockListResponse(category=category, stocks=cached_data)
         except Exception as exc:
             logger.warning("Cache miss or error: %s", exc)
-
         try:
             stocks = fetch_from_google_sheets(category)
             if stocks:
@@ -820,10 +525,7 @@ async def get_stocks(category: str):
                 return StockListResponse(category=category, stocks=stocks)
         except Exception as exc:
             logger.error("Fetch failed: %s", exc)
-
-        logger.warning("No data found for category: %s", category)
         return StockListResponse(category=category, stocks=[])
-
     except Exception as exc:
         logger.critical("Critical failure in get_stocks: %s", exc, exc_info=True)
         return StockListResponse(category=category, stocks=[])
@@ -831,20 +533,15 @@ async def get_stocks(category: str):
 
 @app.get("/stocks/history/{symbol}", response_model=List[HistoricalData])
 async def get_history(symbol: str, interval: str = "1d"):
-    logger.info("Fetching history for symbol: %s, interval: %s", symbol, interval)
-
     try:
         cached_data = data_service.get_cached_historical_data(symbol, interval)
         if cached_data:
             return cached_data
-
         history = fetch_historical_data(symbol, interval)
         if history:
             data_service.cache_historical_data(symbol, interval, history)
             return history
-
         return []
-
     except Exception as exc:
         logger.error("Error in get_history: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -852,20 +549,15 @@ async def get_history(symbol: str, interval: str = "1d"):
 
 @app.get("/stocks/info/{symbol}", response_model=StockInfo)
 async def get_info(symbol: str):
-    logger.info("Fetching info for: %s", symbol)
-
     try:
         cached_info = data_service.get_cached_stock_info(symbol)
         if cached_info:
             return cached_info
-
         info = fetch_stock_info(symbol)
         if info:
             data_service.cache_stock_info(symbol, info)
             return info
-
         raise HTTPException(status_code=404, detail="Stock info not found")
-
     except Exception as exc:
         logger.error("Error in get_info: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -873,6 +565,5 @@ async def get_info(symbol: str):
 
 if __name__ == "__main__":
     import uvicorn
-
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
