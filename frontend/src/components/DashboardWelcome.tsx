@@ -256,122 +256,121 @@ const LightningBurst: React.FC<{ trigger: number; hard: boolean }> = ({ trigger,
 };
 
 // ─────────────────────────────────────────────────────────────
-// GlassPanelCard — 3D rotating glass with rings, sparkles, lightning
+// GlassPanelCard — 3D glass panel with immediate spin on press
 // ─────────────────────────────────────────────────────────────
 const GlassPanelCard: React.FC<{ children: React.ReactNode; extraClass: string }> = ({ children, extraClass }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
-  const [pressLevel, setPressLevel] = useState(0); // 0=idle 1=click 2=hardpress
+  const [spinning, setSpinning] = useState(false);
   const [boltTrigger, setBoltTrigger] = useState(0);
-  // spinning: tracks accumulated Y rotation for hard-press full spin
-  const spinY = useMotionValue(0);
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const spinInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const spinAngle = useRef(0);
 
-  // Mouse tilt (only active when NOT spinning)
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const tiltX = useSpring(useTransform(my, [-0.5, 0.5], [14, -14]), { stiffness: 140, damping: 18 });
-  const tiltY = useSpring(useTransform(mx, [-0.5, 0.5], [-14, 14]), { stiffness: 140, damping: 18 });
-
-  // Combined rotateY: tilt + spin
   const rotY = useMotionValue(0);
   const rotX = useMotionValue(0);
+  const rafRef = useRef<number>(0);
+  const angleRef = useRef(0);
+  const isSpinningRef = useRef(false);
 
-  // Keep rotY in sync with tilt when not spinning
+  // Mouse tilt
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const tiltX = useSpring(useTransform(my, [-0.5, 0.5], [12, -12]), { stiffness: 120, damping: 20 });
+  const tiltY = useSpring(useTransform(mx, [-0.5, 0.5], [-12, 12]), { stiffness: 120, damping: 20 });
+
+  // When not spinning, mirror tilt → rotY/rotX
   useEffect(() => {
-    const unsubY = tiltY.on("change", v => { if (pressLevel !== 2) rotY.set(v); });
-    const unsubX = tiltX.on("change", v => { if (pressLevel !== 2) rotX.set(v); });
-    return () => { unsubY(); unsubX(); };
-  }, [pressLevel, tiltX, tiltY, rotX, rotY]);
+    const u1 = tiltY.on("change", v => { if (!isSpinningRef.current) rotY.set(v); });
+    const u2 = tiltX.on("change", v => { if (!isSpinningRef.current) rotX.set(v); });
+    return () => { u1(); u2(); };
+  }, [tiltX, tiltY, rotX, rotY]);
+
+  const startSpin = () => {
+    isSpinningRef.current = true;
+    setSpinning(true);
+    angleRef.current = rotY.get();
+    const loop = () => {
+      if (!isSpinningRef.current) return;
+      angleRef.current += 8; // ~480°/s — clearly visible fast spin
+      rotY.set(angleRef.current);
+      // slight X rock so it feels physical
+      rotX.set(Math.sin((angleRef.current * Math.PI) / 180) * 10);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  };
+
+  const stopSpin = () => {
+    isSpinningRef.current = false;
+    setSpinning(false);
+    cancelAnimationFrame(rafRef.current);
+    // Smooth return to flat
+    rotY.set(0);
+    rotX.set(0);
+    mx.set(0);
+    my.set(0);
+  };
 
   const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current || pressLevel === 2) return;
+    if (!ref.current || isSpinningRef.current) return;
     const r = ref.current.getBoundingClientRect();
     mx.set((e.clientX - r.left) / r.width - 0.5);
     my.set((e.clientY - r.top) / r.height - 0.5);
   };
 
   const handleLeave = () => {
-    mx.set(0); my.set(0); setHovered(false);
+    if (!isSpinningRef.current) { mx.set(0); my.set(0); }
+    setHovered(false);
   };
 
-  const startSpin = () => {
-    // Spin the glass continuously on Y axis
-    if (spinInterval.current) clearInterval(spinInterval.current);
-    spinAngle.current = rotY.get();
-    spinInterval.current = setInterval(() => {
-      spinAngle.current += 6; // degrees per frame @ ~60fps = ~360°/s
-      rotY.set(spinAngle.current);
-      rotX.set(Math.sin((spinAngle.current * Math.PI) / 180) * 8); // slight X wobble during spin
-    }, 16);
-  };
-
-  const stopSpin = () => {
-    if (spinInterval.current) { clearInterval(spinInterval.current); spinInterval.current = null; }
-    // Snap back to tilt position
-    rotX.set(0); rotY.set(0);
-  };
-
-  const pressLevelRef = useRef(0);
-
-  const handleDown = () => {
-    pressLevelRef.current = 1;
-    setPressLevel(1);
+  const handlePointerDown = () => {
     setBoltTrigger(t => t + 1);
-    pressTimer.current = setTimeout(() => {
-      pressLevelRef.current = 2;
-      setPressLevel(2);
-      setBoltTrigger(t => t + 1);
-      startSpin();
-    }, 380);
+    startSpin();
   };
 
-  const handleUp = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    if (pressLevelRef.current === 2) stopSpin();
-    pressLevelRef.current = 0;
-    setPressLevel(0);
+  const handlePointerUp = () => {
+    stopSpin();
   };
 
-  // Cleanup on unmount
   useEffect(() => () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    if (spinInterval.current) clearInterval(spinInterval.current);
+    cancelAnimationFrame(rafRef.current);
   }, []);
 
-  // Ring speed: fast when hard-pressing (spinning), slower on light press, gentle on hover
-  const ringDur = pressLevel === 2 ? 0.8 : pressLevel === 1 ? 2.2 : hovered ? 5 : 13;
-  const sparkIntensity = pressLevel === 2 ? 1 : pressLevel === 1 ? 0.55 : hovered ? 0.12 : 0;
+  const ringDur = spinning ? 0.6 : hovered ? 4 : 12;
+  const sparkIntensity = spinning ? 1 : hovered ? 0.1 : 0;
 
-  // shimmer position tracks mouse
   const shimmerBg = useTransform(
     [mx, my],
     ([x, y]) =>
-      `radial-gradient(ellipse 200px 180px at ${((x as number) + 0.5) * 100}% ${((y as number) + 0.5) * 100}%, rgba(255,255,255,0.13), transparent 65%)`
+      `radial-gradient(ellipse 220px 190px at ${((x as number) + 0.5) * 100}% ${((y as number) + 0.5) * 100}%, rgba(255,255,255,0.14), transparent 65%)`
   );
 
   return (
     <motion.div
       ref={ref}
       className={`lb-gp-wrap lb-flow-card ${extraClass}`}
-      style={{ rotateX: rotX, rotateY: rotY, transformStyle: "preserve-3d", perspective: 1100, position: "relative", zIndex: hovered ? 2 : 1 }}
+      style={{
+        rotateX: rotX,
+        rotateY: rotY,
+        transformStyle: "preserve-3d",
+        perspective: 900,
+        position: "relative",
+        zIndex: hovered || spinning ? 3 : 1,
+        cursor: spinning ? "grabbing" : "pointer",
+      }}
       onMouseMove={handleMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={handleLeave}
-      onPointerDown={handleDown}
-      onPointerUp={handleUp}
-      onPointerLeave={handleUp}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
     >
-      {/* ── Spinning gold rings behind the glass panel ── */}
+      {/* ── Gold rings – spin fast when glass is spinning ── */}
       <div className="lb-gp-rings" aria-hidden="true">
         {[
-          { sz: 100, rev: false, dash: false, baseOp: 0.20 },
-          { sz: 160, rev: true,  dash: true,  baseOp: 0.14 },
-          { sz: 230, rev: false, dash: false, baseOp: 0.09 },
-          { sz: 320, rev: true,  dash: true,  baseOp: 0.06 },
-          { sz: 430, rev: false, dash: false, baseOp: 0.03 },
+          { sz: 110, rev: false, dash: false, op: 0.22 },
+          { sz: 180, rev: true,  dash: true,  op: 0.15 },
+          { sz: 260, rev: false, dash: false, op: 0.10 },
+          { sz: 360, rev: true,  dash: true,  op: 0.06 },
+          { sz: 460, rev: false, dash: false, op: 0.03 },
         ].map((ring, i) => (
           <motion.div
             key={i}
@@ -379,68 +378,62 @@ const GlassPanelCard: React.FC<{ children: React.ReactNode; extraClass: string }
               position: "absolute",
               width: ring.sz, height: ring.sz,
               borderRadius: "50%",
-              border: `1px ${ring.dash ? "dashed" : "solid"} rgba(250,204,21,${hovered ? Math.min(ring.baseOp * 2.8, 0.65) : ring.baseOp})`,
+              border: `1px ${ring.dash ? "dashed" : "solid"} rgba(250,204,21,${(hovered || spinning) ? Math.min(ring.op * 3, 0.7) : ring.op})`,
               top: "50%", left: "50%",
               marginLeft: -ring.sz / 2, marginTop: -ring.sz / 2,
               pointerEvents: "none",
-              transition: "border-color 0.4s ease",
+              transition: "border-color 0.3s ease",
             }}
             animate={{ rotate: ring.rev ? -360 : 360 }}
-            transition={{ duration: ringDur * (1 + i * 0.5), repeat: Infinity, ease: "linear" }}
+            transition={{ duration: ringDur * (1 + i * 0.45), repeat: Infinity, ease: "linear" }}
           />
         ))}
-
-        {/* Pulse rings on hard press */}
-        {pressLevel === 2 && [0, 1].map(i => (
-          <motion.div key={`pulse-${i}`} style={{
-            position: "absolute", width: 60, height: 60, borderRadius: "50%",
-            border: "2px solid rgba(250,204,21,1)",
-            top: "50%", left: "50%", marginLeft: -30, marginTop: -30,
+        {/* Shockwave pulses during spin */}
+        {spinning && [0, 1, 2].map(i => (
+          <motion.div key={`sw-${i}`} style={{
+            position: "absolute", width: 80, height: 80, borderRadius: "50%",
+            border: "2px solid rgba(250,204,21,0.9)",
+            top: "50%", left: "50%", marginLeft: -40, marginTop: -40,
             pointerEvents: "none",
           }}
-            initial={{ scale: 0.8, opacity: 1 }}
-            animate={{ scale: 6, opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: i * 0.15, repeat: Infinity, repeatDelay: 0.5 }}
+            initial={{ scale: 0.5, opacity: 1 }}
+            animate={{ scale: 7, opacity: 0 }}
+            transition={{ duration: 0.9, ease: "easeOut", delay: i * 0.2, repeat: Infinity, repeatDelay: 0.3 }}
           />
         ))}
       </div>
 
-      {/* ── Glass face: the actual glazed panel surface ── */}
-      <div className="lb-gp-face" style={{ transform: "translateZ(16px)" }}>
-        {/* Reflective shimmer follows cursor */}
+      {/* ── Glass face ── */}
+      <div className="lb-gp-face" style={{ transform: "translateZ(18px)" }}>
         <motion.div className="lb-gp-shimmer" style={{ background: shimmerBg }} />
-
-        {/* Gold edge refractions (top/left/right frame lines) */}
         <div className="lb-gp-edge lb-gp-edge-top" />
         <div className="lb-gp-edge lb-gp-edge-left" />
         <div className="lb-gp-edge lb-gp-edge-right" />
         <div className="lb-gp-edge lb-gp-edge-bottom" />
-
-        {/* Inner content sits on top of glass */}
         <div style={{ position: "relative", zIndex: 5 }}>{children}</div>
       </div>
 
-      {/* ── 3D depth layer slightly behind ── */}
-      <div className="lb-gp-depth" style={{ transform: "translateZ(-10px)" }} aria-hidden="true" />
+      {/* ── Depth shadow ── */}
+      <div className="lb-gp-depth" style={{ transform: "translateZ(-12px)" }} aria-hidden="true" />
 
-      {/* ── Canvas sparkles ── */}
-      <SparkleCanvas active={hovered || pressLevel > 0} intensity={sparkIntensity} />
+      {/* ── Sparkles ── */}
+      <SparkleCanvas active={hovered || spinning} intensity={sparkIntensity} />
 
-      {/* ── Lightning on click / hard press ── */}
-      <LightningBurst trigger={boltTrigger} hard={pressLevel === 2} />
+      {/* ── Lightning ── */}
+      <LightningBurst trigger={boltTrigger} hard={spinning} />
 
-      {/* ── Glowing frame border that reacts to interaction ── */}
+      {/* ── Border glow ── */}
       <motion.div
         className="lb-gp-glow-border"
         animate={{
-          opacity: pressLevel === 2 ? 1 : pressLevel === 1 ? 0.75 : hovered ? 0.5 : 0,
-          boxShadow: pressLevel === 2
-            ? "0 0 0 2px rgba(250,204,21,1), 0 0 70px rgba(250,204,21,0.55), inset 0 0 50px rgba(250,204,21,0.1)"
-            : pressLevel === 1
-            ? "0 0 0 1.5px rgba(250,204,21,0.7), 0 0 40px rgba(250,204,21,0.35)"
-            : "0 0 0 1px rgba(250,204,21,0.4), 0 0 24px rgba(250,204,21,0.18)",
+          opacity: spinning ? 1 : hovered ? 0.5 : 0,
+          boxShadow: spinning
+            ? "0 0 0 2px rgba(250,204,21,1), 0 0 80px rgba(250,204,21,0.6), inset 0 0 60px rgba(250,204,21,0.12)"
+            : hovered
+            ? "0 0 0 1px rgba(250,204,21,0.45), 0 0 28px rgba(250,204,21,0.2)"
+            : "none",
         }}
-        transition={{ duration: 0.22 }}
+        transition={{ duration: 0.18 }}
       />
     </motion.div>
   );
@@ -479,19 +472,24 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
         <motion.div className="lb-construction-flow" variants={fadeUp}>
 
           <GlassPanelCard extraClass="lb-selection-card">
-            <div className="lb-flow-card-top">
-              <span>01</span>
-              <p>ALPHA ENGINE</p>
+            <div className="lb-card-badge">
+              <span className="lb-card-num">01</span>
+              <span className="lb-card-tag">ALPHA ENGINE</span>
             </div>
-            <h3>Selection</h3>
-            <strong>Where returns come from</strong>
-            <small>Powered by LightninBull AI Quant Engine</small>
-            <ul>
+            <h3 className="lb-card-title">Selection</h3>
+            <div className="lb-card-kicker">
+              Where <em className="lb-highlight-gold">Alpha</em> comes from
+            </div>
+            <p className="lb-card-sub">Powered by LightninBull AI Quant Engine</p>
+            <div className="lb-card-divider" />
+            <ul className="lb-card-list">
               <li>Regime-based filtering</li>
               <li>Momentum ranking</li>
               <li>Factor model screening</li>
             </ul>
-            <div className="lb-flow-output">→ High-probability alpha stocks</div>
+            <div className="lb-flow-output lb-card-output">
+              <span className="lb-output-arrow">→</span> High-probability <em className="lb-highlight-gold">alpha</em> stocks
+            </div>
           </GlassPanelCard>
 
           <div className="lb-flow-connector">
@@ -501,19 +499,24 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           </div>
 
           <GlassPanelCard extraClass="lb-allocation-card">
-            <div className="lb-flow-card-top">
-              <span>02</span>
-              <p>RISK ENGINE</p>
+            <div className="lb-card-badge">
+              <span className="lb-card-num">02</span>
+              <span className="lb-card-tag">RISK ENGINE</span>
             </div>
-            <h3>Allocation</h3>
-            <strong>How volatility is controlled</strong>
-            <small>Powered by LightninBull AI Quant Engine</small>
-            <ul>
+            <h3 className="lb-card-title">Allocation</h3>
+            <div className="lb-card-kicker">
+              How <em className="lb-highlight-gold">Volatility</em> is controlled
+            </div>
+            <p className="lb-card-sub">Powered by LightninBull AI Quant Engine</p>
+            <div className="lb-card-divider" />
+            <ul className="lb-card-list">
               <li>Equal weight institutional baseline</li>
               <li>Minimum variance optimization</li>
               <li>Risk-adjusted portfolio weights</li>
             </ul>
-            <div className="lb-flow-output">→ Optimized portfolio allocation</div>
+            <div className="lb-flow-output lb-card-output">
+              <span className="lb-output-arrow">→</span> Optimized <em className="lb-highlight-gold">portfolio</em> allocation
+            </div>
           </GlassPanelCard>
 
         </motion.div>
@@ -1083,6 +1086,143 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           inset: 0;
           pointer-events: none;
           z-index: 18;
+        }
+
+        /* ── Centred card content layout ───────────────────── */
+        .lb-card-badge {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 32px;
+          font-family: 'DM Mono', monospace;
+        }
+
+        .lb-card-num {
+          width: 44px;
+          height: 44px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          border: 1px solid rgba(250,204,21,0.35);
+          color: #facc15;
+          font-size: 12px;
+          background: rgba(250,204,21,0.06);
+          box-shadow: 0 0 16px rgba(250,204,21,0.15);
+          flex-shrink: 0;
+        }
+
+        .lb-card-tag {
+          font-size: 8px;
+          letter-spacing: 4px;
+          color: rgba(255,255,255,0.38);
+          text-transform: uppercase;
+        }
+
+        .lb-card-title {
+          margin: 0 0 18px 0;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(52px, 5.5vw, 72px) !important;
+          font-weight: 300;
+          line-height: 0.92;
+          color: #f7f0df;
+          text-align: center;
+          letter-spacing: -1px;
+          text-shadow: 0 0 60px rgba(250,204,21,0.08);
+        }
+
+        .lb-card-kicker {
+          text-align: center;
+          font-family: 'Syne', sans-serif;
+          font-size: 16px;
+          font-weight: 600;
+          letter-spacing: 0.2px;
+          color: rgba(255,255,255,0.82);
+          margin-bottom: 10px;
+        }
+
+        .lb-card-sub {
+          text-align: center;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 2px;
+          color: rgba(255,255,255,0.32);
+          margin: 0 0 0 0;
+        }
+
+        .lb-card-divider {
+          width: 60px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(250,204,21,0.55), transparent);
+          margin: 22px auto;
+        }
+
+        .lb-card-list {
+          list-style: none;
+          padding: 0 !important;
+          margin: 0 0 22px 0 !important;
+          border-top: none !important;
+        }
+
+        .lb-card-list li {
+          position: relative;
+          padding: 10px 16px 10px 28px !important;
+          margin-bottom: 6px;
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.58);
+          background: rgba(255,255,255,0.025);
+          border-left: 1px solid rgba(250,204,21,0.12);
+          transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .lb-card-list li:hover {
+          background: rgba(250,204,21,0.05);
+          border-left-color: rgba(250,204,21,0.4);
+        }
+
+        .lb-card-list li::before {
+          content: "";
+          position: absolute;
+          left: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: #facc15;
+          box-shadow: 0 0 8px rgba(250,204,21,0.6);
+        }
+
+        .lb-card-output {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          justify-content: center;
+          text-align: center;
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          padding: 14px 20px;
+          margin-top: 0;
+          border: 1px solid rgba(250,204,21,0.2);
+          background: rgba(250,204,21,0.05);
+          color: rgba(255,255,255,0.7);
+        }
+
+        .lb-output-arrow {
+          color: #facc15;
+          font-size: 14px;
+        }
+
+        /* Highlighted golden keywords */
+        .lb-highlight-gold {
+          color: #facc15;
+          font-style: normal;
+          font-weight: 700;
+          text-shadow:
+            0 0 18px rgba(250,204,21,0.55),
+            0 0 40px rgba(250,204,21,0.25);
+          letter-spacing: 0.5px;
         }
 
         /* ── Original flow card styles — UNCHANGED ── */
