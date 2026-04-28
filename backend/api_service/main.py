@@ -23,8 +23,9 @@ from bullcallspread.nifty_bull_call_signal import main as bull_call_main
 from bearputspread.nifty_bear_put_signal import main as bear_put_main
 from bearputspread.sensex_bear_put_signal import main as bear_put_sensex_main
 
-from intraday_stock_signals.upside_strategy import main as upside_stock_signal_main
-from intraday_stock_signals.downside_strategy import main as downside_stock_signal_main
+from api_service.lightnin_bull_upside_intraday_signal import main as upside_stock_signal_main
+from api_service.lightnin_bear_downside_intraday_signal import main as downside_stock_signal_main
+
 
 from db import Base, SessionLocal, engine
 from fetch_service.main import (
