@@ -1248,7 +1248,7 @@ def main():
 
             done_event.wait(timeout=2.0)
 
-        log_and_print("MAIN 8: strategy complete — exiting cleanly.")
+        log_and_print("MAIN 8: strategy complete — exiting cleanly")
 
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
