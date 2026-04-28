@@ -48,6 +48,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ResetPasswordRequest(BaseModel):
+    phone: str
+    email: str
+    new_password: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -261,6 +267,41 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token)
 
 
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    phone = normalize_phone(body.phone)
+    email = normalize_email(body.email)
+    new_password = body.new_password.strip()
+
+    if len(new_password) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 4 characters",
+        )
+
+    user = (
+        db.query(User)
+        .filter(
+            User.phone == phone,
+            User.email == email,
+        )
+        .first()
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No user found with this phone number and email",
+        )
+
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+
+    return {
+        "message": "Password reset successfully. Please login with your new password."
+    }
+
+
 @router.get("/me", response_model=MeResponse)
 def me(current_email: str = Depends(get_current_email)):
     return MeResponse(email=current_email)
@@ -331,3 +372,5 @@ def export_registered_users_csv(
             "Content-Disposition": 'attachment; filename="registered_users.csv"'
         },
     )
+
+
