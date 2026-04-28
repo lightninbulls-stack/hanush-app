@@ -17,28 +17,13 @@ function formatPrice(value?: number | null) {
   return Number(value).toFixed(2);
 }
 
-function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) return "--";
-  return `${Number(value).toFixed(2)}%`;
-}
-
 function formatUpdatedAt(value?: string) {
   if (!value) return "--";
-  try { return new Date(value).toLocaleTimeString(); }
-  catch { return value; }
-}
-
-function getTopCapture(signals: StockSignalRow[]) {
-  const entered = signals.filter(
-    (s) =>
-      s.signal_status === "ENTERED" &&
-      s.points_captured !== null &&
-      s.points_captured !== undefined
-  );
-  if (entered.length === 0) return null;
-  return [...entered].sort(
-    (a, b) => (b.points_captured || 0) - (a.points_captured || 0)
-  )[0];
+  try {
+    return new Date(value).toLocaleTimeString();
+  } catch {
+    return value;
+  }
 }
 
 const IntradayStockSignalsPanel: React.FC<Props> = ({
@@ -47,9 +32,9 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
   subtitle,
   emptyMessage,
 }) => {
-  const [spread,  setSpread]  = useState<IntradaySpread | null>(null);
+  const [spread, setSpread] = useState<IntradaySpread | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -80,21 +65,11 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
 
   const signals = useMemo<StockSignalRow[]>(() => {
     const rows = [...(spread?.signals || [])];
-    return rows.sort((a, b) => {
-      const aE = a.signal_status === "ENTERED" ? 0 : 1;
-      const bE = b.signal_status === "ENTERED" ? 0 : 1;
-      if (aE !== bE) return aE - bE;
-      return a.symbol.localeCompare(b.symbol);
-    });
+    return rows.sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [spread]);
 
-  const enteredCount =
-    spread?.entered_count ??
-    signals.filter((s) => s.signal_status === "ENTERED").length;
-
+  const enteredCount = spread?.entered_count ?? signals.length;
   const totalCount = spread?.total_count ?? signals.length;
-  const bestCapture = getTopCapture(signals);
-  const isDownside  = strategyName.includes("DOWNSIDE");
 
   const statusColor =
     spread?.status === "RUNNING"
@@ -114,7 +89,6 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         color: "#fff",
       }}
     >
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -188,17 +162,10 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Chips */}
       <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
         {[
-          { label: "Entered",       value: String(enteredCount) },
-          { label: "Total Stocks",  value: String(totalCount) },
-          {
-            label: "Best Capture",
-            value: bestCapture
-              ? `${bestCapture.symbol} (${formatPrice(bestCapture.points_captured)})`
-              : "--",
-          },
+          { label: "Entered", value: String(enteredCount) },
+          { label: "Total Stocks", value: String(totalCount) },
         ].map((chip) => (
           <div
             key={chip.label}
@@ -213,7 +180,15 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
               minWidth: 130,
             }}
           >
-            <span style={{ color: "rgba(255,255,255,0.35)", display: "block", fontSize: 9, letterSpacing: 1.5, marginBottom: 4 }}>
+            <span
+              style={{
+                color: "rgba(255,255,255,0.35)",
+                display: "block",
+                fontSize: 9,
+                letterSpacing: 1.5,
+                marginBottom: 4,
+              }}
+            >
               {chip.label.toUpperCase()}
             </span>
             <strong style={{ color: "#f7f0df", fontSize: 13 }}>{chip.value}</strong>
@@ -221,7 +196,6 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         ))}
       </div>
 
-      {/* Table */}
       {loading ? (
         <p style={{ fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
           Loading signals…
@@ -241,11 +215,10 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                   "Symbol",
                   "Status",
                   "Entry Time",
-                  "Avg Price",
+                  "Entry Price",
                   "Current LTP",
-                  isDownside ? "Min LTP" : "Max LTP",
-                  "Points",
-                  "%",
+                  "Target",
+                  "Stop Loss",
                 ].map((h) => (
                   <th key={h}>{h}</th>
                 ))}
@@ -254,19 +227,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             <tbody>
               {signals.map((row) => {
                 const isEntered = row.signal_status === "ENTERED";
-                const pts = row.points_captured;
-                const ptsColor =
-                  pts === null || pts === undefined
-                    ? "rgba(255,255,255,0.6)"
-                    : pts > 0
-                    ? "#4ade80"
-                    : pts < 0
-                    ? "#f87171"
-                    : "rgba(255,255,255,0.6)";
-
-                const favorablePrice = isDownside
-                  ? row.min_ltp ?? row.favorable_price ?? row.max_ltp
-                  : row.max_ltp ?? row.favorable_price;
+                const entryPrice = row.entry_price ?? row.avg_price;
 
                 return (
                   <tr key={row.instrument_token}>
@@ -305,24 +266,10 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                     <td style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>
                       {row.entry_time || "--"}
                     </td>
-                    <td>{formatPrice(row.avg_price)}</td>
+                    <td>{formatPrice(entryPrice)}</td>
                     <td>{formatPrice(row.current_ltp)}</td>
-                    <td>{formatPrice(favorablePrice)}</td>
-                    <td style={{ color: ptsColor, fontWeight: 600 }}>
-                      {formatPrice(pts)}
-                    </td>
-                    <td
-                      style={{
-                        color:
-                          (row.pct_captured || 0) > 0
-                            ? "#4ade80"
-                            : (row.pct_captured || 0) < 0
-                            ? "#f87171"
-                            : "rgba(255,255,255,0.55)",
-                      }}
-                    >
-                      {formatPercent(row.pct_captured)}
-                    </td>
+                    <td>{formatPrice(row.target_price)}</td>
+                    <td>{formatPrice(row.stop_loss_price)}</td>
                   </tr>
                 );
               })}
