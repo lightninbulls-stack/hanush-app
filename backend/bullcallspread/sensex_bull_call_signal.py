@@ -834,6 +834,17 @@ class EMACrossover1Min:
         # Signal is blocked until at least 2 live candles have completed,
         # preventing a false crossover built on 1 historical + 1 live candle.
         self.live_completed_candles: int = 0
+        # Record the last timestamp from historical data exactly once.
+        # Live candles are filtered using this fixed cutoff — NOT using
+        # onemin_bars.index.max() which grows with every appended live candle
+        # and would silently filter out all candles after the first one.
+        self.history_cutoff_ts = (
+            self.onemin_bars.index.max() if not self.onemin_bars.empty else None
+        )
+        log_and_print(
+            f"HISTORY CUTOFF | ts={self.history_cutoff_ts} | "
+            f"history_rows={len(self.onemin_bars)}"
+        )
         # ─────────────────────────────────────────────────────────────────────
 
     def _load_history(self) -> pd.DataFrame:
@@ -869,12 +880,12 @@ class EMACrossover1Min:
             if not ohlc.empty:
                 ohlc["signal"] = 0
 
-                # Keep only genuinely new live candles.
-                # Historical data is used only to warm EMA values.
-                # This prevents duplicate timestamps from historical_data + live resample.
-                if not self.onemin_bars.empty:
-                    last_existing_ts = self.onemin_bars.index.max()
-                    ohlc = ohlc[ohlc.index > last_existing_ts]
+                # Filter using the FIXED history cutoff, not the growing
+                # onemin_bars.index.max(). Using index.max() after appending
+                # live candles means every subsequent live candle gets filtered
+                # out — silently killing the stream after candle 1.
+                if self.history_cutoff_ts is not None:
+                    ohlc = ohlc[ohlc.index > self.history_cutoff_ts]
 
                 if not ohlc.empty:
                     self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
@@ -1216,7 +1227,7 @@ def main():
 
             done_event.wait(timeout=2.0)
 
-        log_and_print("MAIN 8: strategy complete — exiting cleanly")
+        log_and_print("MAIN 8: strategy complete — exiting cleanly.")
 
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
