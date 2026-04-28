@@ -215,49 +215,26 @@ def is_market_hours_ist(ref: Optional[datetime] = None) -> bool:
     return market_open <= now_ist <= market_close
 
 
-def wait_until_market_open() -> None:
-    now_ist = current_ist()
-    market_open, market_close = get_market_open_close_ist(now_ist)
-    log_and_print(
-        f"WAIT CHECK | now={now_ist.strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"open={market_open.strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"close={market_close.strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-    if now_ist >= market_open:
-        log_and_print("Skipping market-open wait for paper/test mode.")
-        return
-    sleep_seconds = int((market_open - now_ist).total_seconds())
-    log_and_print(f"Waiting {sleep_seconds} seconds until market open.")
-    time.sleep(sleep_seconds)
-
-
-
 def resolve_nifty_weekly_expiry() -> str:
     """
     NIFTY weekly expiry rule:
-
     Monday    -> Tuesday same week
-    Tuesday   -> next Tuesday
+    Tuesday   -> next Tuesday  (avoid same-day expiry)
     Wednesday -> next Tuesday
     Thursday  -> next Tuesday
     Friday    -> next Tuesday
     """
     today = current_ist().date()
-
-    # Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4
-    weekday = today.weekday()
+    weekday = today.weekday()  # Monday=0 ... Friday=4
 
     if weekday == 1:
-        # Tuesday: do not trade same-day expiry
         expiry = today + timedelta(days=7)
     else:
         days_ahead = (1 - weekday) % 7
         expiry = today + timedelta(days=days_ahead)
 
     expiry = expiry + timedelta(days=7 * max(NIFTY_EXPIRY_WEEKS_AHEAD, 0))
-
     log_and_print(f"EXPIRY RESOLVED | NIFTY Tuesday expiry={expiry.strftime('%Y-%m-%d')}")
-
     return expiry.strftime("%Y%m%d")
 
 
@@ -345,7 +322,6 @@ def get_spot_ltp(kite: KiteConnect) -> float:
                     return float(ltp)
         except Exception as e:
             last_error = e
-
     raise ValueError(f"Unable to fetch valid NIFTY spot LTP. Last error={last_error}")
 
 
@@ -372,7 +348,6 @@ def load_nifty_option_instruments(kite: KiteConnect, expiry_str: str, option_typ
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
 
     valid_names = {"NIFTY", "NIFTY 50"}
-
     df = df[
         (df["name"].astype(str).str.upper().isin(valid_names))
         & (df["instrument_type"].astype(str).str.upper() == option_type.upper())
@@ -429,7 +404,6 @@ def build_local_nifty_chain_with_ltp(
         raise ValueError(f"NIFTY {option_type} ltp fetch failed: {e}") from e
 
     df["last_price_y"] = df["quote_symbol"].map(lambda s: float(quotes.get(s, {}).get("last_price", 0.0)))
-
     df = df[df["last_price_y"] > 0].copy()
     log_and_print(f"Post LTP filter rows={len(df)}")
 
@@ -438,6 +412,10 @@ def build_local_nifty_chain_with_ltp(
 
     return df.sort_values("strike").reset_index(drop=True)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAPER ORDER BOOK
+# ─────────────────────────────────────────────────────────────────────────────
 
 class PaperOrderBook:
     def __init__(self) -> None:
@@ -479,7 +457,9 @@ class PaperOrderBook:
         }
         with self.lock:
             self.orders.append(order)
-        log_and_print(f"📝 PAPER ORDER | RefID={ref_id} | {side} {quantity} {trading_symbol} | Entry={entry_price:.2f}")
+        log_and_print(
+            f"📝 PAPER ORDER | RefID={ref_id} | {side} {quantity} {trading_symbol} | Entry={entry_price:.2f}"
+        )
         return ref_id
 
     def get_all_orders(self) -> pd.DataFrame:
@@ -514,13 +494,18 @@ class PaperOrderBook:
             return [order.copy() for order in self.orders]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MTM TRACKER  (option-leg websocket — live PnL + exit logic)
+# ─────────────────────────────────────────────────────────────────────────────
+
 class PaperSpreadMTMTracker:
-    def __init__(self, cred: dict, paper_book: PaperOrderBook):
+    def __init__(self, cred: dict, paper_book: PaperOrderBook, done_event: threading.Event):
         self.cred = cred
         self.paper_book = paper_book
         self.ws: Optional[KiteTicker] = None
         self.is_running = False
         self.last_print_time = 0.0
+        self._done_event = done_event
 
     def _publish_current_state(self) -> None:
         payload = build_spread_payload(
@@ -543,14 +528,31 @@ class PaperSpreadMTMTracker:
         if buy_leg and sell_leg:
             log_and_print(
                 "LIVE MTM | "
-                f"BUY {buy_leg['trading_symbol']} Entry={buy_leg['entry_price']:.2f} LTP={buy_leg['ltp']:.2f} PnL={buy_leg['pnl']:.2f} | "
-                f"SELL {sell_leg['trading_symbol']} Entry={sell_leg['entry_price']:.2f} LTP={sell_leg['ltp']:.2f} PnL={sell_leg['pnl']:.2f} | "
+                f"BUY {buy_leg['trading_symbol']} Entry={buy_leg['entry_price']:.2f} "
+                f"LTP={buy_leg['ltp']:.2f} PnL={buy_leg['pnl']:.2f} | "
+                f"SELL {sell_leg['trading_symbol']} Entry={sell_leg['entry_price']:.2f} "
+                f"LTP={sell_leg['ltp']:.2f} PnL={sell_leg['pnl']:.2f} | "
                 f"NET={total:.2f}"
             )
+
+    def _shutdown(self, ws, tokens: list, reason: str) -> None:
+        """Central shutdown — close positions, publish final state, stop WS, unblock main."""
+        log_and_print(f"MTM SHUTDOWN | reason={reason}")
+        self.paper_book.close_all_positions()
+        self._publish_current_state()
+        self.is_running = False
+        try:
+            ws.unsubscribe(tokens)
+            ws.close()
+        except Exception:
+            pass
+        self._done_event.set()
 
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
         if orders_df.empty or len(orders_df) < 2:
+            log_and_print("MTM START | No open orders — skipping MTM websocket.", "warning")
+            self._done_event.set()
             return
 
         tokens = orders_df["instrument_token"].tolist()
@@ -562,18 +564,13 @@ class PaperSpreadMTMTracker:
             if not self.is_running:
                 return
 
+            # Market close protection
             if is_after_market_close_ist():
                 log_and_print("MARKET CLOSED | Closing bull call spread and stopping MTM websocket.")
-                self.paper_book.close_all_positions()
-                self._publish_current_state()
-                self.is_running = False
-                try:
-                    ws.unsubscribe(tokens)
-                    ws.close()
-                except Exception:
-                    pass
+                self._shutdown(ws, tokens, "MARKET_CLOSE")
                 return
 
+            # Update live PnL for each tick
             for tick in ticks:
                 token = tick.get("instrument_token")
                 ltp = tick.get("last_price")
@@ -583,32 +580,20 @@ class PaperSpreadMTMTracker:
 
             total_pnl = self.paper_book.total_pnl()
 
+            # Stop loss check
             if total_pnl <= STOP_LOSS_AMOUNT:
                 log_and_print(
                     f"🛑 STOP LOSS HIT | NET PnL={total_pnl:.2f} | SL={STOP_LOSS_AMOUNT:.2f}"
                 )
-                self.paper_book.close_all_positions()
-                self._publish_current_state()
-                self.is_running = False
-                try:
-                    ws.unsubscribe(tokens)
-                    ws.close()
-                except Exception:
-                    pass
+                self._shutdown(ws, tokens, "STOP_LOSS")
                 return
 
+            # Target check
             if total_pnl >= TARGET_AMOUNT:
                 log_and_print(
                     f"🎯 TARGET HIT | NET PnL={total_pnl:.2f} | TARGET={TARGET_AMOUNT:.2f}"
                 )
-                self.paper_book.close_all_positions()
-                self._publish_current_state()
-                self.is_running = False
-                try:
-                    ws.unsubscribe(tokens)
-                    ws.close()
-                except Exception:
-                    pass
+                self._shutdown(ws, tokens, "TARGET")
                 return
 
             current_time = time.time()
@@ -623,13 +608,32 @@ class PaperSpreadMTMTracker:
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
 
+        def on_error(ws, code, reason):
+            # ── FIX: also set done_event so main thread is not left hanging ──
+            log_and_print(f"MTM WS ERROR | code={code} reason={reason}", "error")
+            self.is_running = False
+            self._done_event.set()
+
+        def on_close(ws, code, reason):
+            log_and_print(f"MTM WS CLOSED | code={code} reason={reason}")
+            # If closed unexpectedly while still live, unblock main
+            if self.is_running:
+                self.is_running = False
+                self._done_event.set()
+
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
+        kws.on_error = on_error
+        kws.on_close = on_close
         kws.connect(threaded=True)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ALPHA BULL CALL  (spread builder + paper order placer)
+# ─────────────────────────────────────────────────────────────────────────────
+
 class AlphaBullCall:
-    def __init__(self, kite: KiteConnect, cred: dict, paper_book: PaperOrderBook):
+    def __init__(self, kite: KiteConnect, cred: dict, paper_book: PaperOrderBook, done_event: threading.Event):
         self.kite = kite
         self.cred = cred
         self.paper_book = paper_book
@@ -646,6 +650,7 @@ class AlphaBullCall:
         self.buy_entry_price = None
         self.sell_entry_price = None
         self.mtm_tracker: Optional[PaperSpreadMTMTracker] = None
+        self._done_event = done_event
 
     def quote_details(self) -> None:
         log_and_print("QD 1: building local NIFTY CE chain")
@@ -765,7 +770,7 @@ class AlphaBullCall:
             publish_spread_update(payload)
 
             log_and_print("STEP 8: starting MTM tracker")
-            self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book)
+            self.mtm_tracker = PaperSpreadMTMTracker(self.cred, self.paper_book, self._done_event)
             self.mtm_tracker.start()
             log_and_print("STEP 9: MTM tracker started")
 
@@ -781,10 +786,22 @@ class AlphaBullCall:
                 progress_text="Check backend logs",
                 is_loading=False,
             )
+            self._done_event.set()
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EMA CROSSOVER  (NIFTY spot signal detection)
+# ─────────────────────────────────────────────────────────────────────────────
 
 class EMACrossover1Min:
-    def __init__(self, kite: KiteConnect, cred: dict, instrument_token: int = NIFTY_SPOT_TOKEN, preload_days: int = PRELOAD_DAYS):
+    def __init__(
+        self,
+        kite: KiteConnect,
+        cred: dict,
+        done_event: threading.Event,
+        instrument_token: int = NIFTY_SPOT_TOKEN,
+        preload_days: int = PRELOAD_DAYS,
+    ):
         self.kite = kite
         self.cred = cred
         self.token = instrument_token
@@ -795,6 +812,7 @@ class EMACrossover1Min:
         self.last_trade_signal = 0
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
+        self._done_event = done_event
 
     def _load_history(self) -> pd.DataFrame:
         try:
@@ -806,7 +824,8 @@ class EMACrossover1Min:
                 return pd.DataFrame(columns=["open", "high", "low", "close"])
             df["datetime"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(IST)
             return df.set_index("datetime")[["open", "high", "low", "close"]].sort_index()
-        except Exception:
+        except Exception as e:
+            log_and_print(f"History load failed (continuing without): {e}", "warning")
             return pd.DataFrame(columns=["open", "high", "low", "close"])
 
     def _to_ist(self, ts: datetime) -> datetime:
@@ -870,14 +889,26 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        signal_condition = bool(latest["EMA5"] > latest["EMA55"])
+        # ── CROSSOVER CHECK ──────────────────────────────────────────────────
+        # Fires ONLY when EMA5 transitions from <= EMA55  →  > EMA55.
+        # Prevents false entry when EMA5 is already above EMA55 at startup.
+        signal_condition = bool(
+            prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]
+        )
+        # ─────────────────────────────────────────────────────────────────────
 
         log_and_print(
             f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | Condition={signal_condition}"
+            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
+            f"Crossover={signal_condition}"
         )
 
         if signal_condition and self.last_trade_signal != 1:
+            log_and_print(
+                f"✅ EMA CROSSOVER SIGNAL | EMA5 crossed above EMA55 | "
+                f"PrevEMA5={prev['EMA5']:.2f} PrevEMA55={prev['EMA55']:.2f} | "
+                f"CurrEMA5={latest['EMA5']:.2f} CurrEMA55={latest['EMA55']:.2f}"
+            )
             self.last_trade_signal = 1
             self._stop_nifty_stream()
 
@@ -897,8 +928,21 @@ class EMACrossover1Min:
                         progress_text="Check backend logs",
                         is_loading=False,
                     )
+                    self._done_event.set()
 
             threading.Thread(target=_launch_rider, daemon=True).start()
+
+        else:
+            # No crossover yet — publish waiting state with live EMA values
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bullish entry trigger...",
+                progress_text=f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}",
+                is_loading=True,
+            )
 
     def start(self, rider: AlphaBullCall) -> None:
         tokens = [self.token]
@@ -917,10 +961,12 @@ class EMACrossover1Min:
                     index_name=INDEX_NAME,
                     spread_type=SPREAD_TYPE,
                     ui_state="STOPPED",
-                    message="Strategy stopped outside market hours.",
+                    message="Strategy stopped. No crossover signal before market close.",
                     progress_text="Market closed",
                     is_loading=False,
                 )
+                # No trade happened — unblock main so process exits cleanly
+                self._done_event.set()
                 return
 
             ltt_utc = datetime.utcnow()
@@ -939,7 +985,6 @@ class EMACrossover1Min:
             log_and_print("Connected & subscribed to NIFTY EMA stream.")
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
-
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -950,11 +995,27 @@ class EMACrossover1Min:
                 is_loading=True,
             )
 
+        def on_error(ws, code, reason):
+            # ── FIX: set done_event so main thread is not left hanging ──
+            log_and_print(f"EMA WS ERROR | code={code} reason={reason}", "error")
+            self._done_event.set()
+
+        def on_close(ws, code, reason):
+            log_and_print(f"EMA WS CLOSED | code={code} reason={reason}")
+            # Closed before any crossover fired — unblock main
+            if not self._stop_flag and self.last_trade_signal == 0:
+                self._done_event.set()
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
+        kws.on_error = on_error
+        kws.on_close = on_close
         kws.connect(threaded=True)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
     publish_strategy_state(
@@ -969,6 +1030,7 @@ def main():
 
     log_and_print("MAIN 1: entered main()")
 
+    # Weekday check
     if not is_weekday_ist(current_ist()):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -978,10 +1040,12 @@ def main():
             message="Strategy is inactive outside working days.",
             is_loading=False,
         )
+        log_and_print("STOPPED | Not a weekday. Exiting.")
         return
 
     now = current_ist()
 
+    # Before market open
     if is_before_market_open_ist(now):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -995,6 +1059,7 @@ def main():
         log_and_print("STOPPED | Market not open yet. Exiting to save Render runtime.")
         return
 
+    # After market close
     if is_after_market_close_ist(now):
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -1008,7 +1073,13 @@ def main():
         log_and_print("STOPPED | Market already closed. Exiting to save Render runtime.")
         return
 
-    log_and_print("MAIN 2: inside market hours")
+    log_and_print("MAIN 2: inside market hours — proceeding")
+
+    # ── threading.Event keeps main thread alive until strategy fully finishes ─
+    # All terminal paths — SL, target, market close, WS error, exception —
+    # call done_event.set(). Without this, main() returns immediately after
+    # nifty_ema.start() and Python kills every daemon thread (both websockets).
+    done_event = threading.Event()
 
     try:
         cred = load_creds()
@@ -1024,12 +1095,24 @@ def main():
         nifty_ema = EMACrossover1Min(
             kite=kite,
             cred=cred,
+            done_event=done_event,
             instrument_token=NIFTY_SPOT_TOKEN,
             preload_days=PRELOAD_DAYS,
         )
-        alpha_bull = AlphaBullCall(kite=kite, cred=cred, paper_book=paper_book)
-        log_and_print("MAIN 6: about to start EMA stream")
+        alpha_bull = AlphaBullCall(
+            kite=kite,
+            cred=cred,
+            paper_book=paper_book,
+            done_event=done_event,
+        )
+
+        log_and_print("MAIN 6: starting EMA crossover stream")
         nifty_ema.start(alpha_bull)
+
+        # Block until strategy finishes (SL / Target / Market close / Error / WS drop)
+        log_and_print("MAIN 7: waiting for strategy completion...")
+        done_event.wait()
+        log_and_print("MAIN 8: strategy complete — exiting cleanly.")
 
     except Exception as e:
         log_and_print(f"An error occurred in main execution: {e}", "error")
