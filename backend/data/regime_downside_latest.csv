@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-27,1,HCLTECH,Information Technology,100,-14.01,-9.6,-27.21,-17.87,29.39,High Vol,EMA Ensemble Downside
-2026-04-27,2,INFY,Information Technology,100,-10.84,-6.88,-29.45,-19.89,28.37,High Vol,EMA Ensemble Downside
-2026-04-27,3,PERSISTENT,Information Technology,100,-9.53,1.97,-24.04,-17.57,31.38,High Vol,EMA Ensemble Downside
-2026-04-27,4,INDUSTOWER,Telecommunication,100,-0.86,-2.73,-2.96,13.52,27.96,High Vol,EMA Ensemble Downside
-2026-04-27,5,ICICIPRULI,Financial Services,100,-6.87,-2.19,-20.28,-12.93,23.88,Medium Vol,EMA Ensemble Downside
-2026-04-27,6,SBILIFE,Financial Services,100,-8.43,-0.92,-11.41,-1.32,22.29,Medium Vol,EMA Ensemble Downside
-2026-04-27,7,HEROMOTOCO,Automobile and Auto Components,100,-4.53,-0.43,-9.63,-10.6,29.27,High Vol,EMA Ensemble Downside
-2026-04-27,8,TATAELXSI,Information Technology,100,-7.26,1.41,-22.24,-22.4,34.99,High Vol,EMA Ensemble Downside
-2026-04-27,9,SAMMAANCAP,Financial Services,100,-5.7,10.31,3.97,-16.62,38.45,Very High Vol,EMA Ensemble Downside
-2026-04-27,10,TECHM,Information Technology,100,-7.2,0.87,-16.82,-3.34,27.47,High Vol,EMA Ensemble Downside
-2026-04-27,11,HDFCLIFE,Financial Services,100,-2.04,0.88,-18.41,-19.53,23.3,Medium Vol,EMA Ensemble Downside
-2026-04-27,12,ASTRAL,Capital Goods,100,-3.54,-1.37,10.27,5.99,31.57,High Vol,EMA Ensemble Downside
-2026-04-27,13,TVSMOTOR,Automobile and Auto Components,100,-5.56,4.11,-1.75,-2.72,28.87,High Vol,EMA Ensemble Downside
-2026-04-27,14,TCS,Information Technology,100,-5.12,2.68,-21.1,-18.82,24.88,Medium Vol,EMA Ensemble Downside
-2026-04-27,15,M&M,Automobile and Auto Components,100,-3.7,4.96,-12.79,-13.8,28.97,High Vol,EMA Ensemble Downside
-2026-04-27,16,SUPREMEIND,Capital Goods,100,-0.52,-0.33,9.48,-11.94,27.67,High Vol,EMA Ensemble Downside
-2026-04-27,17,MFSL,Financial Services,100,-5.08,2.26,-1.34,4.55,26.93,High Vol,EMA Ensemble Downside
-2026-04-27,18,HDFCBANK,Financial Services,100,-0.71,6.13,-15.18,-21.25,22.54,Medium Vol,EMA Ensemble Downside
-2026-04-27,19,PATANJALI,Fast Moving Consumer Goods,100,1.49,0.69,-7.07,-20.97,23.37,Medium Vol,EMA Ensemble Downside
-2026-04-27,20,BHARTIARTL,Telecommunication,100,-1.41,1.35,-8.81,-11.28,19.05,Medium Vol,EMA Ensemble Downside
+2026-04-28,1,HCLTECH,Information Technology,100,-17.01,-12.91,-28.92,-19.52,29.59,High Vol,EMA Ensemble Downside
+2026-04-28,2,INFY,Information Technology,100,-12.27,-9.87,-30.36,-21.75,28.41,High Vol,EMA Ensemble Downside
+2026-04-28,3,PERSISTENT,Information Technology,100,-9.88,-2.24,-23.05,-17.18,31.37,High Vol,EMA Ensemble Downside
+2026-04-28,4,ICICIPRULI,Financial Services,100,-5.37,-3.15,-19.56,-12.56,23.88,Medium Vol,EMA Ensemble Downside
+2026-04-28,5,TATAELXSI,Information Technology,100,-11.16,-1.16,-22.74,-22.84,35.02,Very High Vol,EMA Ensemble Downside
+2026-04-28,6,SBILIFE,Financial Services,100,-5.4,-1.51,-12.02,-1.78,22.3,Medium Vol,EMA Ensemble Downside
+2026-04-28,7,UNIONBANK,Financial Services,100,-10.92,-1.92,-1.15,20.34,37.25,Very High Vol,EMA Ensemble Downside
+2026-04-28,8,INDUSTOWER,Telecommunication,100,-0.19,-3.58,-0.01,14.89,28.15,High Vol,EMA Ensemble Downside
+2026-04-28,9,SAMMAANCAP,Financial Services,100,-3.68,3.5,3.82,-18.14,38.35,Very High Vol,EMA Ensemble Downside
+2026-04-28,10,HEROMOTOCO,Automobile and Auto Components,100,-3.63,-3.52,-8.5,-10.25,29.28,High Vol,EMA Ensemble Downside
+2026-04-28,11,HDFCLIFE,Financial Services,100,-3.92,-2.13,-18.53,-20.65,23.34,Medium Vol,EMA Ensemble Downside
+2026-04-28,12,TVSMOTOR,Automobile and Auto Components,100,-6.84,0.47,-2.95,-4.44,28.95,High Vol,EMA Ensemble Downside
+2026-04-28,13,TECHM,Information Technology,100,-6.18,-1.72,-16.52,-2.8,27.5,High Vol,EMA Ensemble Downside
+2026-04-28,14,SBICARD,Financial Services,100,-4.75,-3.87,-17.39,-30.88,27.43,High Vol,EMA Ensemble Downside
+2026-04-28,15,ASTRAL,Capital Goods,100,-2.12,-2.85,14.92,7.06,31.59,High Vol,EMA Ensemble Downside
+2026-04-28,16,TCS,Information Technology,100,-6.35,1.91,-21.71,-18.69,24.88,Medium Vol,EMA Ensemble Downside
+2026-04-28,17,SUPREMEIND,Capital Goods,100,-0.95,-3.26,8.46,-13.33,27.75,High Vol,EMA Ensemble Downside
+2026-04-28,18,COFORGE,Information Technology,100,-7.11,8.18,-28.06,-31.04,36.31,Very High Vol,EMA Ensemble Downside
+2026-04-28,19,M&M,Automobile and Auto Components,100,-4.9,1.87,-13.09,-14.72,28.96,High Vol,EMA Ensemble Downside
+2026-04-28,20,APLAPOLLO,Capital Goods,100,-6.2,0.08,5.18,12.78,29.99,High Vol,EMA Ensemble Downside
