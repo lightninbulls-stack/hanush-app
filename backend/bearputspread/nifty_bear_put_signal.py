@@ -34,7 +34,7 @@ PRELOAD_DAYS = 2
 QUANTITY = 65
 
 STOP_LOSS_AMOUNT = -1500.0
-TARGET_AMOUNT = 3000.0
+TARGET_AMOUNT = 2500.0
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
@@ -566,6 +566,18 @@ class PaperSpreadMTMTracker:
             pass
         self._done_event.set()
 
+    def force_close_positions(self) -> None:
+        """Called by main watchdog when market closes and ticks have gone silent."""
+        log_and_print("WATCHDOG FORCE CLOSE | Closing all positions at market end.")
+        self.paper_book.close_all_positions()
+        self._publish_current_state()
+        self.is_running = False
+        try:
+            if self.ws:
+                self.ws.close()
+        except Exception:
+            pass
+
     def start(self) -> None:
         orders_df = self.paper_book.get_all_orders()
         if orders_df.empty or len(orders_df) < 2:
@@ -842,6 +854,12 @@ class EMACrossover1Min:
         self.prev_minute = None
         self.tick_buffer = pd.DataFrame(columns=["last_price"])
         self.last_trade_signal = 0
+
+        # LIVE-ONLY SIGNAL CONTROL:
+        # Historical candles are used only to warm EMA values.
+        # We block trades until at least 2 completed live candles exist.
+        self.live_completed_candles: int = 0
+
         self._stop_flag = False
         self._ws: Optional[KiteTicker] = None
         self._done_event = done_event
@@ -878,8 +896,28 @@ class EMACrossover1Min:
             ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
             if not ohlc.empty:
                 ohlc["signal"] = 0
-                self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
-                self._update_ema_crossover(rider)
+
+                # Keep only genuinely new live candles.
+                # Historical data is used only for EMA warm-up.
+                # This prevents duplicate timestamps from historical_data + live resample.
+                if not self.onemin_bars.empty:
+                    last_existing_ts = self.onemin_bars.index.max()
+                    ohlc = ohlc[ohlc.index > last_existing_ts]
+
+                if not ohlc.empty:
+                    self.onemin_bars = pd.concat([self.onemin_bars, ohlc])
+                    self.onemin_bars = self.onemin_bars[~self.onemin_bars.index.duplicated(keep="last")]
+                    self.onemin_bars = self.onemin_bars.sort_index()
+
+                    # Count only completed live candles, not historical candles.
+                    self.live_completed_candles += len(ohlc)
+                    log_and_print(
+                        f"LIVE CANDLE COMPLETED | live_completed_candles={self.live_completed_candles} | "
+                        f"Last={self.onemin_bars.index[-1].strftime('%H:%M:%S')}"
+                    )
+
+                    self._update_ema_crossover(rider)
+
             self.tick_buffer = row
             self.prev_minute = ltt.minute
 
@@ -933,8 +971,26 @@ class EMACrossover1Min:
         log_and_print(
             f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
             f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
-            f"Crossover={signal_condition}"
+            f"Crossover={signal_condition} | LiveCandles={self.live_completed_candles}"
         )
+
+        # LIVE CANDLE GATE:
+        # Block any signal until at least 2 fully live candles have completed.
+        # This prevents false entries from a history/live boundary crossover.
+        if self.live_completed_candles < 2:
+            log_and_print(
+                f"WAITING LIVE CONFIRMATION | live_completed_candles={self.live_completed_candles} < 2"
+            )
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Monitoring market conditions for bearish entry trigger...",
+                progress_text="Live NIFTY 50 feed active",
+                is_loading=True,
+            )
+            return
 
         if signal_condition and self.last_trade_signal != 1:
             log_and_print(
@@ -973,7 +1029,7 @@ class EMACrossover1Min:
                 spread_type=SPREAD_TYPE,
                 ui_state="WAITING_SIGNAL",
                 message="Monitoring market conditions for bearish entry trigger...",
-                progress_text=f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}",
+                progress_text="Live NIFTY 50 feed active",
                 is_loading=True,
             )
 
@@ -1151,30 +1207,36 @@ def main():
         log_and_print("MAIN 6: starting EMA crossover stream")
         nifty_ema.start(alpha_bear)
 
-        # Block until strategy finishes (SL / Target / Market close / Error / WS drop)
+        # Block until strategy finishes (SL / Target / Market close / Error / WS drop).
         #
         # IMPORTANT PRODUCTION SAFETY:
-        # We do NOT use plain done_event.wait() forever because websocket ticks can stop.
+        # We do not use plain done_event.wait() forever because websocket ticks can stop.
         # If no tick arrives after market close, on_ticks will not run and the process
-        # can remain alive on Render unnecessarily. This loop wakes up every 2 seconds
+        # can remain alive on Render unnecessarily. This loop wakes every 2 seconds
         # and force-closes the paper spread after market close.
         log_and_print("MAIN 7: waiting for strategy completion...")
 
         while not done_event.is_set():
             if is_after_market_close_ist():
-                log_and_print("MAIN MARKET CLOSE WATCHDOG | Force closing strategy and exiting.")
+                log_and_print("MAIN MARKET CLOSE WATCHDOG | Force closing bear put strategy and exiting.")
 
                 try:
-                    paper_book.close_all_positions()
-                    final_payload = build_spread_payload(
-                        paper_book=paper_book,
-                        index_name=INDEX_NAME,
-                        spread_type=SPREAD_TYPE,
-                        strategy_name=STRATEGY_NAME,
-                        stop_loss_amount=STOP_LOSS_AMOUNT,
-                        target_amount=TARGET_AMOUNT,
-                    )
-                    publish_spread_update(final_payload)
+                    if alpha_bear.mtm_tracker is not None and alpha_bear.mtm_tracker.is_running:
+                        alpha_bear.mtm_tracker.force_close_positions()
+                    else:
+                        paper_book.close_all_positions()
+                        final_payload = build_spread_payload(
+                            paper_book=paper_book,
+                            index_name=INDEX_NAME,
+                            spread_type=SPREAD_TYPE,
+                            strategy_name=STRATEGY_NAME,
+                            stop_loss_amount=STOP_LOSS_AMOUNT,
+                            target_amount=TARGET_AMOUNT,
+                        )
+                        publish_spread_update(final_payload)
+
+                    nifty_ema._stop_nifty_stream()
+
                 except Exception as close_exc:
                     log_and_print(
                         f"MAIN MARKET CLOSE WATCHDOG failed to publish final state: {close_exc}",
