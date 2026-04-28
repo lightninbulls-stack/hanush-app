@@ -13,6 +13,21 @@ type ChatMessage = {
   content: string;
 };
 
+type StockRow = {
+  symbol?: string;
+  ticker?: string;
+  sector?: string;
+  score?: number;
+  strength?: number;
+};
+
+type StockCategoryResponse = {
+  category?: string;
+  stocks?: StockRow[];
+};
+
+type IntradaySpreadMap = Record<string, any>;
+
 const WELCOME_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
@@ -22,6 +37,193 @@ const WELCOME_MESSAGE: ChatMessage = {
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem("token");
+}
+
+function safeNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function strategyExplanation(message: string): string | null {
+  if (message.includes("bull call")) {
+    return (
+      "Bull Call Spread: Lightnin Bull uses this when the index has upside confirmation. " +
+      "It buys a lower-strike call and sells a higher-strike call, so max loss and max profit are both predefined. " +
+      "It is a controlled-risk bullish strategy, not a guaranteed profit trade."
+    );
+  }
+
+  if (message.includes("bear put")) {
+    return (
+      "Bear Put Spread: this is a bearish debit spread. It buys a higher-strike put and sells a lower-strike put. " +
+      "It is useful when downside confirmation is present and you want capped downside-risk exposure."
+    );
+  }
+
+  if (message.includes("short straddle") || message.includes("straddle")) {
+    return (
+      "Short Straddle: this sells ATM CE and ATM PE together. It benefits from theta decay and range-bound movement, " +
+      "but risk increases sharply if the market trends strongly. Use strict stop-loss and position sizing."
+    );
+  }
+
+  if (message.includes("covered call")) {
+    return (
+      "Covered Call: this holds the underlying or index-equivalent exposure and sells a call against it. " +
+      "It can generate option income in sideways or moderately bullish regimes, but upside becomes capped above the sold-call strike."
+    );
+  }
+
+  return null;
+}
+
+function pickCategory(message: string): string | null {
+  if (message.includes("regime upside") || message.includes("upside stocks") || message.includes("momentum stocks")) {
+    return "Regime Upside";
+  }
+  if (message.includes("regime downside") || message.includes("downside stocks")) {
+    return "Regime Downside";
+  }
+  if (message.includes("consistent trending") || message.includes("trending stocks")) {
+    return "Consistent Trending";
+  }
+  if (message.includes("slow movement")) return "Slow Movement";
+  if (message.includes("cheap value") || message.includes("value stocks")) return "Cheap Value";
+  if (message.includes("best quality") || message.includes("quality stocks")) return "Best Quality";
+  if (message.includes("range bound upside")) return "Range Bound Upside";
+  if (message.includes("range bound downside")) return "Range Bound Downside";
+  if (message.includes("aggressive call")) return "Aggressive Call Option Stocks";
+  if (message.includes("aggressive put")) return "Aggressive Put Option Stocks";
+  return null;
+}
+
+async function answerFromStocks(category: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/stocks/${encodeURIComponent(category)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${category}: ${response.status}`);
+  }
+
+  const data = (await response.json()) as StockCategoryResponse;
+  const stocks = Array.isArray(data?.stocks) ? data.stocks.slice(0, 8) : [];
+
+  if (stocks.length === 0) {
+    return `No ${category} stocks are available right now. Please refresh the dashboard after the backend data updates.`;
+  }
+
+  const lines = [`Current ${category} stocks from Lightnin Bull:`];
+  stocks.forEach((stock, index) => {
+    const symbol = String(stock.symbol || stock.ticker || "UNKNOWN").toUpperCase();
+    const sector = stock.sector || "N/A";
+    const score = safeNumber(stock.score ?? stock.strength);
+    lines.push(
+      `${index + 1}. ${symbol} | Sector: ${sector}${score !== null ? ` | Score: ${score.toFixed(2)}` : ""}`
+    );
+  });
+
+  lines.push("");
+  lines.push("This is a signal dashboard output, not a guaranteed buy/sell recommendation. Use risk management before trading.");
+  return lines.join("\n");
+}
+
+async function answerFromIntraday(message: string): Promise<string | null> {
+  const wantsUpside = message.includes("upside trend") || message.includes("live upside");
+  const wantsDownside = message.includes("downside trend") || message.includes("live downside");
+
+  if (!wantsUpside && !wantsDownside) return null;
+
+  const strategyKey = wantsUpside
+    ? "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL"
+    : "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
+  const label = wantsUpside ? "Upside Trend Stocks" : "Downside Trend Stocks";
+
+  const response = await fetch(`${API_BASE_URL}/api/intraday-spreads/all`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch intraday data: ${response.status}`);
+  }
+
+  const json = await response.json();
+  const allSpreads = (json?.data || {}) as IntradaySpreadMap;
+  const payload = allSpreads[strategyKey];
+
+  if (!payload) {
+    return `No live ${label} data is available right now. The websocket engine may still be booting or market data may be inactive.`;
+  }
+
+  const signals = Array.isArray(payload.signals) ? payload.signals : [];
+  const entered = signals.filter((row: any) => String(row.signal_status || "").toUpperCase() === "ENTERED");
+  const rows = (entered.length > 0 ? entered : signals).slice(0, 8);
+
+  const lines = [
+    `${label} status: ${payload.status || "WAITING"}`,
+    `Message: ${payload.message || "No message"}`,
+    `Entered: ${payload.entered_count ?? entered.length} / Total: ${payload.total_count ?? signals.length}`,
+  ];
+
+  if (rows.length > 0) {
+    lines.push("", "Latest rows:");
+    rows.forEach((row: any) => {
+      const symbol = String(row.symbol || "UNKNOWN").toUpperCase();
+      const status = row.signal_status || "WAITING";
+      const entry = safeNumber(row.entry_price ?? row.avg_price);
+      const ltp = safeNumber(row.current_ltp);
+      const maxLtp = safeNumber(row.max_ltp ?? row.favorable_price);
+      lines.push(
+        `- ${symbol} | ${status}${entry !== null ? ` | Entry: ${entry.toFixed(2)}` : ""}${ltp !== null ? ` | LTP: ${ltp.toFixed(2)}` : ""}${maxLtp !== null ? ` | Max: ${maxLtp.toFixed(2)}` : ""}`
+      );
+    });
+  } else {
+    lines.push("No stock-level signal rows are available yet.");
+  }
+
+  return lines.join("\n");
+}
+
+async function buildAnswer(question: string): Promise<string> {
+  const message = question.toLowerCase().trim();
+  const explanation = strategyExplanation(message);
+  if (explanation) return explanation;
+
+  const intradayAnswer = await answerFromIntraday(message);
+  if (intradayAnswer) return intradayAnswer;
+
+  const category = pickCategory(message);
+  if (category) return answerFromStocks(category);
+
+  if (message.includes("payment") || message.includes("subscription") || message.includes("premium")) {
+    return (
+      "Premium unlocks the full stock list, intraday option spreads, and intraday stock signals. " +
+      "For exact payment validity, open the Pricing/Profile section because subscription status is checked from your account API."
+    );
+  }
+
+  if (message.includes("how to use") || message.includes("dashboard") || message.includes("lightnin bull")) {
+    return (
+      "Lightnin Bull is structured like a quant dashboard:\n" +
+      "1. Factors: Consistent Trending, Slow Movement, Cheap Value, Best Quality.\n" +
+      "2. Regime: Regime Upside and Regime Downside.\n" +
+      "3. Range Bound: sideways/range-bound stock categories.\n" +
+      "4. Intraday Index Option Spreads: Bull Call and Bear Put spread engines.\n" +
+      "5. Intraday Stock Signals: live upside/downside trend tracking.\n\n" +
+      "Use the AI Agent to understand signals, but take trades only with your own risk rules."
+    );
+  }
+
+  return (
+    "I can help with Lightnin Bull categories, regime signals, intraday stock signals, and option-spread explanations.\n\n" +
+    "Try asking:\n" +
+    "- Show Regime Upside stocks\n" +
+    "- Show live Upside Trend Stocks\n" +
+    "- Explain Bull Call Spread\n" +
+    "- How to use the Lightnin Bull dashboard"
+  );
 }
 
 const FloatingAIAgent: React.FC = () => {
@@ -49,32 +251,8 @@ const FloatingAIAgent: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/ai-agent/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: question,
-          history: nextMessages.slice(-8),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`AI Agent failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setMessages([
-        ...nextMessages,
-        {
-          role: "assistant",
-          content:
-            data?.answer ||
-            "I could not generate an answer right now. Please try again.",
-        },
-      ]);
+      const answer = await buildAnswer(question);
+      setMessages([...nextMessages, { role: "assistant", content: answer }]);
     } catch (error) {
       console.error(error);
       setMessages([
@@ -82,7 +260,7 @@ const FloatingAIAgent: React.FC = () => {
         {
           role: "assistant",
           content:
-            "AI Agent connection failed. Please check backend deployment and try again.",
+            "AI Agent could not read live Lightnin Bull data right now. Please check backend deployment and try again.",
         },
       ]);
     } finally {
@@ -103,10 +281,8 @@ const FloatingAIAgent: React.FC = () => {
             zIndex: 9999,
             borderRadius: 22,
             border: "1px solid rgba(226,184,75,0.42)",
-            background:
-              "linear-gradient(180deg, rgba(10,10,10,0.98), rgba(0,0,0,0.96))",
-            boxShadow:
-              "0 22px 70px rgba(0,0,0,0.65), 0 0 30px rgba(226,184,75,0.12)",
+            background: "linear-gradient(180deg, rgba(10,10,10,0.98), rgba(0,0,0,0.96))",
+            boxShadow: "0 22px 70px rgba(0,0,0,0.65), 0 0 30px rgba(226,184,75,0.12)",
             color: "#fff",
             overflow: "hidden",
             display: "flex",
@@ -252,9 +428,7 @@ const FloatingAIAgent: React.FC = () => {
               style={{
                 borderRadius: 12,
                 border: "none",
-                background: loading
-                  ? "rgba(226,184,75,0.45)"
-                  : "linear-gradient(135deg, #e2b84b, #f59e0b)",
+                background: loading ? "rgba(226,184,75,0.45)" : "linear-gradient(135deg, #e2b84b, #f59e0b)",
                 color: "#050505",
                 fontWeight: 800,
                 padding: "0 16px",
