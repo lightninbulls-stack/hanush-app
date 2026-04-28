@@ -33,6 +33,7 @@ const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
 
 const FREE_STOCK_LIMIT = 2;
 const FREE_LOCKED_PREVIEW_LIMIT = 3;
+const FREE_WATCHLIST_ADD_LIMIT = 4;
 
 const PREMIUM_LOCKED_TABS = [
   "Bull Call Spreads",
@@ -307,6 +308,14 @@ const Dashboard: React.FC = () => {
     const normalized = normalizeSymbol(symbol);
     const wasStarred = starredSymbols.includes(normalized);
     const previous = [...starredSymbols];
+
+    if (!wasStarred && !isPremium && starredSymbols.length >= FREE_WATCHLIST_ADD_LIMIT) {
+      window.alert(
+        `Free users can add up to ${FREE_WATCHLIST_ADD_LIMIT} stocks to Watchlist. Upgrade to add more stocks.`
+      );
+      navigate("/pricing");
+      return;
+    }
 
     const optimistic = wasStarred
       ? starredSymbols.filter((s) => s !== normalized)
