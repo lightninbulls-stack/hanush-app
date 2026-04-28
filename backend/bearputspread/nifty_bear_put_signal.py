@@ -904,7 +904,13 @@ class EMACrossover1Min:
             return
 
         if ltt.minute != self.prev_minute:
-            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc().iloc[:-1]
+            # iloc[:-1] is intentionally removed.
+            # The minute-change guard (ltt.minute != self.prev_minute) already
+            # guarantees this candle is fully closed before we resample.
+            # Keeping iloc[:-1] silently drops the candle when the tick_buffer
+            # only contains ticks from a single minute, causing live_completed_candles
+            # to never increment past 1 and freezing the EMA signal detection.
+            ohlc = self.tick_buffer["last_price"].resample("1min").ohlc()
             if not ohlc.empty:
                 ohlc["signal"] = 0
 
