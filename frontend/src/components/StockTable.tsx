@@ -7,6 +7,8 @@ interface StockTableProps {
   starredSymbols: string[];
   onStockClick: (symbol: string) => void;
   onStarClick: (symbol: string) => void;
+  lockedFromIndex?: number;
+  onUnlockClick?: () => void;
 }
 
 type ColumnKey =
@@ -206,6 +208,8 @@ const StockTable: React.FC<StockTableProps> = ({
   starredSymbols,
   onStockClick,
   onStarClick,
+  lockedFromIndex,
+  onUnlockClick,
 }) => {
   const columns = getColumnsForCategory(category);
 
@@ -227,27 +231,48 @@ const StockTable: React.FC<StockTableProps> = ({
           </thead>
 
           <tbody>
-            {stocks.map((stock) => (
-              <tr
-                key={`${category}-${stock.symbol}-${stock.rank}`}
-                onClick={() => onStockClick(stock.symbol)}
-              >
-                {columns.map((column) => (
-                  <td
-                    key={`${stock.symbol}-${column.key}`}
-                    className={`align-${column.align || "center"}`}
-                  >
-                    {renderCell(
-                      stock,
-                      column,
-                      starredSymbols,
-                      onStarClick,
-                      category
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {stocks.map((stock, index) => {
+              const isLocked =
+                lockedFromIndex !== undefined && index >= lockedFromIndex;
+
+              return (
+                <tr
+                  key={`${category}-${stock.symbol}-${stock.rank}`}
+                  className={isLocked ? "locked-preview-row" : ""}
+                  onClick={() => {
+                    if (isLocked) {
+                      onUnlockClick?.();
+                      return;
+                    }
+
+                    onStockClick(stock.symbol);
+                  }}
+                >
+                  {columns.map((column) => (
+                    <td
+                      key={`${stock.symbol}-${column.key}`}
+                      className={`align-${column.align || "center"}`}
+                    >
+                      <div className={isLocked ? "locked-cell-blur" : ""}>
+                        {renderCell(
+                          stock,
+                          column,
+                          starredSymbols,
+                          isLocked ? () => {} : onStarClick,
+                          category
+                        )}
+                      </div>
+
+                      {isLocked && column.key === "ticker" && (
+                        <div className="locked-row-overlay">
+                          🔒 Unlock Premium
+                        </div>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -308,6 +333,64 @@ const StockTable: React.FC<StockTableProps> = ({
           border-radius: 9px !important;
         }
 
+        .compact-factor-table .locked-preview-row {
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+
+        .compact-factor-table .locked-preview-row:hover {
+          background: rgba(250, 204, 21, 0.05);
+        }
+
+        .compact-factor-table .locked-preview-row td {
+          position: relative;
+        }
+
+        .compact-factor-table .locked-cell-blur {
+          filter: blur(5px);
+          opacity: 0.45;
+          pointer-events: none;
+          user-select: none;
+          transition: all 0.2s ease;
+        }
+
+        .compact-factor-table .locked-preview-row:hover .locked-cell-blur {
+          filter: blur(3px);
+          opacity: 0.6;
+        }
+
+        .compact-factor-table .locked-row-overlay {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 5;
+          padding: 7px 14px;
+          border-radius: 999px;
+          background: linear-gradient(
+            135deg,
+            rgba(250, 204, 21, 0.18),
+            rgba(250, 204, 21, 0.08)
+          );
+          border: 1px solid rgba(250, 204, 21, 0.4);
+          color: #facc15;
+          font-family: var(--font-mono);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          white-space: nowrap;
+          box-shadow:
+            0 0 18px rgba(250, 204, 21, 0.12),
+            inset 0 0 8px rgba(250, 204, 21, 0.08);
+          backdrop-filter: blur(6px);
+        }
+
+        .compact-factor-table .locked-preview-row:hover .locked-row-overlay {
+          box-shadow:
+            0 0 22px rgba(250, 204, 21, 0.2),
+            inset 0 0 10px rgba(250, 204, 21, 0.1);
+        }
+
         @media (max-width: 900px) {
           .compact-factor-table .factor-symbol {
             font-size: 1.05rem !important;
@@ -320,6 +403,12 @@ const StockTable: React.FC<StockTableProps> = ({
           .compact-factor-table .factor-table td {
             padding-top: 10px !important;
             padding-bottom: 10px !important;
+          }
+
+          .compact-factor-table .locked-row-overlay {
+            left: 8px;
+            padding: 6px 10px;
+            font-size: 9px;
           }
         }
       `}</style>
