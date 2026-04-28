@@ -203,6 +203,18 @@ def is_after_market_close_ist(ref: Optional[datetime] = None) -> bool:
     return now_ist > market_close
 
 
+def is_before_market_open_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    market_open, _ = get_market_open_close_ist(now_ist)
+    return now_ist < market_open
+
+
+def is_market_hours_ist(ref: Optional[datetime] = None) -> bool:
+    now_ist = ref or current_ist()
+    market_open, market_close = get_market_open_close_ist(now_ist)
+    return market_open <= now_ist <= market_close
+
+
 def wait_until_market_open() -> None:
     now_ist = current_ist()
     market_open, market_close = get_market_open_close_ist(now_ist)
@@ -549,9 +561,17 @@ class PaperSpreadMTMTracker:
         def on_ticks(ws, ticks):
             if not self.is_running:
                 return
+
             if is_after_market_close_ist():
+                log_and_print("MARKET CLOSED | Closing bull call spread and stopping MTM websocket.")
                 self.paper_book.close_all_positions()
                 self._publish_current_state()
+                self.is_running = False
+                try:
+                    ws.unsubscribe(tokens)
+                    ws.close()
+                except Exception:
+                    pass
                 return
 
             for tick in ticks:
@@ -560,6 +580,36 @@ class PaperSpreadMTMTracker:
                 if token is None or ltp is None or ltp <= 0:
                     continue
                 self.paper_book.update_ltp_and_pnl(token, float(ltp))
+
+            total_pnl = self.paper_book.total_pnl()
+
+            if total_pnl <= STOP_LOSS_AMOUNT:
+                log_and_print(
+                    f"🛑 STOP LOSS HIT | NET PnL={total_pnl:.2f} | SL={STOP_LOSS_AMOUNT:.2f}"
+                )
+                self.paper_book.close_all_positions()
+                self._publish_current_state()
+                self.is_running = False
+                try:
+                    ws.unsubscribe(tokens)
+                    ws.close()
+                except Exception:
+                    pass
+                return
+
+            if total_pnl >= TARGET_AMOUNT:
+                log_and_print(
+                    f"🎯 TARGET HIT | NET PnL={total_pnl:.2f} | TARGET={TARGET_AMOUNT:.2f}"
+                )
+                self.paper_book.close_all_positions()
+                self._publish_current_state()
+                self.is_running = False
+                try:
+                    ws.unsubscribe(tokens)
+                    ws.close()
+                except Exception:
+                    pass
+                return
 
             current_time = time.time()
             if current_time - self.last_print_time >= 1.0:
@@ -820,8 +870,7 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        signal_condition = True
-        log_and_print("⚠️ TEST MODE ACTIVE - FORCING SIGNAL")
+        signal_condition = bool(latest["EMA5"] > latest["EMA55"])
 
         log_and_print(
             f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
@@ -859,6 +908,21 @@ class EMACrossover1Min:
         def on_ticks(ws, ticks):
             if self._stop_flag:
                 return
+
+            if not is_market_hours_ist():
+                log_and_print("OUTSIDE MARKET HOURS | Stopping NIFTY EMA websocket.")
+                self._stop_nifty_stream()
+                publish_strategy_state(
+                    strategy_name=STRATEGY_NAME,
+                    index_name=INDEX_NAME,
+                    spread_type=SPREAD_TYPE,
+                    ui_state="STOPPED",
+                    message="Strategy stopped outside market hours.",
+                    progress_text="Market closed",
+                    is_loading=False,
+                )
+                return
+
             ltt_utc = datetime.utcnow()
             for tick in ticks:
                 if tick.get("instrument_token") != self.token:
@@ -886,33 +950,6 @@ class EMACrossover1Min:
                 is_loading=True,
             )
 
-            def _inject_test_signal():
-                log_and_print("WS 2: inject_test_signal started")
-                time.sleep(3)
-                if self._stop_flag:
-                    return
-                try:
-                    log_and_print("⚠️ TEST MODE: Injecting fake candle to trigger bull call spread entry...")
-                    now_ist = current_ist()
-                    fake_close = 24364.85
-
-                    fake_bar1 = pd.DataFrame(
-                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
-                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=2)]),
-                    )
-                    fake_bar2 = pd.DataFrame(
-                        {"open": fake_close, "high": fake_close, "low": fake_close, "close": fake_close, "signal": 0},
-                        index=pd.DatetimeIndex([now_ist - timedelta(minutes=1)]),
-                    )
-
-                    self.onemin_bars = pd.concat([self.onemin_bars, fake_bar1, fake_bar2])
-                    log_and_print("⚠️ TEST MODE: Fake bars injected. Firing _update_ema_crossover...")
-                    self._update_ema_crossover(rider)
-                except Exception as e:
-                    log_and_print(f"TEST SIGNAL injection failed: {e}", "error")
-                    log_and_print(traceback.format_exc(), "error")
-
-            threading.Thread(target=_inject_test_signal, daemon=True).start()
 
         kws.on_ticks = on_ticks
         kws.on_connect = on_connect
@@ -943,8 +980,35 @@ def main():
         )
         return
 
-    wait_until_market_open()
-    log_and_print("MAIN 2: passed wait_until_market_open()")
+    now = current_ist()
+
+    if is_before_market_open_ist(now):
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy not started. Market is not open yet.",
+            progress_text="Outside market hours",
+            is_loading=False,
+        )
+        log_and_print("STOPPED | Market not open yet. Exiting to save Render runtime.")
+        return
+
+    if is_after_market_close_ist(now):
+        publish_strategy_state(
+            strategy_name=STRATEGY_NAME,
+            index_name=INDEX_NAME,
+            spread_type=SPREAD_TYPE,
+            ui_state="STOPPED",
+            message="Strategy stopped. Market is already closed.",
+            progress_text="Outside market hours",
+            is_loading=False,
+        )
+        log_and_print("STOPPED | Market already closed. Exiting to save Render runtime.")
+        return
+
+    log_and_print("MAIN 2: inside market hours")
 
     try:
         cred = load_creds()
