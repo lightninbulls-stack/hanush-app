@@ -408,6 +408,7 @@ const Dashboard: React.FC = () => {
           background:
             "linear-gradient(135deg, rgba(226,184,75,0.10), rgba(0,0,0,0.45))",
         }}
+        
       >
         <div className="lb-eyebrow" style={{ marginBottom: 10 }}>
           Free Preview
@@ -646,6 +647,8 @@ const Dashboard: React.FC = () => {
               ) : (
                 <>
                   <StockTable
+                  <FreeLimitCard />
+                  <WatchlistLimitBanner />
                     category={activeTab}
                     stocks={visibleStocks}
                     starredSymbols={starredSymbols}
