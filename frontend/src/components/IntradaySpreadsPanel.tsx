@@ -45,13 +45,13 @@ const formatCurrency = (value?: number | null) => {
 
 const getProgressWidth = (state?: string) => {
   switch (state) {
-    case "BOOTING":           return "12%";
+    case "BOOTING":            return "12%";
     case "WAITING_START_TIME": return "18%";
-    case "LOADING_HISTORY":   return "35%";
-    case "WAITING_SIGNAL":    return "52%";
-    case "SIGNAL_TRIGGERED":  return "72%";
-    case "ENTERING_SPREAD":   return "88%";
-    default:                  return "25%";
+    case "LOADING_HISTORY":    return "35%";
+    case "WAITING_SIGNAL":     return "52%";
+    case "SIGNAL_TRIGGERED":   return "72%";
+    case "ENTERING_SPREAD":    return "88%";
+    default:                   return "25%";
   }
 };
 
@@ -65,6 +65,33 @@ const getProgressActive = (spread: IntradaySpread) => {
   );
 };
 
+const getIndexDisplayName = (spread: IntradaySpread) => {
+  const indexName = String(spread.index || "").toUpperCase();
+
+  if (indexName.includes("SENSEX")) {
+    return "SENSEX";
+  }
+
+  if (indexName.includes("NIFTY")) {
+    return "NIFTY 50";
+  }
+
+  return indexName || "index";
+};
+
+const getAnalyzingText = (
+  spread: IntradaySpread,
+  spreadType: Props["spreadType"]
+) => {
+  const indexDisplayName = getIndexDisplayName(spread);
+
+  if (spreadType === "bull_call") {
+    return `Analyzing bullish entry from ${indexDisplayName}...`;
+  }
+
+  return `Analyzing bearish entry from ${indexDisplayName}...`;
+};
+
 /* ── Waiting card ───────────────────────────────────────────────────────── */
 const WaitingSpreadCard: React.FC<{
   spread: IntradaySpread;
@@ -73,6 +100,7 @@ const WaitingSpreadCard: React.FC<{
   const progressWidth = getProgressWidth(spread.ui_state || spread.status);
   const cardTitle     = waitingTitleMap[spreadType];
   const isAnimated    = getProgressActive(spread);
+  const analyzingText = getAnalyzingText(spread, spreadType);
 
   return (
     <div
@@ -144,24 +172,22 @@ const WaitingSpreadCard: React.FC<{
               fontSize: 13,
             }}
           >
-            {spread.message || "Waiting for strategy state update."}
+            {analyzingText}
           </p>
 
-          {spread.progress_text && (
-            <p
-              style={{
-                margin: "8px 0 0",
-                fontFamily: "var(--font-mono)",
-                color: "#facc15",
-                fontSize: 12,
-                animation: isAnimated
-                  ? "lb-pulse-text 1.5s ease-in-out infinite"
-                  : "none",
-              }}
-            >
-              {spread.progress_text}
-            </p>
-          )}
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontFamily: "var(--font-mono)",
+              color: "#facc15",
+              fontSize: 12,
+              animation: isAnimated
+                ? "lb-pulse-text 1.5s ease-in-out infinite"
+                : "none",
+            }}
+          >
+            Live {getIndexDisplayName(spread)} data feed active
+          </p>
         </div>
       </div>
 
