@@ -5,7 +5,7 @@ import Sidebar from "../components/Sidebar";
 import StockTable from "../components/StockTable";
 import TradingViewChart from "../components/TradingViewChart";
 import StockStats from "../components/StockStats";
-import PortfolioBacktestPanel from "../components/PortfolioBacktestPanel";
+import PortfolioBacktestPanel from "../components/PortfolioBacktestPanelGate";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
 import IntradayStockSignalsPanel from "../components/IntradayStockSignalsPanel";
 import DashboardWelcome from "../components/DashboardWelcome";
