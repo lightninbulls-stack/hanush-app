@@ -124,10 +124,9 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
 
             <motion.p className="lb-welcome-desc" variants={fadeUp}>
               LightninBull is not just a screener. It is an AI-driven Quant Fund
-              Manager workflow that discovers outperforming stocks, classifies
-              them into intelligent investment buckets, lets you add selected
-              ideas into your Watchlist, and then helps you test them through
-              Portfolio Backtest.
+              Manager workflow that separates alpha generation from risk control:
+              stock selection creates return potential, while allocation controls
+              volatility and portfolio risk.
             </motion.p>
 
             <motion.div className="lb-welcome-actions" variants={fadeUp}>
@@ -162,11 +161,11 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
             </div>
             <div className="lb-terminal-line">
               <span>02</span>
-              Rank stocks by quant models
+              Selection engine finds alpha opportunities
             </div>
             <div className="lb-terminal-line">
               <span>03</span>
-              Add selected stocks to Watchlist
+              Allocation engine controls risk and volatility
             </div>
             <div className="lb-terminal-line">
               <span>04</span>
@@ -174,7 +173,7 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
             </div>
             <div className="lb-terminal-line">
               <span>05</span>
-              Rebalance using risk rules
+              Rebalance using disciplined risk rules
             </div>
 
             <div className="lb-terminal-status">
@@ -183,6 +182,83 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
             </div>
           </motion.div>
         </div>
+      </motion.section>
+
+      <motion.section
+        className="lb-portfolio-engine"
+        variants={stagger}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.18 }}
+      >
+        <motion.div className="lb-section-heading lb-portfolio-heading" variants={fadeUp}>
+          <span>PORTFOLIO CONSTRUCTION ENGINE</span>
+          <h2>
+            How to create a risk-adjusted portfolio
+            <br />
+            <em>that can beat the benchmark.</em>
+          </h2>
+          <p>
+            The edge is created by separating the two most important portfolio decisions:
+            selection generates alpha, allocation controls volatility.
+          </p>
+        </motion.div>
+
+        <motion.div className="lb-construction-flow" variants={fadeUp}>
+          <div className="lb-flow-card lb-selection-card">
+            <div className="lb-flow-card-top">
+              <span>01</span>
+              <p>ALPHA ENGINE</p>
+            </div>
+            <h3>Selection</h3>
+            <strong>Where returns come from</strong>
+            <small>Powered by LightninBull AI Quant Engine</small>
+            <ul>
+              <li>Regime-based filtering</li>
+              <li>Momentum ranking</li>
+              <li>Factor model screening</li>
+            </ul>
+            <div className="lb-flow-output">→ High-probability alpha stocks</div>
+          </div>
+
+          <div className="lb-flow-connector">
+            <span />
+            <p>+</p>
+            <span />
+          </div>
+
+          <div className="lb-flow-card lb-allocation-card">
+            <div className="lb-flow-card-top">
+              <span>02</span>
+              <p>RISK ENGINE</p>
+            </div>
+            <h3>Allocation</h3>
+            <strong>How volatility is controlled</strong>
+            <small>Powered by LightninBull AI Quant Engine</small>
+            <ul>
+              <li>Equal weight institutional baseline</li>
+              <li>Minimum variance optimization</li>
+              <li>Risk-adjusted portfolio weights</li>
+            </ul>
+            <div className="lb-flow-output">→ Optimized portfolio allocation</div>
+          </div>
+        </motion.div>
+
+        <motion.div className="lb-risk-output" variants={fadeUp}>
+          <div className="lb-output-glow" />
+          <span>FINAL OUTPUT</span>
+          <h3>Risk-Adjusted Portfolio</h3>
+          <p>Diversified. Systematic. Optimized for risk and return.</p>
+          <div className="lb-output-tags">
+            <em>Discover</em>
+            <i />
+            <em>Select</em>
+            <i />
+            <em>Backtest</em>
+            <i />
+            <em>Rebalance</em>
+          </div>
+        </motion.div>
       </motion.section>
 
       <motion.section
@@ -328,7 +404,9 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           background: radial-gradient(circle, rgba(250,204,21,0.045), transparent 65%);
         }
 
-        .lb-welcome-hero {
+        .lb-welcome-hero,
+        .lb-portfolio-engine,
+        .lb-model-section {
           position: relative;
           z-index: 1;
           max-width: 1180px;
@@ -369,7 +447,9 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           color: #f7f0df;
         }
 
-        .lb-welcome-title em {
+        .lb-welcome-title em,
+        .lb-section-heading h2 em,
+        .lb-final-message h2 em {
           color: #d6b849;
           font-style: italic;
           font-weight: 300;
@@ -502,7 +582,276 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           animation: lbPulse 1.4s ease-in-out infinite;
         }
 
+        .lb-section-heading {
+          text-align: center;
+          margin-bottom: 52px;
+        }
+
+        .lb-section-heading span {
+          display: block;
+          margin-bottom: 24px;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 5px;
+          color: rgba(250,204,21,0.78);
+        }
+
+        .lb-section-heading h2 {
+          margin: 0;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(46px, 5vw, 76px);
+          font-weight: 300;
+          line-height: 0.98;
+          color: #f7f0df;
+        }
+
+        .lb-portfolio-heading p {
+          max-width: 820px;
+          margin: 24px auto 0;
+          font-family: 'DM Mono', monospace;
+          font-size: 12px;
+          line-height: 2;
+          color: rgba(255,255,255,0.48);
+        }
+
+        .lb-construction-flow {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 90px minmax(0, 1fr);
+          gap: 18px;
+          align-items: center;
+          margin-bottom: 26px;
+        }
+
+        .lb-flow-card {
+          position: relative;
+          min-height: 430px;
+          padding: 34px 32px;
+          border: 1px solid rgba(250,204,21,0.18);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01)),
+            rgba(8,9,12,0.92);
+          box-shadow: 0 28px 70px rgba(0,0,0,0.42);
+          overflow: hidden;
+        }
+
+        .lb-selection-card {
+          border-color: rgba(96,165,250,0.28);
+          background:
+            radial-gradient(ellipse at 0% 0%, rgba(96,165,250,0.12), transparent 54%),
+            rgba(8,9,12,0.92);
+        }
+
+        .lb-allocation-card {
+          border-color: rgba(250,204,21,0.26);
+          background:
+            radial-gradient(ellipse at 100% 0%, rgba(250,204,21,0.12), transparent 54%),
+            rgba(8,9,12,0.92);
+        }
+
+        .lb-flow-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border: 1px solid rgba(255,255,255,0.04);
+          pointer-events: none;
+        }
+
+        .lb-flow-card-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 36px;
+          font-family: 'DM Mono', monospace;
+        }
+
+        .lb-flow-card-top span {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          border: 1px solid rgba(250,204,21,0.3);
+          color: #facc15;
+          font-size: 12px;
+        }
+
+        .lb-flow-card-top p {
+          margin: 0;
+          color: rgba(255,255,255,0.42);
+          font-size: 9px;
+          letter-spacing: 4px;
+        }
+
+        .lb-flow-card h3 {
+          margin: 0;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(46px, 5vw, 68px);
+          font-weight: 300;
+          line-height: 0.95;
+          color: #f7f0df;
+        }
+
+        .lb-flow-card strong {
+          display: block;
+          margin-top: 16px;
+          color: #facc15;
+          font-family: 'Syne', sans-serif;
+          font-size: 15px;
+          letter-spacing: 0.4px;
+        }
+
+        .lb-flow-card small {
+          display: block;
+          margin-top: 12px;
+          font-family: 'DM Mono', monospace;
+          color: rgba(255,255,255,0.43);
+          line-height: 1.7;
+        }
+
+        .lb-flow-card ul {
+          list-style: none;
+          padding: 24px 0 0;
+          margin: 26px 0 0;
+          border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .lb-flow-card li {
+          position: relative;
+          padding-left: 18px;
+          margin-bottom: 14px;
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          line-height: 1.7;
+          color: rgba(255,255,255,0.58);
+        }
+
+        .lb-flow-card li::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 9px;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #facc15;
+          box-shadow: 0 0 12px rgba(250,204,21,0.45);
+        }
+
+        .lb-flow-output {
+          margin-top: 26px;
+          padding: 14px 16px;
+          border: 1px solid rgba(250,204,21,0.18);
+          background: rgba(250,204,21,0.045);
+          color: rgba(255,255,255,0.72);
+          font-family: 'DM Mono', monospace;
+          font-size: 11px;
+          line-height: 1.7;
+        }
+
+        .lb-flow-connector {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          color: #facc15;
+        }
+
+        .lb-flow-connector span {
+          width: 1px;
+          height: 92px;
+          background: linear-gradient(180deg, transparent, rgba(250,204,21,0.7), transparent);
+        }
+
+        .lb-flow-connector p {
+          width: 46px;
+          height: 46px;
+          display: grid;
+          place-items: center;
+          margin: 0;
+          border-radius: 50%;
+          border: 1px solid rgba(250,204,21,0.42);
+          background: rgba(250,204,21,0.08);
+          box-shadow: 0 0 34px rgba(250,204,21,0.16);
+          font-size: 24px;
+        }
+
+        .lb-risk-output {
+          position: relative;
+          padding: 36px 32px;
+          border: 1px solid rgba(250,204,21,0.28);
+          background:
+            radial-gradient(ellipse at 50% 0%, rgba(250,204,21,0.16), transparent 55%),
+            rgba(8,9,12,0.94);
+          text-align: center;
+          overflow: hidden;
+        }
+
+        .lb-output-glow {
+          position: absolute;
+          left: 50%;
+          top: -120px;
+          width: 360px;
+          height: 220px;
+          transform: translateX(-50%);
+          background: radial-gradient(circle, rgba(250,204,21,0.18), transparent 65%);
+          pointer-events: none;
+        }
+
+        .lb-risk-output span {
+          position: relative;
+          display: block;
+          margin-bottom: 14px;
+          font-family: 'DM Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 5px;
+          color: #facc15;
+        }
+
+        .lb-risk-output h3 {
+          position: relative;
+          margin: 0;
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(44px, 5vw, 72px);
+          font-weight: 300;
+          line-height: 1;
+          color: #f7f0df;
+        }
+
+        .lb-risk-output p {
+          position: relative;
+          margin: 16px 0 26px;
+          font-family: 'DM Mono', monospace;
+          font-size: 12px;
+          color: rgba(255,255,255,0.52);
+        }
+
+        .lb-output-tags {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+
+        .lb-output-tags em {
+          font-family: 'DM Mono', monospace;
+          font-size: 10px;
+          font-style: normal;
+          letter-spacing: 2.5px;
+          color: rgba(255,255,255,0.72);
+          text-transform: uppercase;
+        }
+
+        .lb-output-tags i {
+          width: 24px;
+          height: 1px;
+          background: rgba(250,204,21,0.5);
+        }
+
         .lb-workflow-strip {
+          position: relative;
+          z-index: 1;
           max-width: 1180px;
           margin: 0 auto 90px;
           display: grid;
@@ -553,39 +902,6 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           font-size: 10.5px;
           line-height: 1.8;
           color: rgba(255,255,255,0.38);
-        }
-
-        .lb-model-section {
-          max-width: 1180px;
-          margin: 0 auto 86px;
-        }
-
-        .lb-section-heading {
-          text-align: center;
-          margin-bottom: 52px;
-        }
-
-        .lb-section-heading span {
-          display: block;
-          margin-bottom: 24px;
-          font-family: 'DM Mono', monospace;
-          font-size: 9px;
-          letter-spacing: 5px;
-          color: rgba(250,204,21,0.78);
-        }
-
-        .lb-section-heading h2 {
-          margin: 0;
-          font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(46px, 5vw, 76px);
-          font-weight: 300;
-          line-height: 0.98;
-          color: #f7f0df;
-        }
-
-        .lb-section-heading h2 em {
-          color: #facc15;
-          font-style: italic;
         }
 
         .lb-model-grid {
@@ -664,6 +980,8 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
         }
 
         .lb-rebalance-section {
+          position: relative;
+          z-index: 1;
           max-width: 1180px;
           margin: 0 auto 92px;
           display: grid;
@@ -733,6 +1051,8 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
         }
 
         .lb-final-message {
+          position: relative;
+          z-index: 1;
           max-width: 980px;
           margin: 0 auto;
           text-align: center;
@@ -756,11 +1076,6 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           color: #f7f0df;
         }
 
-        .lb-final-message h2 em {
-          color: #facc15;
-          font-style: italic;
-        }
-
         @keyframes lbPulse {
           0%, 100% {
             opacity: 0.45;
@@ -780,6 +1095,21 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           .lb-welcome-grid,
           .lb-rebalance-section {
             grid-template-columns: 1fr;
+          }
+
+          .lb-construction-flow {
+            grid-template-columns: 1fr;
+          }
+
+          .lb-flow-connector {
+            flex-direction: row;
+            justify-content: center;
+          }
+
+          .lb-flow-connector span {
+            width: 90px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(250,204,21,0.7), transparent);
           }
 
           .lb-workflow-strip {
@@ -810,6 +1140,10 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
 
           .lb-welcome-actions button {
             width: 100%;
+          }
+
+          .lb-flow-card {
+            min-height: auto;
           }
 
           .lb-workflow-strip,
@@ -851,17 +1185,29 @@ const DashboardWelcome: React.FC<DashboardWelcomeProps> = ({ onNavigate }) => {
           }
 
           .lb-welcome-desc,
-          .lb-rebalance-copy p {
+          .lb-rebalance-copy p,
+          .lb-portfolio-heading p {
             font-size: 11px;
           }
 
-          .lb-welcome-terminal {
+          .lb-welcome-terminal,
+          .lb-flow-card {
             padding: 22px;
           }
 
           .lb-terminal-line {
             grid-template-columns: 32px 1fr;
             font-size: 10px;
+          }
+
+          .lb-flow-card-top {
+            align-items: flex-start;
+            gap: 12px;
+            flex-direction: column;
+          }
+
+          .lb-risk-output {
+            padding: 30px 20px;
           }
         }
       `}</style>
