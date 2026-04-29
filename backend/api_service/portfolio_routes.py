@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+import csv
 import logging
 import math
 
@@ -26,6 +27,21 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BACKEND_DIR / "data"
 CLOSE_PRICES_PATH = DATA_DIR / "close_prices_wide.csv"
 
+NSE_TOP_200_FO_CATEGORY = "NSE TOP 200 F&O Universe"
+EXCLUDED_UNIVERSE_SYMBOLS = {
+    "^CNXAUTO",
+    "^CNXFMCG",
+    "^CNXIT",
+    "^CNXMEDIA",
+    "^CNXMETAL",
+    "^CNXPHARMA",
+    "^CNXPSUBANK",
+    "^CNXREALTY",
+    "^NSEBANK",
+    "^NSEI",
+}
+DATE_LIKE_COLUMNS = {"DATE", "DATETIME", "TIME", "TIMESTAMP"}
+
 DEFAULT_RETAIL_CAPITAL = 100000.0
 
 
@@ -36,6 +52,61 @@ class WatchlistBacktestRequest(BaseModel):
 
 def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
+
+
+def load_nse_top_200_fo_universe() -> list[dict]:
+    """
+    Build the NSE TOP 200 F&O stock universe directly from close_prices_wide.csv.
+
+    The close wide file contains both stocks and index/sector symbols. For this
+    user-facing universe, we exclude the index/sector columns and keep all stock
+    ticker columns so users can add them to their watchlist and backtest them.
+    """
+    if not CLOSE_PRICES_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"close_prices_wide.csv not found at: {CLOSE_PRICES_PATH}",
+        )
+
+    with CLOSE_PRICES_PATH.open("r", newline="", encoding="utf-8-sig") as file:
+        reader = csv.reader(file)
+        try:
+            headers = next(reader)
+        except StopIteration:
+            headers = []
+
+    stocks: list[dict] = []
+    seen: set[str] = set()
+
+    for raw_header in headers:
+        symbol = normalize_symbol(raw_header)
+
+        if not symbol:
+            continue
+        if symbol in DATE_LIKE_COLUMNS:
+            continue
+        if symbol in EXCLUDED_UNIVERSE_SYMBOLS:
+            continue
+        if symbol in seen:
+            continue
+
+        seen.add(symbol)
+        stocks.append(
+            {
+                "rank": len(stocks) + 1,
+                "symbol": symbol,
+                "sector": NSE_TOP_200_FO_CATEGORY,
+                "score": 0,
+                "return_1w": None,
+                "return_1m": None,
+                "return_3m": None,
+                "return_6m": None,
+                "volatility_6m": None,
+                "volatility_bucket": None,
+            }
+        )
+
+    return stocks
 
 
 def build_retail_allocation(
@@ -62,6 +133,16 @@ def build_retail_allocation(
         "suggested_quantity": suggested_quantity,
         "actual_invested_amount": round(actual_invested_amount, 2),
         "remaining_cash": round(remaining_cash, 2),
+    }
+
+
+@router.get("/universe/nse-top-200-fo")
+def get_nse_top_200_fo_universe():
+    stocks = load_nse_top_200_fo_universe()
+    return {
+        "category": NSE_TOP_200_FO_CATEGORY,
+        "count": len(stocks),
+        "stocks": stocks,
     }
 
 
