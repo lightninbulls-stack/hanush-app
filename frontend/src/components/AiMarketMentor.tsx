@@ -100,9 +100,15 @@ const ENGLISH_STOP_WORDS = new Set([
   "bot", "api", "now", "yes", "no", "ok", "not", "can", "did", "has", "had",
 ]);
 
+const ALL_STOCKS_SENTINEL = 999; // means "fetch every stock in the category"
+
 const WORD_NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  // "all" / "every" / "entire" → sentinel, sliced to actual list length later
+  all: ALL_STOCKS_SENTINEL,
+  every: ALL_STOCKS_SENTINEL,
+  entire: ALL_STOCKS_SENTINEL,
 };
 
 function extractNumber(text: string): number | null {
@@ -111,7 +117,7 @@ function extractNumber(text: string): number | null {
     if (new RegExp(`\\b${word}\\b`).test(lower)) return num;
   }
   const match = lower.match(/\b(\d+)\b/);
-  if (match) return Math.min(parseInt(match[1], 10), 20);
+  if (match) return Math.min(parseInt(match[1], 10), ALL_STOCKS_SENTINEL);
   return null; // caller decides the default
 }
 
@@ -705,8 +711,9 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     count: number,
     direction: "top" | "bottom" = "top"
   ) => {
+    const isAll = count === ALL_STOCKS_SENTINEL;
     const label = direction === "bottom" ? "bottom" : "top";
-    pushMsg("assistant", `Fetching ${label} ${count} stocks from "${category}"…`);
+    pushMsg("assistant", `Fetching ${isAll ? "all" : `${label} ${count}`} stocks from "${category}"…`);
 
     let result;
     try {
@@ -721,9 +728,11 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     }
 
     const sorted = (result.stocks ?? []).sort((a, b) => a.rank - b.rank);
-    const selected = direction === "bottom"
-      ? sorted.slice(-count)          // last N = lowest ranked
-      : sorted.slice(0, count);       // first N = highest ranked
+    const selected = count === ALL_STOCKS_SENTINEL
+      ? sorted                                   // entire list
+      : direction === "bottom"
+        ? sorted.slice(-count)                   // last N = lowest ranked
+        : sorted.slice(0, count);                // first N = highest ranked
     const top = selected
       .map((s) => s.symbol.toUpperCase().trim())
       .filter(looksLikeTicker);
@@ -782,7 +791,14 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       // ── Parse one or more intents (compound: "add X and run Y") ─────────────
       const intents = parseCompoundIntents(trimmed);
 
-      for (const intent of intents) {
+      // If any intent needs clarification (missing category), drop navigate intents
+      // from the batch — don't open Portfolio Backtest while mid-conversation.
+      const hasPendingClarification = intents.some((i) => i.type === "needs_category");
+      const filteredIntents = hasPendingClarification
+        ? intents.filter((i) => i.type !== "navigate")
+        : intents;
+
+      for (const intent of filteredIntents) {
         switch (intent.type) {
           case "add_to_watchlist":
             await executeAddToWatchlist(intent.category, intent.count, intent.direction);
