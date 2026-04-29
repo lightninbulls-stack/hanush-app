@@ -22,10 +22,10 @@ from shared.strategy_locks import SENSEX_BEAR_PUT_LOCK
 
 INDEX_NAME = "SENSEX"
 SPREAD_TYPE = "put_debit"
-STRATEGY_NAME = "ALPHA_BEAR_PAPER"
+STRATEGY_NAME = "ALPHA_BEAR_PAPER_SENSEX"
 
 SENSEX_SPOT_TOKEN = 265
-SENSEX_SPOT_SYMBOL = "BSE:SENSEX"
+SENSEX_SPOT_SYMBOLS = ["BSE:SENSEX"]
 SENSEX_EXCHANGE_SEGMENT = "BFO"
 STRIKE_STEP = 100
 STRIKE_WINDOW = 500
@@ -46,14 +46,19 @@ LOG_FILE_NAME = "sensex_bear_put_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE_NAME, mode="a", encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
+class _ISTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=IST)
+        return dt.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+
+_ist_fmt = _ISTFormatter("%(asctime)s | %(levelname)s | %(message)s")
+_handlers = [
+    logging.FileHandler(LOG_FILE_NAME, mode="a", encoding="utf-8"),
+    logging.StreamHandler(sys.stdout),
+]
+for _h in _handlers:
+    _h.setFormatter(_ist_fmt)
+logging.basicConfig(level=logging.INFO, handlers=_handlers)
 logger = logging.getLogger("alpha_bear_sensex_strategy")
 
 
