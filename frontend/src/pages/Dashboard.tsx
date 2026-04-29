@@ -21,6 +21,7 @@ import {
   fetchWatchlistSymbols,
   addWatchlistSymbol,
   removeWatchlistSymbol,
+  WATCHLIST_UPDATED_EVENT,
 } from "../services/watchlistApi";
 
 import {
@@ -185,6 +186,25 @@ const Dashboard: React.FC = () => {
     };
 
     bootstrapWatchlist();
+  }, []);
+
+  useEffect(() => {
+    const handleWatchlistUpdated = async () => {
+      try {
+        const symbols = await fetchWatchlistSymbols();
+        setStarredSymbols(symbols.map(normalizeSymbol));
+      } catch {
+        setStarredSymbols([]);
+      }
+    };
+
+    window.addEventListener(WATCHLIST_UPDATED_EVENT, handleWatchlistUpdated);
+    window.addEventListener("storage", handleWatchlistUpdated);
+
+    return () => {
+      window.removeEventListener(WATCHLIST_UPDATED_EVENT, handleWatchlistUpdated);
+      window.removeEventListener("storage", handleWatchlistUpdated);
+    };
   }, []);
 
   useEffect(() => {
