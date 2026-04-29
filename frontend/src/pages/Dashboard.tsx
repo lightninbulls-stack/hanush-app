@@ -32,6 +32,7 @@ import {
 
 const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
 const DOWNSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
+const NSE_TOP_200_FO_CATEGORY = "NSE TOP 200 F&O Universe";
 
 const FREE_STOCK_LIMIT = 2;
 const FREE_LOCKED_PREVIEW_LIMIT = 3;
@@ -66,6 +67,7 @@ const WATCHLIST_SOURCE_CATEGORIES = [
   "Range Bound Downside",
   "Aggressive Call Option Stocks",
   "Aggressive Put Option Stocks",
+  NSE_TOP_200_FO_CATEGORY,
 ];
 
 const MOBILE_BREAKPOINT = 900;
