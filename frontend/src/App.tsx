@@ -4,7 +4,6 @@ import "./App.css";
 
 import Auth from "./pages/Auth";
 import FloatingAIAgent from "./components/LightninBullAIAgent";
-import LandingBullLogo from "./components/LandingBullLogo";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
@@ -25,7 +24,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
 const App: React.FC = () => {
   return (
     <BrowserRouter>
-      <LandingBullLogo />
       <FloatingAIAgent />
 
       <Suspense
