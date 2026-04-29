@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { findKnowledgeAnswer, getKnowledgeOverview } from "./aiKnowledge";
 import {
   addWatchlistSymbols,
@@ -6,6 +6,35 @@ import {
   fetchWatchlistSymbols,
   removeWatchlistSymbols,
 } from "../services/watchlistApi";
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition;
+    webkitSpeechRecognition?: new () => SpeechRecognition;
+  }
+
+  interface SpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    start: () => void;
+    stop: () => void;
+    abort: () => void;
+    onstart: (() => void) | null;
+    onend: (() => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  }
+
+  interface SpeechRecognitionErrorEvent extends Event {
+    error: string;
+  }
+
+  interface SpeechRecognitionEvent extends Event {
+    resultIndex: number;
+    results: SpeechRecognitionResultList;
+  }
+}
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -88,7 +117,7 @@ const ALL_STOCK_BUCKETS = [
 const WELCOME_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
-    "Hi, I am your Lightnin Bull AI Agent. Ask me about dashboard workflow, alpha engine, risk engine, Regime Upside, option spreads, or say: add top 5 factor stocks to my watchlist.",
+    "Hi, I am your Lightnin Bull AI Agent. You can type or use the mic. Ask me to explain the dashboard, show live spreads, or say: add top 5 Regime Upside stocks to my watchlist.",
 };
 
 function getAuthToken(): string | null {
@@ -110,11 +139,18 @@ function normalizeSymbol(symbol: unknown): string {
   return String(symbol || "").trim().toUpperCase();
 }
 
+function getSpeechRecognitionConstructor() {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function isVoiceSupported(): boolean {
+  return Boolean(getSpeechRecognitionConstructor());
+}
+
 function extractTopCount(message: string): number {
   const digitMatch = message.match(/top\s+(\d+)/i);
-  if (digitMatch?.[1]) {
-    return Math.max(1, Math.min(Number(digitMatch[1]), 50));
-  }
+  if (digitMatch?.[1]) return Math.max(1, Math.min(Number(digitMatch[1]), 50));
 
   const wordMap: Record<string, number> = {
     one: 1,
@@ -162,9 +198,7 @@ function pickWatchlistCategories(message: string): string[] {
   }
 
   for (const category of ALL_STOCK_BUCKETS) {
-    if (message.includes(category.toLowerCase())) {
-      categories.add(category);
-    }
+    if (message.includes(category.toLowerCase())) categories.add(category);
   }
 
   const singleCategory = pickCategory(message);
@@ -179,9 +213,7 @@ async function fetchStocksByCategoryForAI(category: string): Promise<StockRow[]>
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${category}: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Failed to fetch ${category}: ${response.status}`);
 
   const data = (await response.json()) as StockCategoryResponse;
   return Array.isArray(data?.stocks) ? data.stocks : [];
@@ -242,9 +274,7 @@ async function answerFromWatchlistAction(question: string): Promise<string | nul
     }
 
     const before = await fetchWatchlistSymbols();
-    const after = isAdd
-      ? await addWatchlistSymbols(allSymbols)
-      : await removeWatchlistSymbols(allSymbols);
+    const after = isAdd ? await addWatchlistSymbols(allSymbols) : await removeWatchlistSymbols(allSymbols);
 
     const beforeSet = new Set(before.map(normalizeSymbol));
     const afterSet = new Set(after.map(normalizeSymbol));
@@ -263,10 +293,7 @@ async function answerFromWatchlistAction(question: string): Promise<string | nul
       "Bucket-wise symbols:",
     ];
 
-    rows.forEach((row) => {
-      lines.push(`- ${row.category}: ${row.symbols.join(", ") || "No stocks"}`);
-    });
-
+    rows.forEach((row) => lines.push(`- ${row.category}: ${row.symbols.join(", ") || "No stocks"}`));
     lines.push("", `Current watchlist count: ${after.length}`);
     return lines.join("\n");
   }
@@ -277,9 +304,7 @@ async function answerFromWatchlistAction(question: string): Promise<string | nul
   }
 
   const before = await fetchWatchlistSymbols();
-  const after = isAdd
-    ? await addWatchlistSymbols(manualSymbols)
-    : await removeWatchlistSymbols(manualSymbols);
+  const after = isAdd ? await addWatchlistSymbols(manualSymbols) : await removeWatchlistSymbols(manualSymbols);
 
   return [
     isAdd
@@ -297,13 +322,18 @@ async function fetchAllIntradaySpreads(): Promise<IntradaySpreadMap> {
   });
 
   if (!response.ok) throw new Error(`Failed to fetch intraday spread data: ${response.status}`);
+
   const json = await response.json();
   return (json?.data || {}) as IntradaySpreadMap;
 }
 
 function pickSpreadPayload(allSpreads: IntradaySpreadMap, keys: string[], spreadType: string): IntradaySpread | null {
   for (const key of keys) if (allSpreads[key]) return allSpreads[key];
-  return Object.values(allSpreads).find((spread) => String(spread?.spread_type || "").toLowerCase() === spreadType.toLowerCase()) || null;
+  return (
+    Object.values(allSpreads).find(
+      (spread) => String(spread?.spread_type || "").toLowerCase() === spreadType.toLowerCase()
+    ) || null
+  );
 }
 
 function formatLegLine(leg: SpreadLeg, index: number): string {
@@ -319,32 +349,6 @@ function formatLegLine(leg: SpreadLeg, index: number): string {
   const expiry = leg.expiry || "--";
 
   return `- ${side} ${symbol} | ${right} ${strike} | Expiry: ${expiry} | Qty: ${qty} | Entry: ${entry} | LTP: ${ltp} | P&L: ${pnl} | Status: ${status}`;
-}
-
-async function answerFromOptionSpread(message: string): Promise<string | null> {
-  const wantsBullCall = message.includes("bull call") || message.includes("call spread") || message.includes("bullish spread");
-  const wantsBearPut = message.includes("bear put") || message.includes("put spread") || message.includes("bearish spread");
-  const asksLive = ["live", "current", "legs", "strike", "pnl", "p&l", "ltp", "stop loss", "target", "status", "explain"].some((word) => message.includes(word));
-
-  if ((!wantsBullCall && !wantsBearPut) || !asksLive) return null;
-
-  const allSpreads = await fetchAllIntradaySpreads();
-
-  if (wantsBullCall) {
-    const payload = pickSpreadPayload(allSpreads, ["ALPHA_BULL_PAPER", "ALPHA_BULL_SENSEX_PAPER", "SENSEX_ALPHA_BULL_PAPER"], "bull_call");
-    return buildSpreadExplanation(
-      "Bull Call Spread",
-      payload,
-      "A Bull Call Spread is a controlled-risk bullish option strategy. Lightnin Bull buys a lower-strike call and sells a higher-strike call, so both risk and reward are capped."
-    );
-  }
-
-  const payload = pickSpreadPayload(allSpreads, ["ALPHA_BEAR_PAPER", "ALPHA_BEAR_SENSEX_PAPER", "SENSEX_ALPHA_BEAR_PAPER"], "put_debit");
-  return buildSpreadExplanation(
-    "Bear Put Spread",
-    payload,
-    "A Bear Put Spread is a controlled-risk bearish option strategy. Lightnin Bull buys a higher-strike put and sells a lower-strike put, so downside exposure is capped and structured."
-  );
 }
 
 function buildSpreadExplanation(label: string, payload: IntradaySpread | null, conceptText: string): string {
@@ -378,6 +382,42 @@ function buildSpreadExplanation(label: string, payload: IntradaySpread | null, c
 
   lines.push("", "Interpretation: use this as live strategy monitoring, not a guaranteed trade recommendation. Watch entry, LTP, net P&L, stop loss, and target together.");
   return lines.join("\n");
+}
+
+async function answerFromOptionSpread(message: string): Promise<string | null> {
+  const wantsBullCall = message.includes("bull call") || message.includes("call spread") || message.includes("bullish spread");
+  const wantsBearPut = message.includes("bear put") || message.includes("put spread") || message.includes("bearish spread");
+  const asksLive = ["live", "current", "legs", "strike", "pnl", "p&l", "ltp", "stop loss", "target", "status", "explain"].some((word) => message.includes(word));
+
+  if ((!wantsBullCall && !wantsBearPut) || !asksLive) return null;
+
+  const allSpreads = await fetchAllIntradaySpreads();
+
+  if (wantsBullCall) {
+    const payload = pickSpreadPayload(
+      allSpreads,
+      ["ALPHA_BULL_PAPER", "ALPHA_BULL_SENSEX_PAPER", "SENSEX_ALPHA_BULL_PAPER"],
+      "bull_call"
+    );
+
+    return buildSpreadExplanation(
+      "Bull Call Spread",
+      payload,
+      "A Bull Call Spread is a controlled-risk bullish option strategy. Lightnin Bull buys a lower-strike call and sells a higher-strike call, so both risk and reward are capped."
+    );
+  }
+
+  const payload = pickSpreadPayload(
+    allSpreads,
+    ["ALPHA_BEAR_PAPER", "ALPHA_BEAR_SENSEX_PAPER", "SENSEX_ALPHA_BEAR_PAPER"],
+    "put_debit"
+  );
+
+  return buildSpreadExplanation(
+    "Bear Put Spread",
+    payload,
+    "A Bear Put Spread is a controlled-risk bearish option strategy. Lightnin Bull buys a higher-strike put and sells a lower-strike put, so downside exposure is capped and structured."
+  );
 }
 
 async function answerFromStocks(category: string): Promise<string> {
@@ -505,17 +545,21 @@ async function buildAnswer(question: string): Promise<string> {
 
 const FloatingAIAgent: React.FC = () => {
   const token = getAuthToken();
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
 
   const visible = useMemo(() => Boolean(token), [token]);
+  const voiceSupported = useMemo(() => isVoiceSupported(), []);
 
   if (!visible) return null;
 
-  const sendMessage = async () => {
-    const question = input.trim();
+  const sendMessage = async (overrideQuestion?: string) => {
+    const question = (overrideQuestion ?? input).trim();
     if (!question || loading) return;
 
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question }];
@@ -528,9 +572,90 @@ const FloatingAIAgent: React.FC = () => {
       setMessages([...nextMessages, { role: "assistant", content: answer }]);
     } catch (error) {
       console.error(error);
-      setMessages([...nextMessages, { role: "assistant", content: "AI Agent could not complete this action right now. Please check backend deployment and try again." }]);
+      setMessages([
+        ...nextMessages,
+        {
+          role: "assistant",
+          content: "AI Agent could not complete this action right now. Please check backend deployment and try again.",
+        },
+      ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const stopListening = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // ignore browser speech stop errors
+    }
+    setIsListening(false);
+  };
+
+  const startVoiceInput = () => {
+    setVoiceError("");
+
+    const SpeechRecognitionConstructor = getSpeechRecognitionConstructor();
+    if (!SpeechRecognitionConstructor) {
+      setVoiceError("Voice input is not supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+      return;
+    }
+
+    const recognition = new SpeechRecognitionConstructor();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN";
+
+    let finalTranscript = "";
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setVoiceError("");
+    };
+
+    recognition.onresult = (event) => {
+      let interimTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const transcript = event.results[i][0]?.transcript || "";
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const spokenText = `${finalTranscript} ${interimTranscript}`.trim();
+      if (spokenText) setInput(spokenText);
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      if (event.error === "not-allowed") {
+        setVoiceError("Microphone permission is blocked. Please allow mic access and try again.");
+      } else if (event.error === "no-speech") {
+        setVoiceError("I did not hear anything. Tap the mic and speak again.");
+      } else {
+        setVoiceError(`Voice input stopped: ${event.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setVoiceError("Voice input could not start. Please try again.");
     }
   };
 
@@ -585,7 +710,10 @@ const FloatingAIAgent: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                stopListening();
+                setIsOpen(false);
+              }}
               aria-label="Close AI Agent"
               style={{
                 width: 34,
@@ -633,7 +761,39 @@ const FloatingAIAgent: React.FC = () => {
             )}
           </div>
 
+          {(isListening || voiceError) && (
+            <div
+              style={{
+                padding: "8px 14px",
+                color: isListening ? "#e2b84b" : "#f87171",
+                fontFamily: "var(--font-mono, monospace)",
+                fontSize: 11,
+                borderTop: "1px solid rgba(226,184,75,0.10)",
+              }}
+            >
+              {isListening ? "Listening… speak your command now." : voiceError}
+            </div>
+          )}
+
           <div style={{ padding: 14, borderTop: "1px solid rgba(226,184,75,0.16)", display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={startVoiceInput}
+              disabled={loading || !voiceSupported}
+              title={voiceSupported ? "Speak to AI" : "Voice input is not supported in this browser"}
+              style={{
+                width: 42,
+                borderRadius: 12,
+                border: isListening ? "1px solid rgba(248,113,113,0.9)" : "1px solid rgba(226,184,75,0.35)",
+                background: isListening ? "rgba(248,113,113,0.16)" : "rgba(226,184,75,0.10)",
+                color: isListening ? "#f87171" : "#e2b84b",
+                cursor: loading || !voiceSupported ? "not-allowed" : "pointer",
+                fontSize: 16,
+              }}
+            >
+              {isListening ? "■" : "🎙️"}
+            </button>
+
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -643,7 +803,7 @@ const FloatingAIAgent: React.FC = () => {
                   sendMessage();
                 }
               }}
-              placeholder="Ask AI to explain or update watchlist..."
+              placeholder="Type or tap mic: add top 10 Regime Upside to watchlist..."
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -657,7 +817,7 @@ const FloatingAIAgent: React.FC = () => {
             />
             <button
               type="button"
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={loading}
               style={{
                 borderRadius: 12,
