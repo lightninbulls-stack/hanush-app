@@ -9,6 +9,7 @@ import PortfolioBacktestPanel from "../components/PortfolioBacktestPanelGate";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
 import IntradayStockSignalsPanel from "../components/IntradayStockSignalsPanel";
 import DashboardWelcome from "../components/DashboardWelcome";
+import AiMarketMentor from "../components/AiMarketMentor";
 
 import {
   fetchStocksByCategory,
@@ -361,6 +362,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleBulkAddToWatchlist = (symbols: string[]) => {
+    const normalized = symbols.map(normalizeSymbol);
+    setStarredSymbols((prev) =>
+      Array.from(new Set([...prev, ...normalized]))
+    );
+  };
+
   const handleStockClick = (symbol: string) => {
     setSelectedStock(normalizeSymbol(symbol));
   };
@@ -500,6 +508,11 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="lb-dashboard-shell">
+      <AiMarketMentor
+        onNavigate={handleCategoryChange}
+        starredSymbols={starredSymbols}
+        onBulkAddToWatchlist={handleBulkAddToWatchlist}
+      />
       {!isMobile && (
         <Sidebar
           activeCategory={activeTab}
