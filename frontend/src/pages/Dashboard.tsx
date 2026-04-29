@@ -515,6 +515,7 @@ const Dashboard: React.FC = () => {
         onNavigate={handleCategoryChange}
         starredSymbols={starredSymbols}
         onBulkAddToWatchlist={handleBulkAddToWatchlist}
+        isPremium={isPremium}
       />
       {!isMobile && (
         <Sidebar

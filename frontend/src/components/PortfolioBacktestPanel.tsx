@@ -404,12 +404,14 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
 const AI_STRATEGY_KEY = "lightninbull:pending-strategy";
 const AI_STRATEGY_EVENT = "lightninbull:select-strategy";
 
-const PortfolioBacktestPanel: React.FC = () => {
+const PortfolioBacktestPanel: React.FC<{ isPremium?: boolean }> = ({ isPremium = false }) => {
   const [strategyType, setStrategyType] = useState<StrategyType>(() => {
     // If the AI agent pre-selected a strategy, use it immediately on mount
     const pending = localStorage.getItem(AI_STRATEGY_KEY) as StrategyType | null;
     if (pending && (["equal_weight", "mvo", "mvo_short"] as string[]).includes(pending)) {
       localStorage.removeItem(AI_STRATEGY_KEY);
+      // Non-premium users can only use equal_weight
+      if (!isPremium && (pending === "mvo" || pending === "mvo_short")) return "equal_weight";
       return pending;
     }
     return "equal_weight";
@@ -425,12 +427,13 @@ const PortfolioBacktestPanel: React.FC = () => {
       const strategy = (e as CustomEvent<{ strategy: StrategyType }>).detail?.strategy;
       if (strategy && (["equal_weight", "mvo", "mvo_short"] as string[]).includes(strategy)) {
         localStorage.removeItem(AI_STRATEGY_KEY);
+        if (!isPremium && (strategy === "mvo" || strategy === "mvo_short")) return;
         setStrategyType(strategy);
       }
     };
     window.addEventListener(AI_STRATEGY_EVENT, handle);
     return () => window.removeEventListener(AI_STRATEGY_EVENT, handle);
-  }, []);
+  }, [isPremium]);
 
   useEffect(() => {
     let cancelled = false;
@@ -753,40 +756,48 @@ const PortfolioBacktestPanel: React.FC = () => {
             { type: "equal_weight" as StrategyType, label: "Equal Weight" },
             { type: "mvo" as StrategyType, label: "MVO Weights" },
             { type: "mvo_short" as StrategyType, label: "MVO Short" },
-          ].map((option) => (
-            <button
-              key={option.type}
-              onClick={() => setStrategyType(option.type)}
-              style={{
-                padding: "9px 16px",
-                borderRadius: 8,
-                border: `1px solid ${
-                  strategyType === option.type
-                    ? "rgba(250,204,21,0.5)"
-                    : "rgba(250,204,21,0.15)"
-                }`,
-                background:
-                  strategyType === option.type
+          ].map((option) => {
+            const locked = !isPremium && (option.type === "mvo" || option.type === "mvo_short");
+            return (
+              <button
+                key={option.type}
+                onClick={() => !locked && setStrategyType(option.type)}
+                title={locked ? "Upgrade to Premium to unlock MVO strategies" : undefined}
+                style={{
+                  padding: "9px 16px",
+                  borderRadius: 8,
+                  border: `1px solid ${
+                    locked
+                      ? "rgba(255,255,255,0.1)"
+                      : strategyType === option.type
+                      ? "rgba(250,204,21,0.5)"
+                      : "rgba(250,204,21,0.15)"
+                  }`,
+                  background: locked
+                    ? "rgba(255,255,255,0.03)"
+                    : strategyType === option.type
                     ? "rgba(250,204,21,0.12)"
                     : "rgba(250,204,21,0.04)",
-                color:
-                  strategyType === option.type
+                  color: locked
+                    ? "rgba(255,255,255,0.2)"
+                    : strategyType === option.type
                     ? "#facc15"
                     : "rgba(255,255,255,0.45)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: 1,
-                cursor: "pointer",
-                transition: "all 0.18s ease",
-                boxShadow:
-                  strategyType === option.type
-                    ? "0 0 14px rgba(250,204,21,0.1)"
-                    : "none",
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  cursor: locked ? "not-allowed" : "pointer",
+                  transition: "all 0.18s ease",
+                  boxShadow:
+                    !locked && strategyType === option.type
+                      ? "0 0 14px rgba(250,204,21,0.1)"
+                      : "none",
+                }}
+              >
+                {locked ? `🔒 ${option.label}` : option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

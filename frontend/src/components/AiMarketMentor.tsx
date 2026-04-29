@@ -678,6 +678,7 @@ interface AiMarketMentorProps {
   onNavigate: (tab: string) => void;
   starredSymbols: string[];
   onBulkAddToWatchlist: (symbols: string[]) => void;
+  isPremium?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -688,6 +689,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
   onNavigate,
   starredSymbols,
   onBulkAddToWatchlist,
+  isPremium = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -811,9 +813,16 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
         };
 
         if (/\bmvo\b|\bmean.varian|\boptimiz/.test(lower)) {
-          setPending(null);
-          pushMsg("assistant", "Running MVO optimization on your watchlist — opening Portfolio Backtest now…");
-          dispatchStrategy("mvo");
+          if (!isPremium) {
+            pushMsg(
+              "assistant",
+              "MVO Weights and MVO Short are premium features.\n\nUpgrade to Premium to unlock optimized portfolio backtesting.\n\nYou can still run Equal Weight backtest — just say \"Equal Weight\"."
+            );
+          } else {
+            setPending(null);
+            pushMsg("assistant", "Running MVO optimization on your watchlist — opening Portfolio Backtest now…");
+            dispatchStrategy("mvo");
+          }
         } else if (/\bequal.weight\b|\bequal\b|\bsimple\b/.test(lower)) {
           setPending(null);
           pushMsg("assistant", "Running Equal Weight backtest on your watchlist — opening Portfolio Backtest now…");
@@ -821,7 +830,9 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
         } else {
           pushMsg(
             "assistant",
-            "Please choose your backtest strategy:\n\n• **Equal Weight** — simple equal allocation across all stocks\n• **MVO Weights** — mathematically optimized allocation (maximizes Sharpe Ratio)"
+            isPremium
+              ? "Please choose your backtest strategy:\n\n• **Equal Weight** — simple equal allocation across all stocks\n• **MVO Weights** — mathematically optimized allocation (maximizes Sharpe Ratio)"
+              : "Please choose your backtest strategy:\n\n• **Equal Weight** — simple equal allocation across all stocks\n\nMVO Weights and MVO Short require a Premium subscription."
           );
         }
         return;
@@ -890,23 +901,34 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
               null;
 
             if (inlineStrategy) {
-              const label = inlineStrategy === "mvo" ? "MVO Weights" : inlineStrategy === "mvo_short" ? "MVO Short" : "Equal Weight";
-              localStorage.setItem("lightninbull:pending-strategy", inlineStrategy);
-              setTimeout(() => onNavigate("Portfolio Backtest"), 400);
-              setTimeout(() => {
-                window.dispatchEvent(
-                  new CustomEvent("lightninbull:select-strategy", { detail: { strategy: inlineStrategy } })
+              const isMvoStrategy = inlineStrategy === "mvo" || inlineStrategy === "mvo_short";
+              if (isMvoStrategy && !isPremium) {
+                setPending({ type: "awaiting_strategy" });
+                pushMsg(
+                  "assistant",
+                  `Factor portfolio ready!\n\n${summary.join("\n")}\n\nMVO Weights and MVO Short require a Premium subscription.\n\nYou can run **Equal Weight** backtest now — just say "Equal Weight".`
                 );
-              }, 800);
-              pushMsg(
-                "assistant",
-                `Factor portfolio ready!\n\n${summary.join("\n")}\n\nRunning **${label}** backtest — opening Portfolio Backtest now…`
-              );
+              } else {
+                const label = inlineStrategy === "mvo" ? "MVO Weights" : inlineStrategy === "mvo_short" ? "MVO Short" : "Equal Weight";
+                localStorage.setItem("lightninbull:pending-strategy", inlineStrategy);
+                setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+                setTimeout(() => {
+                  window.dispatchEvent(
+                    new CustomEvent("lightninbull:select-strategy", { detail: { strategy: inlineStrategy } })
+                  );
+                }, 800);
+                pushMsg(
+                  "assistant",
+                  `Factor portfolio ready!\n\n${summary.join("\n")}\n\nRunning **${label}** backtest — opening Portfolio Backtest now…`
+                );
+              }
             } else {
               setPending({ type: "awaiting_strategy" });
               pushMsg(
                 "assistant",
-                `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n• **MVO Weights** — optimized allocation for maximum Sharpe Ratio\n\nJust say "Equal Weight" or "MVO".`
+                isPremium
+                  ? `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n• **MVO Weights** — optimized allocation for maximum Sharpe Ratio\n\nJust say "Equal Weight" or "MVO".`
+                  : `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n\nMVO Weights and MVO Short require a Premium subscription.\n\nJust say "Equal Weight" to run the backtest.`
               );
             }
             break;
@@ -931,6 +953,14 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
                 /\bmvo\b|\boptimiz|\bmean.varian/.test(lower) ? "mvo" :
                 /\bequal.weight\b|\bequal\b/.test(lower) ? "equal_weight" :
                 null;
+              if (strategy && (strategy === "mvo" || strategy === "mvo_short") && !isPremium) {
+                pushMsg(
+                  "assistant",
+                  "MVO Weights and MVO Short are premium features. Upgrade to Premium to unlock them.\n\nOpening Portfolio Backtest with Equal Weight instead…"
+                );
+                setTimeout(() => onNavigate(tab), 400);
+                break;
+              }
               if (strategy) {
                 localStorage.setItem("lightninbull:pending-strategy", strategy);
                 window.dispatchEvent(
