@@ -479,6 +479,7 @@ When to use: Short-term defensive trades or identifying stocks to avoid in the n
 type Intent =
   | { type: "add_to_watchlist"; category: string; count: number; direction: "top" | "bottom" }
   | { type: "needs_category"; count: number; direction: "top" | "bottom" }
+  | { type: "build_factor_portfolio" }
   | { type: "navigate"; tab: string }
   | { type: "explain_mvo" }
   | { type: "explain_equal_weight" }
@@ -523,6 +524,10 @@ function parseIntent(text: string): Intent {
   }
 
   if (/\bbacktest\b/.test(lower) && !wantsNav) return { type: "navigate", tab: "Portfolio Backtest" };
+
+  // ── Build factor portfolio (multi-step guided workflow) ───────────────────
+  if (/\bfactor\b/.test(lower) && /\bportfolio\b|\bbacktest\b/.test(lower))
+    return { type: "build_factor_portfolio" };
 
   // ── "run/build/create mvo / equal weight / backtest / portfolio" → navigate ──
   const wantsRun = /\brun\b|\bstart\b|\bdo\b|\bexecute\b|\blaunch\b|\bbuild\b|\bcreate\b/.test(lower);
@@ -646,12 +651,12 @@ const UNKNOWN_RESPONSE = `I didn't quite catch that. Here's what I can help with
 // ─── Quick Actions ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
+  "Build factor based portfolio",
   "What is MVO?",
   "Add top 5 Consistent Trending to watchlist",
   "Add top 5 Slow Movement to watchlist",
   "What is Sharpe Ratio?",
   "Open Portfolio Backtest",
-  "Explain the alpha engine",
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -663,8 +668,11 @@ interface Message {
   isError?: boolean;
 }
 
-// Remembers an incomplete "add" intent while waiting for the user to name a factor
-type PendingState = { type: "awaiting_category"; count: number; direction: "top" | "bottom" } | null;
+// Remembers an incomplete intent while waiting for the user's next reply
+type PendingState =
+  | { type: "awaiting_category"; count: number; direction: "top" | "bottom" }
+  | { type: "awaiting_strategy" }
+  | null;
 
 interface AiMarketMentorProps {
   onNavigate: (tab: string) => void;
@@ -774,7 +782,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     setBusy(true);
 
     try {
-      // ── Pending state: user is answering "which factor?" ──────────────────
+      // ── Pending: user is answering "which factor?" ────────────────────────
       if (pending?.type === "awaiting_category") {
         const category = matchCategory(trimmed.toLowerCase());
         if (category) {
@@ -784,6 +792,26 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           pushMsg(
             "assistant",
             `I still couldn't identify a factor from "${trimmed}".\n\nAvailable buckets:\nConsistent Trending · Slow Movement · Cheap Value · Best Quality · Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside · Aggressive Call Options · Aggressive Put Options\n\nWhich one would you like?`
+          );
+        }
+        return;
+      }
+
+      // ── Pending: user is choosing Equal Weight or MVO ─────────────────────
+      if (pending?.type === "awaiting_strategy") {
+        const lower = trimmed.toLowerCase();
+        if (/\bmvo\b|\bmean.varian|\boptimiz/.test(lower)) {
+          setPending(null);
+          pushMsg("assistant", 'Perfect! Opening Portfolio Backtest — select "MVO Weights" to run the optimization.');
+          setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+        } else if (/\bequal.weight\b|\bequal\b|\bsimple\b/.test(lower)) {
+          setPending(null);
+          pushMsg("assistant", 'Perfect! Opening Portfolio Backtest — select "Equal Weight" to run the backtest.');
+          setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+        } else {
+          pushMsg(
+            "assistant",
+            "Please choose your backtest strategy:\n\n• **Equal Weight** — simple equal allocation across all stocks\n• **MVO Weights** — mathematically optimized allocation (maximizes Sharpe Ratio)"
           );
         }
         return;
@@ -804,6 +832,52 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           case "add_to_watchlist":
             await executeAddToWatchlist(intent.category, intent.count, intent.direction);
             break;
+
+          case "build_factor_portfolio": {
+            const coreFactors = [
+              "Consistent Trending",
+              "Slow Movement",
+              "Cheap Value",
+              "Best Quality",
+            ];
+            const PER_FACTOR = 5;
+            pushMsg("assistant", "Building your factor portfolio — fetching top 5 stocks from each of the 4 core factors…");
+
+            const summary: string[] = [];
+            for (const factor of coreFactors) {
+              try {
+                const result = await fetchStocksByCategory(factor);
+                const sorted = [...(result.stocks ?? [])].sort((a, b) => a.rank - b.rank);
+                const symbols = sorted.slice(0, PER_FACTOR)
+                  .map((s) => s.symbol.toUpperCase().trim())
+                  .filter(looksLikeTicker);
+
+                const alreadyIn = symbols.filter((s) =>
+                  starredSymbols.map((x) => x.toUpperCase()).includes(s)
+                );
+                const toAdd = symbols.filter(
+                  (s) => !starredSymbols.map((x) => x.toUpperCase()).includes(s)
+                );
+
+                for (const sym of toAdd) {
+                  await addWatchlistSymbol(sym);
+                }
+                onBulkAddToWatchlist(toAdd);
+
+                const note = alreadyIn.length > 0 ? ` (${alreadyIn.length} already in watchlist)` : "";
+                summary.push(`• ${factor}: ${symbols.join(", ")}${note}`);
+              } catch {
+                summary.push(`• ${factor}: could not load`);
+              }
+            }
+
+            setPending({ type: "awaiting_strategy" });
+            pushMsg(
+              "assistant",
+              `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n• **MVO Weights** — optimized allocation for maximum Sharpe Ratio\n\nJust say "Equal Weight" or "MVO".`
+            );
+            break;
+          }
 
           case "needs_category": {
             const countWord = intent.count === 5 ? "stocks" : `${intent.count} stock${intent.count > 1 ? "s" : ""}`;
