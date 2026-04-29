@@ -28,7 +28,8 @@ DATA_DIR = BACKEND_DIR / "data"
 CLOSE_PRICES_PATH = DATA_DIR / "close_prices_wide.csv"
 
 NSE_TOP_200_FO_CATEGORY = "NSE TOP 200 F&O Universe"
-EXCLUDED_UNIVERSE_SYMBOLS = {
+SECTORAL_INDICES_CATEGORY = "Sectoral Indices Performance"
+SECTORAL_INDEX_SYMBOLS = [
     "^CNXAUTO",
     "^CNXFMCG",
     "^CNXIT",
@@ -39,7 +40,20 @@ EXCLUDED_UNIVERSE_SYMBOLS = {
     "^CNXREALTY",
     "^NSEBANK",
     "^NSEI",
+]
+SECTORAL_INDEX_NAMES = {
+    "^CNXAUTO": "Nifty Auto",
+    "^CNXFMCG": "Nifty FMCG",
+    "^CNXIT": "Nifty IT",
+    "^CNXMEDIA": "Nifty Media",
+    "^CNXMETAL": "Nifty Metal",
+    "^CNXPHARMA": "Nifty Pharma",
+    "^CNXPSUBANK": "Nifty PSU Bank",
+    "^CNXREALTY": "Nifty Realty",
+    "^NSEBANK": "Nifty Bank",
+    "^NSEI": "Nifty 50",
 }
+EXCLUDED_UNIVERSE_SYMBOLS = set(SECTORAL_INDEX_SYMBOLS)
 DATE_LIKE_COLUMNS = {"DATE", "DATETIME", "TIME", "TIMESTAMP"}
 
 DEFAULT_RETAIL_CAPITAL = 100000.0
@@ -102,14 +116,7 @@ def volatility_bucket(volatility_6m: float | None) -> str | None:
     return "High"
 
 
-def load_nse_top_200_fo_universe() -> list[dict]:
-    """
-    Build the NSE TOP 200 F&O stock universe directly from close_prices_wide.csv.
-
-    The close wide file contains both stocks and index/sector symbols. For this
-    user-facing universe, we exclude the index/sector columns and calculate the
-    same return/volatility analytics shown in other screener tables.
-    """
+def read_close_prices_wide() -> pd.DataFrame:
     if not CLOSE_PRICES_PATH.exists():
         raise HTTPException(
             status_code=500,
@@ -119,10 +126,68 @@ def load_nse_top_200_fo_universe() -> list[dict]:
     close_df = pd.read_csv(CLOSE_PRICES_PATH, index_col=0)
 
     if close_df.empty:
-        return []
+        return close_df
 
     close_df.columns = [normalize_symbol(col) for col in close_df.columns]
     close_df = close_df.apply(pd.to_numeric, errors="coerce")
+    return close_df
+
+
+def build_performance_row(
+    symbol: str,
+    price_series: pd.Series,
+    category: str,
+    sector_label: str,
+) -> dict:
+    ret_1w = safe_round(pct_return(price_series, 5))
+    ret_1m = safe_round(pct_return(price_series, 21))
+    ret_3m = safe_round(pct_return(price_series, 63))
+    ret_6m = safe_round(pct_return(price_series, 126))
+    vol_6m = safe_round(annualized_volatility(price_series, 126))
+
+    score = ret_6m
+    if score is None:
+        score = ret_3m
+    if score is None:
+        score = ret_1m
+    if score is None:
+        score = 0.0
+
+    return {
+        "rank": 0,
+        "symbol": symbol,
+        "sector": sector_label or category,
+        "score": safe_round(score) or 0,
+        "return_1w": ret_1w,
+        "return_1m": ret_1m,
+        "return_3m": ret_3m,
+        "return_6m": ret_6m,
+        "volatility_6m": vol_6m,
+        "volatility_bucket": volatility_bucket(vol_6m),
+    }
+
+
+def rank_rows_by_score(rows: list[dict]) -> list[dict]:
+    rows.sort(key=lambda row: float(row.get("score") or 0), reverse=True)
+
+    for index, row in enumerate(rows, start=1):
+        row["rank"] = index
+
+    return rows
+
+
+def load_nse_top_200_fo_universe() -> list[dict]:
+    """
+    Build the NSE TOP 200 F&O stock universe directly from close_prices_wide.csv.
+
+    The close wide file contains both stocks and index/sector symbols. For this
+    user-facing universe, we exclude the index/sector columns and calculate the
+    same return/volatility analytics shown in other screener tables.
+    """
+    close_df = read_close_prices_wide()
+
+    if close_df.empty:
+        return []
 
     stocks: list[dict] = []
     seen: set[str] = set()
@@ -140,43 +205,43 @@ def load_nse_top_200_fo_universe() -> list[dict]:
             continue
 
         seen.add(symbol)
-
-        price_series = close_df[symbol]
-        ret_1w = safe_round(pct_return(price_series, 5))
-        ret_1m = safe_round(pct_return(price_series, 21))
-        ret_3m = safe_round(pct_return(price_series, 63))
-        ret_6m = safe_round(pct_return(price_series, 126))
-        vol_6m = safe_round(annualized_volatility(price_series, 126))
-
-        score = ret_6m
-        if score is None:
-            score = ret_3m
-        if score is None:
-            score = ret_1m
-        if score is None:
-            score = 0.0
-
         stocks.append(
-            {
-                "rank": 0,
-                "symbol": symbol,
-                "sector": NSE_TOP_200_FO_CATEGORY,
-                "score": safe_round(score) or 0,
-                "return_1w": ret_1w,
-                "return_1m": ret_1m,
-                "return_3m": ret_3m,
-                "return_6m": ret_6m,
-                "volatility_6m": vol_6m,
-                "volatility_bucket": volatility_bucket(vol_6m),
-            }
+            build_performance_row(
+                symbol=symbol,
+                price_series=close_df[symbol],
+                category=NSE_TOP_200_FO_CATEGORY,
+                sector_label=NSE_TOP_200_FO_CATEGORY,
+            )
         )
 
-    stocks.sort(key=lambda row: float(row.get("score") or 0), reverse=True)
+    return rank_rows_by_score(stocks)
 
-    for index, stock in enumerate(stocks, start=1):
-        stock["rank"] = index
 
-    return stocks
+def load_sectoral_indices_performance() -> list[dict]:
+    close_df = read_close_prices_wide()
+
+    if close_df.empty:
+        return []
+
+    rows: list[dict] = []
+
+    for symbol in SECTORAL_INDEX_SYMBOLS:
+        normalized_symbol = normalize_symbol(symbol)
+
+        if normalized_symbol not in close_df.columns:
+            logger.warning("Sectoral index column missing in close_prices_wide.csv: %s", normalized_symbol)
+            continue
+
+        rows.append(
+            build_performance_row(
+                symbol=normalized_symbol,
+                price_series=close_df[normalized_symbol],
+                category=SECTORAL_INDICES_CATEGORY,
+                sector_label=SECTORAL_INDEX_NAMES.get(normalized_symbol, SECTORAL_INDICES_CATEGORY),
+            )
+        )
+
+    return rank_rows_by_score(rows)
 
 
 def build_retail_allocation(
@@ -211,6 +276,16 @@ def get_nse_top_200_fo_universe():
     stocks = load_nse_top_200_fo_universe()
     return {
         "category": NSE_TOP_200_FO_CATEGORY,
+        "count": len(stocks),
+        "stocks": stocks,
+    }
+
+
+@router.get("/universe/sectoral-indices-performance")
+def get_sectoral_indices_performance():
+    stocks = load_sectoral_indices_performance()
+    return {
+        "category": SECTORAL_INDICES_CATEGORY,
         "count": len(stocks),
         "stocks": stocks,
     }
