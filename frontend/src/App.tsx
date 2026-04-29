@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 import Auth from "./pages/Auth";
-import FloatingAIAgent from "./components/FloatingAIAgent";
+import FloatingAIAgent from "./components/FloatingAIAgentV2";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
