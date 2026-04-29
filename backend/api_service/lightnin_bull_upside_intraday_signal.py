@@ -27,8 +27,6 @@ MIN_TICKS_FOR_SIGNAL = SLOW_SMA_WINDOW
 IST = pytz.timezone("Asia/Kolkata")
 
 _logger = logging.getLogger(STRATEGY_NAME)
-if not _logger.handlers:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 
 
 def current_ist() -> datetime:
