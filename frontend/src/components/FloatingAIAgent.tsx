@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { findKnowledgeAnswer, getKnowledgeOverview } from "./aiKnowledge";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -31,7 +32,7 @@ type IntradaySpreadMap = Record<string, any>;
 const WELCOME_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
-    "Hi, I am your Lightnin Bull AI Agent. Ask me about Regime Upside, Regime Downside, intraday signals, option spreads, or how to use the dashboard.",
+    "Hi, I am your Lightnin Bull AI Agent. Ask me about the dashboard workflow, alpha engine, risk engine, Regime Upside, intraday signals, option spreads, or rebalancing rules.",
 };
 
 function getAuthToken(): string | null {
@@ -47,29 +48,33 @@ function safeNumber(value: unknown): number | null {
 function strategyExplanation(message: string): string | null {
   if (message.includes("bull call")) {
     return (
-      "Bull Call Spread: Lightnin Bull uses this when the index has upside confirmation. " +
-      "It buys a lower-strike call and sells a higher-strike call, so max loss and max profit are both predefined. " +
+      "Bull Call Spread\n\n" +
+      "Lightnin Bull uses Bull Call Spreads when the index has upside confirmation. " +
+      "The structure buys a lower-strike call and sells a higher-strike call, so max loss and max profit are both predefined. " +
       "It is a controlled-risk bullish strategy, not a guaranteed profit trade."
     );
   }
 
   if (message.includes("bear put")) {
     return (
-      "Bear Put Spread: this is a bearish debit spread. It buys a higher-strike put and sells a lower-strike put. " +
+      "Bear Put Spread\n\n" +
+      "Bear Put Spread is a bearish debit spread. It buys a higher-strike put and sells a lower-strike put. " +
       "It is useful when downside confirmation is present and you want capped downside-risk exposure."
     );
   }
 
   if (message.includes("short straddle") || message.includes("straddle")) {
     return (
-      "Short Straddle: this sells ATM CE and ATM PE together. It benefits from theta decay and range-bound movement, " +
+      "Short Straddle\n\n" +
+      "Short Straddle sells ATM CE and ATM PE together. It benefits from theta decay and range-bound movement, " +
       "but risk increases sharply if the market trends strongly. Use strict stop-loss and position sizing."
     );
   }
 
   if (message.includes("covered call")) {
     return (
-      "Covered Call: this holds the underlying or index-equivalent exposure and sells a call against it. " +
+      "Covered Call\n\n" +
+      "Covered Call holds the underlying or index-equivalent exposure and sells a call against it. " +
       "It can generate option income in sideways or moderately bullish regimes, but upside becomes capped above the sold-call strike."
     );
   }
@@ -110,8 +115,10 @@ async function answerFromStocks(category: string): Promise<string> {
   const data = (await response.json()) as StockCategoryResponse;
   const stocks = Array.isArray(data?.stocks) ? data.stocks.slice(0, 8) : [];
 
+  const knowledge = findKnowledgeAnswer(category) || "";
+
   if (stocks.length === 0) {
-    return `No ${category} stocks are available right now. Please refresh the dashboard after the backend data updates.`;
+    return `${knowledge ? `${knowledge}\n\n` : ""}No ${category} stocks are available right now. Please refresh the dashboard after the backend data updates.`;
   }
 
   const lines = [`Current ${category} stocks from Lightnin Bull:`];
@@ -126,6 +133,11 @@ async function answerFromStocks(category: string): Promise<string> {
 
   lines.push("");
   lines.push("This is a signal dashboard output, not a guaranteed buy/sell recommendation. Use risk management before trading.");
+
+  if (knowledge) {
+    return `${knowledge}\n\n${lines.join("\n")}`;
+  }
+
   return lines.join("\n");
 }
 
@@ -152,9 +164,10 @@ async function answerFromIntraday(message: string): Promise<string | null> {
   const json = await response.json();
   const allSpreads = (json?.data || {}) as IntradaySpreadMap;
   const payload = allSpreads[strategyKey];
+  const knowledge = findKnowledgeAnswer("intraday stock signals") || "";
 
   if (!payload) {
-    return `No live ${label} data is available right now. The websocket engine may still be booting or market data may be inactive.`;
+    return `${knowledge ? `${knowledge}\n\n` : ""}No live ${label} data is available right now. The websocket engine may still be booting or market data may be inactive.`;
   }
 
   const signals = Array.isArray(payload.signals) ? payload.signals : [];
@@ -183,19 +196,40 @@ async function answerFromIntraday(message: string): Promise<string | null> {
     lines.push("No stock-level signal rows are available yet.");
   }
 
+  if (knowledge) {
+    return `${knowledge}\n\n${lines.join("\n")}`;
+  }
+
   return lines.join("\n");
 }
 
 async function buildAnswer(question: string): Promise<string> {
   const message = question.toLowerCase().trim();
-  const explanation = strategyExplanation(message);
-  if (explanation) return explanation;
+
+  if (!message) {
+    return getKnowledgeOverview();
+  }
+
+  if (
+    message.includes("what can you explain") ||
+    message.includes("knowledge") ||
+    message.includes("help me") ||
+    message === "help"
+  ) {
+    return getKnowledgeOverview();
+  }
 
   const intradayAnswer = await answerFromIntraday(message);
   if (intradayAnswer) return intradayAnswer;
 
   const category = pickCategory(message);
   if (category) return answerFromStocks(category);
+
+  const explanation = strategyExplanation(message);
+  if (explanation) return explanation;
+
+  const knowledgeAnswer = findKnowledgeAnswer(message);
+  if (knowledgeAnswer) return knowledgeAnswer;
 
   if (message.includes("payment") || message.includes("subscription") || message.includes("premium")) {
     return (
@@ -204,24 +238,14 @@ async function buildAnswer(question: string): Promise<string> {
     );
   }
 
-  if (message.includes("how to use") || message.includes("dashboard") || message.includes("lightnin bull")) {
-    return (
-      "Lightnin Bull is structured like a quant dashboard:\n" +
-      "1. Factors: Consistent Trending, Slow Movement, Cheap Value, Best Quality.\n" +
-      "2. Regime: Regime Upside and Regime Downside.\n" +
-      "3. Range Bound: sideways/range-bound stock categories.\n" +
-      "4. Intraday Index Option Spreads: Bull Call and Bear Put spread engines.\n" +
-      "5. Intraday Stock Signals: live upside/downside trend tracking.\n\n" +
-      "Use the AI Agent to understand signals, but take trades only with your own risk rules."
-    );
-  }
-
   return (
-    "I can help with Lightnin Bull categories, regime signals, intraday stock signals, and option-spread explanations.\n\n" +
+    "I can help with Lightnin Bull dashboard knowledge, categories, regime signals, intraday stock signals, and option-spread explanations.\n\n" +
     "Try asking:\n" +
+    "- Explain the alpha engine\n" +
+    "- Explain the risk engine\n" +
+    "- What is the rebalancing rule?\n" +
     "- Show Regime Upside stocks\n" +
     "- Show live Upside Trend Stocks\n" +
-    "- Explain Bull Call Spread\n" +
     "- How to use the Lightnin Bull dashboard"
   );
 }
@@ -387,7 +411,7 @@ const FloatingAIAgent: React.FC = () => {
                   fontSize: 12,
                 }}
               >
-                AI is reading Lightnin Bull data…
+                AI is reading Lightnin Bull knowledge…
               </div>
             )}
           </div>
@@ -409,7 +433,7 @@ const FloatingAIAgent: React.FC = () => {
                   sendMessage();
                 }
               }}
-              placeholder="Ask about stocks, signals, or strategies..."
+              placeholder="Ask about dashboard, alpha, risk, or signals..."
               style={{
                 flex: 1,
                 minWidth: 0,
