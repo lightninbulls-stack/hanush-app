@@ -401,13 +401,36 @@ const PerformanceComparisonChart: React.FC<PerformanceComparisonChartProps> = ({
   );
 };
 
+const AI_STRATEGY_KEY = "lightninbull:pending-strategy";
+const AI_STRATEGY_EVENT = "lightninbull:select-strategy";
+
 const PortfolioBacktestPanel: React.FC = () => {
-  const [strategyType, setStrategyType] =
-    useState<StrategyType>("equal_weight");
+  const [strategyType, setStrategyType] = useState<StrategyType>(() => {
+    // If the AI agent pre-selected a strategy, use it immediately on mount
+    const pending = localStorage.getItem(AI_STRATEGY_KEY) as StrategyType | null;
+    if (pending && (["equal_weight", "mvo", "mvo_short"] as string[]).includes(pending)) {
+      localStorage.removeItem(AI_STRATEGY_KEY);
+      return pending;
+    }
+    return "equal_weight";
+  });
   const [data, setData] = useState<PortfolioBacktestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retailCapital, setRetailCapital] = useState(DEFAULT_RETAIL_CAPITAL);
+
+  // Listen for AI agent strategy selection when panel is already mounted
+  useEffect(() => {
+    const handle = (e: Event) => {
+      const strategy = (e as CustomEvent<{ strategy: StrategyType }>).detail?.strategy;
+      if (strategy && (["equal_weight", "mvo", "mvo_short"] as string[]).includes(strategy)) {
+        localStorage.removeItem(AI_STRATEGY_KEY);
+        setStrategyType(strategy);
+      }
+    };
+    window.addEventListener(AI_STRATEGY_EVENT, handle);
+    return () => window.removeEventListener(AI_STRATEGY_EVENT, handle);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

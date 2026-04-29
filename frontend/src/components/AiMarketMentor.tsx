@@ -800,14 +800,24 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       // ── Pending: user is choosing Equal Weight or MVO ─────────────────────
       if (pending?.type === "awaiting_strategy") {
         const lower = trimmed.toLowerCase();
+        const dispatchStrategy = (strategy: "equal_weight" | "mvo" | "mvo_short") => {
+          localStorage.setItem("lightninbull:pending-strategy", strategy);
+          setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent("lightninbull:select-strategy", { detail: { strategy } })
+            );
+          }, 800);
+        };
+
         if (/\bmvo\b|\bmean.varian|\boptimiz/.test(lower)) {
           setPending(null);
-          pushMsg("assistant", 'Perfect! Opening Portfolio Backtest — select "MVO Weights" to run the optimization.');
-          setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+          pushMsg("assistant", "Running MVO optimization on your watchlist — opening Portfolio Backtest now…");
+          dispatchStrategy("mvo");
         } else if (/\bequal.weight\b|\bequal\b|\bsimple\b/.test(lower)) {
           setPending(null);
-          pushMsg("assistant", 'Perfect! Opening Portfolio Backtest — select "Equal Weight" to run the backtest.');
-          setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+          pushMsg("assistant", "Running Equal Weight backtest on your watchlist — opening Portfolio Backtest now…");
+          dispatchStrategy("equal_weight");
         } else {
           pushMsg(
             "assistant",
@@ -889,10 +899,26 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
             break;
           }
 
-          case "navigate":
-            pushMsg("assistant", `Opening "${intent.tab}"…`);
-            setTimeout(() => onNavigate(intent.tab), 400);
+          case "navigate": {
+            const tab = intent.tab;
+            if (tab === "Portfolio Backtest") {
+              const lower = trimmed.toLowerCase();
+              const strategy =
+                /\bmvo.short\b|\bshort\b/.test(lower) ? "mvo_short" :
+                /\bmvo\b|\boptimiz|\bmean.varian/.test(lower) ? "mvo" :
+                /\bequal.weight\b|\bequal\b/.test(lower) ? "equal_weight" :
+                null;
+              if (strategy) {
+                localStorage.setItem("lightninbull:pending-strategy", strategy);
+                window.dispatchEvent(
+                  new CustomEvent("lightninbull:select-strategy", { detail: { strategy } })
+                );
+              }
+            }
+            pushMsg("assistant", `Opening "${tab}"…`);
+            setTimeout(() => onNavigate(tab), 400);
             break;
+          }
 
           case "explain_mvo":
             pushMsg("assistant", MVO_EXPLANATION);
