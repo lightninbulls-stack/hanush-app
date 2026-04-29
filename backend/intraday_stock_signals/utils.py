@@ -16,6 +16,16 @@ from .config import (
 )
 
 
+class ISTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, IST)
+
+        if datefmt:
+            return dt.strftime(datefmt)
+
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def setup_logger(logger_name: str, log_file_name: str) -> logging.Logger:
     logger = logging.getLogger(logger_name)
 
@@ -23,9 +33,16 @@ def setup_logger(logger_name: str, log_file_name: str) -> logging.Logger:
         return logger
 
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
 
-    file_handler = logging.FileHandler(log_file_name, mode="a", encoding="utf-8")
+    formatter = ISTFormatter(
+        "%(asctime)s | %(levelname)s | %(message)s"
+    )
+
+    file_handler = logging.FileHandler(
+        log_file_name,
+        mode="a",
+        encoding="utf-8",
+    )
     file_handler.setFormatter(formatter)
 
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -34,6 +51,7 @@ def setup_logger(logger_name: str, log_file_name: str) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
     logger.propagate = False
+
     return logger
 
 
@@ -42,7 +60,9 @@ def build_log_and_print(logger: logging.Logger):
         stamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
         line = f"[{stamp}] {msg}"
         print(line)
-        getattr(logger, level if level in {"info", "warning", "error", "debug"} else "info")(line)
+
+        safe_level = level if level in {"info", "warning", "error", "debug"} else "info"
+        getattr(logger, safe_level)(line)
 
     return log_and_print
 
@@ -51,20 +71,25 @@ def current_ist() -> datetime:
     return datetime.now(IST)
 
 
-def get_market_open_close_ist(ref: Optional[datetime] = None) -> tuple[datetime, datetime]:
+def get_market_open_close_ist(
+    ref: Optional[datetime] = None,
+) -> tuple[datetime, datetime]:
     now_ist = ref or current_ist()
+
     market_open = now_ist.replace(
         hour=MARKET_OPEN_HOUR,
         minute=MARKET_OPEN_MINUTE,
         second=0,
         microsecond=0,
     )
+
     market_close = now_ist.replace(
         hour=MARKET_CLOSE_HOUR,
         minute=MARKET_CLOSE_MINUTE,
         second=0,
         microsecond=0,
     )
+
     return market_open, market_close
 
 
@@ -105,6 +130,7 @@ def wait_until_market_open(publish_wait_state) -> None:
                 progress_text=f"Start in {remaining} seconds",
                 is_loading=True,
             )
+
         time.sleep(2)
 
 
