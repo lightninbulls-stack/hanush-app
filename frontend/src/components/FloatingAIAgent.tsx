@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { findKnowledgeAnswer, getKnowledgeOverview } from "./aiKnowledge";
+import {
+  addWatchlistSymbols,
+  clearWatchlistSymbols,
+  fetchWatchlistSymbols,
+  removeWatchlistSymbols,
+} from "../services/watchlistApi";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -48,8 +54,6 @@ type IntradaySpread = {
   status?: string;
   ui_state?: string;
   message?: string;
-  progress_text?: string | null;
-  is_loading?: boolean;
   net_pnl?: number;
   stop_loss?: number;
   target?: number;
@@ -58,14 +62,33 @@ type IntradaySpread = {
   entry_time?: string | null;
   legs?: SpreadLeg[];
   signals?: any[];
+  entered_count?: number;
+  total_count?: number;
 };
 
 type IntradaySpreadMap = Record<string, IntradaySpread>;
 
+const FACTOR_CATEGORIES = [
+  "Consistent Trending",
+  "Slow Movement",
+  "Cheap Value",
+  "Best Quality",
+];
+
+const ALL_STOCK_BUCKETS = [
+  ...FACTOR_CATEGORIES,
+  "Regime Upside",
+  "Regime Downside",
+  "Range Bound Upside",
+  "Range Bound Downside",
+  "Aggressive Call Option Stocks",
+  "Aggressive Put Option Stocks",
+];
+
 const WELCOME_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
-    "Hi, I am your Lightnin Bull AI Agent. Ask me about the dashboard workflow, alpha engine, risk engine, Regime Upside, intraday signals, option spreads, or rebalancing rules.",
+    "Hi, I am your Lightnin Bull AI Agent. Ask me about dashboard workflow, alpha engine, risk engine, Regime Upside, option spreads, or say: add top 5 factor stocks to my watchlist.",
 };
 
 function getAuthToken(): string | null {
@@ -83,53 +106,40 @@ function formatMoney(value: unknown): string {
   return parsed === null ? "--" : parsed.toFixed(2);
 }
 
-function strategyExplanation(message: string): string | null {
-  if (message.includes("bull call")) {
-    return (
-      "Bull Call Spread\n\n" +
-      "Lightnin Bull uses Bull Call Spreads when the index has upside confirmation. " +
-      "The structure buys a lower-strike call and sells a higher-strike call, so max loss and max profit are both predefined. " +
-      "It is a controlled-risk bullish strategy, not a guaranteed profit trade."
-    );
+function normalizeSymbol(symbol: unknown): string {
+  return String(symbol || "").trim().toUpperCase();
+}
+
+function extractTopCount(message: string): number {
+  const digitMatch = message.match(/top\s+(\d+)/i);
+  if (digitMatch?.[1]) {
+    return Math.max(1, Math.min(Number(digitMatch[1]), 50));
   }
 
-  if (message.includes("bear put")) {
-    return (
-      "Bear Put Spread\n\n" +
-      "Bear Put Spread is a bearish debit spread. It buys a higher-strike put and sells a lower-strike put. " +
-      "It is useful when downside confirmation is present and you want capped downside-risk exposure."
-    );
+  const wordMap: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+  };
+
+  for (const [word, value] of Object.entries(wordMap)) {
+    if (message.includes(`top ${word}`)) return value;
   }
 
-  if (message.includes("short straddle") || message.includes("straddle")) {
-    return (
-      "Short Straddle\n\n" +
-      "Short Straddle sells ATM CE and ATM PE together. It benefits from theta decay and range-bound movement, " +
-      "but risk increases sharply if the market trends strongly. Use strict stop-loss and position sizing."
-    );
-  }
-
-  if (message.includes("covered call")) {
-    return (
-      "Covered Call\n\n" +
-      "Covered Call holds the underlying or index-equivalent exposure and sells a call against it. " +
-      "It can generate option income in sideways or moderately bullish regimes, but upside becomes capped above the sold-call strike."
-    );
-  }
-
-  return null;
+  return 5;
 }
 
 function pickCategory(message: string): string | null {
-  if (message.includes("regime upside") || message.includes("upside stocks") || message.includes("momentum stocks")) {
-    return "Regime Upside";
-  }
-  if (message.includes("regime downside") || message.includes("downside stocks")) {
-    return "Regime Downside";
-  }
-  if (message.includes("consistent trending") || message.includes("trending stocks")) {
-    return "Consistent Trending";
-  }
+  if (message.includes("regime upside") || message.includes("upside stocks") || message.includes("momentum stocks")) return "Regime Upside";
+  if (message.includes("regime downside") || message.includes("downside stocks")) return "Regime Downside";
+  if (message.includes("consistent trending") || message.includes("trending stocks")) return "Consistent Trending";
   if (message.includes("slow movement")) return "Slow Movement";
   if (message.includes("cheap value") || message.includes("value stocks")) return "Cheap Value";
   if (message.includes("best quality") || message.includes("quality stocks")) return "Best Quality";
@@ -140,34 +150,160 @@ function pickCategory(message: string): string | null {
   return null;
 }
 
+function pickWatchlistCategories(message: string): string[] {
+  const categories = new Set<string>();
+
+  if (message.includes("factor") || message.includes("factors")) {
+    FACTOR_CATEGORIES.forEach((category) => categories.add(category));
+  }
+
+  if (message.includes("all bucket") || message.includes("all stock bucket") || message.includes("all categories")) {
+    ALL_STOCK_BUCKETS.forEach((category) => categories.add(category));
+  }
+
+  for (const category of ALL_STOCK_BUCKETS) {
+    if (message.includes(category.toLowerCase())) {
+      categories.add(category);
+    }
+  }
+
+  const singleCategory = pickCategory(message);
+  if (singleCategory) categories.add(singleCategory);
+
+  return Array.from(categories);
+}
+
+async function fetchStocksByCategoryForAI(category: string): Promise<StockRow[]> {
+  const response = await fetch(`${API_BASE_URL}/stocks/${encodeURIComponent(category)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${category}: ${response.status}`);
+  }
+
+  const data = (await response.json()) as StockCategoryResponse;
+  return Array.isArray(data?.stocks) ? data.stocks : [];
+}
+
+async function fetchTopSymbolsFromCategories(categories: string[], topN: number) {
+  const rows = await Promise.all(
+    categories.map(async (category) => {
+      const stocks = await fetchStocksByCategoryForAI(category);
+      const symbols = stocks
+        .slice(0, topN)
+        .map((stock) => normalizeSymbol(stock.symbol || stock.ticker))
+        .filter(Boolean);
+      return { category, symbols };
+    })
+  );
+
+  const allSymbols = Array.from(new Set(rows.flatMap((row) => row.symbols)));
+  return { rows, allSymbols };
+}
+
+function extractManualSymbols(question: string): string[] {
+  const cleaned = question
+    .replace(/add|remove|delete|from|to|my|the|watchlist|stock|stocks|symbol|symbols|please|top|five|four|three|two|one|ten|\d+/gi, " ")
+    .replace(/[^a-zA-Z0-9\s]/g, " ");
+
+  return Array.from(
+    new Set(
+      cleaned
+        .split(/\s+/)
+        .map((item) => normalizeSymbol(item))
+        .filter((item) => item.length >= 2 && item.length <= 15)
+    )
+  );
+}
+
+async function answerFromWatchlistAction(question: string): Promise<string | null> {
+  const message = question.toLowerCase().trim();
+  const isAdd = message.includes("add") && message.includes("watchlist");
+  const isRemove = (message.includes("remove") || message.includes("delete")) && message.includes("watchlist");
+  const isClear = (message.includes("clear") || message.includes("empty")) && message.includes("watchlist");
+
+  if (!isAdd && !isRemove && !isClear) return null;
+
+  if (isClear) {
+    await clearWatchlistSymbols();
+    return "Done. I cleared your watchlist.";
+  }
+
+  const topN = extractTopCount(message);
+  const categories = pickWatchlistCategories(message);
+
+  if (categories.length > 0) {
+    const { rows, allSymbols } = await fetchTopSymbolsFromCategories(categories, topN);
+
+    if (allSymbols.length === 0) {
+      return `I found the requested buckets, but there were no stocks available to ${isAdd ? "add" : "remove"}.`;
+    }
+
+    const before = await fetchWatchlistSymbols();
+    const after = isAdd
+      ? await addWatchlistSymbols(allSymbols)
+      : await removeWatchlistSymbols(allSymbols);
+
+    const beforeSet = new Set(before.map(normalizeSymbol));
+    const afterSet = new Set(after.map(normalizeSymbol));
+
+    const changedSymbols = isAdd
+      ? allSymbols.filter((symbol) => !beforeSet.has(symbol))
+      : allSymbols.filter((symbol) => !afterSet.has(symbol));
+
+    const lines = [
+      isAdd
+        ? `Done. I added ${changedSymbols.length} new stock(s) to your watchlist.`
+        : `Done. I removed ${changedSymbols.length} stock(s) from your watchlist.`,
+      "",
+      `Requested top ${topN} from: ${categories.join(", ")}`,
+      "",
+      "Bucket-wise symbols:",
+    ];
+
+    rows.forEach((row) => {
+      lines.push(`- ${row.category}: ${row.symbols.join(", ") || "No stocks"}`);
+    });
+
+    lines.push("", `Current watchlist count: ${after.length}`);
+    return lines.join("\n");
+  }
+
+  const manualSymbols = extractManualSymbols(question);
+  if (manualSymbols.length === 0) {
+    return "I understood the watchlist action, but I could not identify the stocks or buckets. Try: add top 5 Regime Upside stocks to my watchlist.";
+  }
+
+  const before = await fetchWatchlistSymbols();
+  const after = isAdd
+    ? await addWatchlistSymbols(manualSymbols)
+    : await removeWatchlistSymbols(manualSymbols);
+
+  return [
+    isAdd
+      ? `Done. I added these symbols to your watchlist: ${manualSymbols.join(", ")}`
+      : `Done. I removed these symbols from your watchlist: ${manualSymbols.join(", ")}`,
+    `Before count: ${before.length}`,
+    `Current watchlist count: ${after.length}`,
+  ].join("\n");
+}
+
 async function fetchAllIntradaySpreads(): Promise<IntradaySpreadMap> {
   const response = await fetch(`${API_BASE_URL}/api/intraday-spreads/all`, {
     method: "GET",
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch intraday spread data: ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`Failed to fetch intraday spread data: ${response.status}`);
   const json = await response.json();
   return (json?.data || {}) as IntradaySpreadMap;
 }
 
-function pickSpreadPayload(
-  allSpreads: IntradaySpreadMap,
-  keys: string[],
-  spreadType: string
-): IntradaySpread | null {
-  for (const key of keys) {
-    if (allSpreads[key]) return allSpreads[key];
-  }
-
-  const fallback = Object.values(allSpreads).find(
-    (spread) => String(spread?.spread_type || "").toLowerCase() === spreadType.toLowerCase()
-  );
-
-  return fallback || null;
+function pickSpreadPayload(allSpreads: IntradaySpreadMap, keys: string[], spreadType: string): IntradaySpread | null {
+  for (const key of keys) if (allSpreads[key]) return allSpreads[key];
+  return Object.values(allSpreads).find((spread) => String(spread?.spread_type || "").toLowerCase() === spreadType.toLowerCase()) || null;
 }
 
 function formatLegLine(leg: SpreadLeg, index: number): string {
@@ -185,17 +321,35 @@ function formatLegLine(leg: SpreadLeg, index: number): string {
   return `- ${side} ${symbol} | ${right} ${strike} | Expiry: ${expiry} | Qty: ${qty} | Entry: ${entry} | LTP: ${ltp} | P&L: ${pnl} | Status: ${status}`;
 }
 
-function buildSpreadExplanation(
-  label: string,
-  payload: IntradaySpread | null,
-  conceptText: string
-): string {
-  if (!payload) {
-    return (
-      `${label}\n\n` +
-      `${conceptText}\n\n` +
-      `No live ${label} payload is available right now. The strategy may be waiting for a signal, booting, or market data may be inactive.`
+async function answerFromOptionSpread(message: string): Promise<string | null> {
+  const wantsBullCall = message.includes("bull call") || message.includes("call spread") || message.includes("bullish spread");
+  const wantsBearPut = message.includes("bear put") || message.includes("put spread") || message.includes("bearish spread");
+  const asksLive = ["live", "current", "legs", "strike", "pnl", "p&l", "ltp", "stop loss", "target", "status", "explain"].some((word) => message.includes(word));
+
+  if ((!wantsBullCall && !wantsBearPut) || !asksLive) return null;
+
+  const allSpreads = await fetchAllIntradaySpreads();
+
+  if (wantsBullCall) {
+    const payload = pickSpreadPayload(allSpreads, ["ALPHA_BULL_PAPER", "ALPHA_BULL_SENSEX_PAPER", "SENSEX_ALPHA_BULL_PAPER"], "bull_call");
+    return buildSpreadExplanation(
+      "Bull Call Spread",
+      payload,
+      "A Bull Call Spread is a controlled-risk bullish option strategy. Lightnin Bull buys a lower-strike call and sells a higher-strike call, so both risk and reward are capped."
     );
+  }
+
+  const payload = pickSpreadPayload(allSpreads, ["ALPHA_BEAR_PAPER", "ALPHA_BEAR_SENSEX_PAPER", "SENSEX_ALPHA_BEAR_PAPER"], "put_debit");
+  return buildSpreadExplanation(
+    "Bear Put Spread",
+    payload,
+    "A Bear Put Spread is a controlled-risk bearish option strategy. Lightnin Bull buys a higher-strike put and sells a lower-strike put, so downside exposure is capped and structured."
+  );
+}
+
+function buildSpreadExplanation(label: string, payload: IntradaySpread | null, conceptText: string): string {
+  if (!payload) {
+    return `${label}\n\n${conceptText}\n\nNo live ${label} payload is available right now. The strategy may be waiting for a signal, booting, or market data may be inactive.`;
   }
 
   const legs = Array.isArray(payload.legs) ? payload.legs.filter(Boolean) : [];
@@ -222,98 +376,28 @@ function buildSpreadExplanation(
     lines.push("", "No live legs are available yet. This usually means the strategy has not entered a spread position yet.");
   }
 
-  lines.push(
-    "",
-    "Interpretation: use this as live strategy monitoring, not a guaranteed trade recommendation. Watch entry, LTP, net P&L, stop loss, and target together."
-  );
-
+  lines.push("", "Interpretation: use this as live strategy monitoring, not a guaranteed trade recommendation. Watch entry, LTP, net P&L, stop loss, and target together.");
   return lines.join("\n");
 }
 
-async function answerFromOptionSpread(message: string): Promise<string | null> {
-  const wantsBullCall = message.includes("bull call") || message.includes("call spread") || message.includes("bullish spread");
-  const wantsBearPut = message.includes("bear put") || message.includes("put spread") || message.includes("bearish spread");
-  const asksLive =
-    message.includes("live") ||
-    message.includes("current") ||
-    message.includes("legs") ||
-    message.includes("strike") ||
-    message.includes("pnl") ||
-    message.includes("p&l") ||
-    message.includes("ltp") ||
-    message.includes("stop loss") ||
-    message.includes("target") ||
-    message.includes("status") ||
-    message.includes("explain");
-
-  if ((!wantsBullCall && !wantsBearPut) || !asksLive) return null;
-
-  const allSpreads = await fetchAllIntradaySpreads();
-
-  if (wantsBullCall) {
-    const payload = pickSpreadPayload(
-      allSpreads,
-      ["ALPHA_BULL_PAPER", "ALPHA_BULL_SENSEX_PAPER", "SENSEX_ALPHA_BULL_PAPER"],
-      "bull_call"
-    );
-
-    return buildSpreadExplanation(
-      "Bull Call Spread",
-      payload,
-      "A Bull Call Spread is a controlled-risk bullish option strategy. Lightnin Bull buys a lower-strike call and sells a higher-strike call, so both risk and reward are capped."
-    );
-  }
-
-  const payload = pickSpreadPayload(
-    allSpreads,
-    ["ALPHA_BEAR_PAPER", "ALPHA_BEAR_SENSEX_PAPER", "SENSEX_ALPHA_BEAR_PAPER"],
-    "put_debit"
-  );
-
-  return buildSpreadExplanation(
-    "Bear Put Spread",
-    payload,
-    "A Bear Put Spread is a controlled-risk bearish option strategy. Lightnin Bull buys a higher-strike put and sells a lower-strike put, so downside exposure is capped and structured."
-  );
-}
-
 async function answerFromStocks(category: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/stocks/${encodeURIComponent(category)}`, {
-    method: "GET",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${category}: ${response.status}`);
-  }
-
-  const data = (await response.json()) as StockCategoryResponse;
-  const stocks = Array.isArray(data?.stocks) ? data.stocks.slice(0, 8) : [];
-
+  const stocks = (await fetchStocksByCategoryForAI(category)).slice(0, 8);
   const knowledge = findKnowledgeAnswer(category) || "";
 
   if (stocks.length === 0) {
-    return `${knowledge ? `${knowledge}\n\n` : ""}No ${category} stocks are available right now. Please refresh the dashboard after the backend data updates.`;
+    return `${knowledge ? `${knowledge}\n\n` : ""}No ${category} stocks are available right now. Please refresh the dashboard after backend data updates.`;
   }
 
   const lines = [`Current ${category} stocks from Lightnin Bull:`];
   stocks.forEach((stock, index) => {
-    const symbol = String(stock.symbol || stock.ticker || "UNKNOWN").toUpperCase();
+    const symbol = normalizeSymbol(stock.symbol || stock.ticker);
     const sector = stock.sector || "N/A";
     const score = safeNumber(stock.score ?? stock.strength);
-    lines.push(
-      `${index + 1}. ${symbol} | Sector: ${sector}${score !== null ? ` | Score: ${score.toFixed(2)}` : ""}`
-    );
+    lines.push(`${index + 1}. ${symbol} | Sector: ${sector}${score !== null ? ` | Score: ${score.toFixed(2)}` : ""}`);
   });
 
-  lines.push("");
-  lines.push("This is a signal dashboard output, not a guaranteed buy/sell recommendation. Use risk management before trading.");
-
-  if (knowledge) {
-    return `${knowledge}\n\n${lines.join("\n")}`;
-  }
-
-  return lines.join("\n");
+  lines.push("", "This is a signal dashboard output, not a guaranteed buy/sell recommendation. Use risk management before trading.");
+  return knowledge ? `${knowledge}\n\n${lines.join("\n")}` : lines.join("\n");
 }
 
 async function answerFromIntraday(message: string): Promise<string | null> {
@@ -322,9 +406,7 @@ async function answerFromIntraday(message: string): Promise<string | null> {
 
   if (!wantsUpside && !wantsDownside) return null;
 
-  const strategyKey = wantsUpside
-    ? "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL"
-    : "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
+  const strategyKey = wantsUpside ? "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL" : "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL";
   const label = wantsUpside ? "Upside Trend Stocks" : "Downside Trend Stocks";
 
   const allSpreads = await fetchAllIntradaySpreads();
@@ -348,39 +430,45 @@ async function answerFromIntraday(message: string): Promise<string | null> {
   if (rows.length > 0) {
     lines.push("", "Latest rows:");
     rows.forEach((row: any) => {
-      const symbol = String(row.symbol || "UNKNOWN").toUpperCase();
+      const symbol = normalizeSymbol(row.symbol);
       const status = row.signal_status || "WAITING";
       const entry = safeNumber(row.entry_price ?? row.avg_price);
       const ltp = safeNumber(row.current_ltp);
       const maxLtp = safeNumber(row.max_ltp ?? row.favorable_price);
-      lines.push(
-        `- ${symbol} | ${status}${entry !== null ? ` | Entry: ${entry.toFixed(2)}` : ""}${ltp !== null ? ` | LTP: ${ltp.toFixed(2)}` : ""}${maxLtp !== null ? ` | Max: ${maxLtp.toFixed(2)}` : ""}`
-      );
+      lines.push(`- ${symbol} | ${status}${entry !== null ? ` | Entry: ${entry.toFixed(2)}` : ""}${ltp !== null ? ` | LTP: ${ltp.toFixed(2)}` : ""}${maxLtp !== null ? ` | Max: ${maxLtp.toFixed(2)}` : ""}`);
     });
   } else {
     lines.push("No stock-level signal rows are available yet.");
   }
 
-  if (knowledge) {
-    return `${knowledge}\n\n${lines.join("\n")}`;
-  }
+  return knowledge ? `${knowledge}\n\n${lines.join("\n")}` : lines.join("\n");
+}
 
-  return lines.join("\n");
+function strategyExplanation(message: string): string | null {
+  if (message.includes("bull call")) {
+    return "Bull Call Spread\n\nLightnin Bull uses Bull Call Spreads when the index has upside confirmation. It buys a lower-strike call and sells a higher-strike call, so max loss and max profit are both predefined. It is a controlled-risk bullish strategy, not a guaranteed profit trade.";
+  }
+  if (message.includes("bear put")) {
+    return "Bear Put Spread\n\nBear Put Spread is a bearish debit spread. It buys a higher-strike put and sells a lower-strike put. It is useful when downside confirmation is present and you want capped downside-risk exposure.";
+  }
+  if (message.includes("short straddle") || message.includes("straddle")) {
+    return "Short Straddle\n\nShort Straddle sells ATM CE and ATM PE together. It benefits from theta decay and range-bound movement, but risk increases sharply if the market trends strongly. Use strict stop-loss and position sizing.";
+  }
+  if (message.includes("covered call")) {
+    return "Covered Call\n\nCovered Call holds the underlying or index-equivalent exposure and sells a call against it. It can generate option income in sideways or moderately bullish regimes, but upside becomes capped above the sold-call strike.";
+  }
+  return null;
 }
 
 async function buildAnswer(question: string): Promise<string> {
   const message = question.toLowerCase().trim();
 
-  if (!message) {
-    return getKnowledgeOverview();
-  }
+  if (!message) return getKnowledgeOverview();
 
-  if (
-    message.includes("what can you explain") ||
-    message.includes("knowledge") ||
-    message.includes("help me") ||
-    message === "help"
-  ) {
+  const watchlistAnswer = await answerFromWatchlistAction(question);
+  if (watchlistAnswer) return watchlistAnswer;
+
+  if (message.includes("what can you explain") || message.includes("knowledge") || message.includes("help me") || message === "help") {
     return getKnowledgeOverview();
   }
 
@@ -400,23 +488,18 @@ async function buildAnswer(question: string): Promise<string> {
   if (knowledgeAnswer) return knowledgeAnswer;
 
   if (message.includes("payment") || message.includes("subscription") || message.includes("premium")) {
-    return (
-      "Premium unlocks the full stock list, intraday option spreads, and intraday stock signals. " +
-      "For exact payment validity, open the Pricing/Profile section because subscription status is checked from your account API."
-    );
+    return "Premium unlocks the full stock list, intraday option spreads, and intraday stock signals. For exact payment validity, open the Pricing/Profile section because subscription status is checked from your account API.";
   }
 
   return (
-    "I can help with Lightnin Bull dashboard knowledge, categories, regime signals, intraday stock signals, and option-spread explanations.\n\n" +
+    "I can help with Lightnin Bull dashboard knowledge, categories, live spreads, intraday signals, and watchlist actions.\n\n" +
     "Try asking:\n" +
-    "- Explain the alpha engine\n" +
-    "- Explain the risk engine\n" +
-    "- What is the rebalancing rule?\n" +
-    "- Show Regime Upside stocks\n" +
+    "- Add top 5 stocks from each factor bucket to my watchlist\n" +
+    "- Add top 5 Regime Upside stocks to my watchlist\n" +
+    "- Remove top 5 Regime Downside stocks from my watchlist\n" +
+    "- Clear my watchlist\n" +
     "- Show live Bull Call Spread\n" +
-    "- Show live Bear Put Spread\n" +
-    "- Show live Upside Trend Stocks\n" +
-    "- How to use the Lightnin Bull dashboard"
+    "- Explain the alpha engine"
   );
 }
 
@@ -435,11 +518,7 @@ const FloatingAIAgent: React.FC = () => {
     const question = input.trim();
     if (!question || loading) return;
 
-    const nextMessages: ChatMessage[] = [
-      ...messages,
-      { role: "user", content: question },
-    ];
-
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: question }];
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
@@ -449,14 +528,7 @@ const FloatingAIAgent: React.FC = () => {
       setMessages([...nextMessages, { role: "assistant", content: answer }]);
     } catch (error) {
       console.error(error);
-      setMessages([
-        ...nextMessages,
-        {
-          role: "assistant",
-          content:
-            "AI Agent could not read live Lightnin Bull data right now. Please check backend deployment and try again.",
-        },
-      ]);
+      setMessages([...nextMessages, { role: "assistant", content: "AI Agent could not complete this action right now. Please check backend deployment and try again." }]);
     } finally {
       setLoading(false);
     }
@@ -506,13 +578,7 @@ const FloatingAIAgent: React.FC = () => {
               >
                 AI Market Mentor
               </div>
-              <div
-                style={{
-                  fontFamily: "var(--font-serif, serif)",
-                  fontSize: 22,
-                  color: "#f7f0df",
-                }}
-              >
+              <div style={{ fontFamily: "var(--font-serif, serif)", fontSize: 22, color: "#f7f0df" }}>
                 Lightnin Bull AI Agent
               </div>
             </div>
@@ -535,16 +601,7 @@ const FloatingAIAgent: React.FC = () => {
             </button>
           </div>
 
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
-          >
+          <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
             {messages.map((message, index) => {
               const isUser = message.role === "user";
               return (
@@ -559,13 +616,9 @@ const FloatingAIAgent: React.FC = () => {
                     lineHeight: 1.5,
                     fontSize: 13,
                     fontFamily: "Inter, system-ui, sans-serif",
-                    background: isUser
-                      ? "linear-gradient(135deg, #e2b84b, #f59e0b)"
-                      : "rgba(255,255,255,0.055)",
+                    background: isUser ? "linear-gradient(135deg, #e2b84b, #f59e0b)" : "rgba(255,255,255,0.055)",
                     color: isUser ? "#050505" : "rgba(255,255,255,0.86)",
-                    border: isUser
-                      ? "1px solid rgba(226,184,75,0.8)"
-                      : "1px solid rgba(255,255,255,0.08)",
+                    border: isUser ? "1px solid rgba(226,184,75,0.8)" : "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
                   {message.content}
@@ -574,26 +627,13 @@ const FloatingAIAgent: React.FC = () => {
             })}
 
             {loading && (
-              <div
-                style={{
-                  color: "#e2b84b",
-                  fontFamily: "var(--font-mono, monospace)",
-                  fontSize: 12,
-                }}
-              >
-                AI is reading Lightnin Bull live data…
+              <div style={{ color: "#e2b84b", fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}>
+                AI is updating Lightnin Bull data…
               </div>
             )}
           </div>
 
-          <div
-            style={{
-              padding: 14,
-              borderTop: "1px solid rgba(226,184,75,0.16)",
-              display: "flex",
-              gap: 8,
-            }}
-          >
+          <div style={{ padding: 14, borderTop: "1px solid rgba(226,184,75,0.16)", display: "flex", gap: 8 }}>
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -603,7 +643,7 @@ const FloatingAIAgent: React.FC = () => {
                   sendMessage();
                 }
               }}
-              placeholder="Ask about dashboard, spreads, alpha, risk, or signals..."
+              placeholder="Ask AI to explain or update watchlist..."
               style={{
                 flex: 1,
                 minWidth: 0,
