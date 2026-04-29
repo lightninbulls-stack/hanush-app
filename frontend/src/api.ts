@@ -267,6 +267,11 @@ export function getCachedStocksByCategory(
     return null;
   }
 
+  if (category === NSE_TOP_200_FO_CATEGORY) {
+    window.localStorage.removeItem(getCacheKey(category));
+    return null;
+  }
+
   if (getFrontendCsvUrl(category)) {
     return null;
   }
@@ -295,6 +300,11 @@ function setCachedStocksByCategory(
   data: StockCategoryResponse
 ): void {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (category === NSE_TOP_200_FO_CATEGORY) {
+    window.localStorage.removeItem(getCacheKey(category));
     return;
   }
 
@@ -354,21 +364,26 @@ export async function fetchStocksByCategory(
     return normalizeCsvResponse(category, csvText);
   }
 
+  if (category === NSE_TOP_200_FO_CATEGORY) {
+    window.localStorage.removeItem(getCacheKey(category));
+    const response = await axios.get(
+      `${API_BASE_URL}/portfolio/universe/nse-top-200-fo?t=${Date.now()}`,
+      {
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      }
+    );
+
+    return normalizeResponse(response.data, category);
+  }
+
   if (!forceRefresh) {
     const cached = getCachedStocksByCategory(category);
     if (cached) {
       return cached;
     }
-  }
-
-  if (category === NSE_TOP_200_FO_CATEGORY) {
-    const response = await axios.get(
-      `${API_BASE_URL}/portfolio/universe/nse-top-200-fo`
-    );
-
-    const normalized = normalizeResponse(response.data, category);
-    setCachedStocksByCategory(category, normalized);
-    return normalized;
   }
 
   const response = await axios.get(
