@@ -197,128 +197,425 @@ function looksLikeTicker(symbol: string): boolean {
   return true;
 }
 
+// ─── Knowledge Base ───────────────────────────────────────────────────────────
+
+// Metric keyword → explanation (sourced directly from PortfolioBacktestPanel metricDefinitions)
+const METRIC_KNOWLEDGE: Record<string, string> = {
+  cagr: `CAGR stands for Compound Annual Growth Rate — your portfolio's yearly growth speed.
+
+Example: 20% CAGR means ₹1,00,000 grows to roughly ₹1,20,000 in one year, ₹1,44,000 in two years, ₹1,73,000 in three years — compounding each year.
+
+On LightninBull the backtest shows your watchlist CAGR vs NIFTY 50 CAGR so you can see whether your stock selection beat the market on a yearly basis.`,
+
+  "total return": `Total Return is the full profit or loss over the entire backtest period (last 1 year).
+
+Example: If you invested ₹1,00,000 and your portfolio is now ₹1,28,000, your total return is +28%.
+
+Unlike CAGR (which annualises), total return is the raw number — useful for comparing absolute gains.`,
+
+  sharpe: `Sharpe Ratio measures the quality of your returns relative to the risk you took.
+
+Formula: (Portfolio Return − Risk-Free Rate) ÷ Volatility
+
+Example:
+• Portfolio A: 20% return, 25% volatility → Sharpe ≈ 0.8
+• Portfolio B: 18% return, 12% volatility → Sharpe ≈ 1.5
+Portfolio B has a better Sharpe — you earned nearly as much but with far less risk.
+
+Industry standard: Sharpe > 1.0 is considered good. > 2.0 is excellent.
+Used by every hedge fund, mutual fund, and PMS globally to compare strategies.`,
+
+  "max drawdown": `Max Drawdown is the biggest fall from the portfolio's highest point during the backtest.
+
+Example: If your portfolio peak was ₹1,40,000 and it then dropped to ₹98,000, the Max Drawdown is −30%.
+
+Why it matters: A strategy might have great returns but if it fell 60% in between, most retail investors would have panicked and sold at the bottom. Smaller drawdown = more comfortable ride.
+
+LightninBull shows "DD Improvement" — how much less your portfolio fell compared to NIFTY 50.`,
+
+  drawdown: `See Max Drawdown — the biggest peak-to-trough fall in the portfolio during the backtest period.`,
+
+  volatility: `Volatility measures how much the portfolio's value moves up and down day to day.
+
+Example: 15% annualised volatility means the portfolio can swing ±15% from its average in a year.
+
+Lower volatility = smoother ride. Higher volatility = bigger swings both ways.
+The Slow Movement factor bucket specifically targets low-volatility stocks for this reason.`,
+
+  var: `VaR (Value at Risk) at 95% confidence estimates your worst normal-day loss.
+
+Example: 2% VaR means that on a typical bad day (not a crash), ₹1,00,000 may lose around ₹2,000.
+
+It does NOT cover black-swan events — those fall in the remaining 5% tail. Used by banks and fund managers to set daily risk limits.`,
+
+  alpha: `Alpha is the extra return your portfolio generated compared to NIFTY 50.
+
+Example: If your portfolio CAGR is 24% and NIFTY 50 CAGR is 14%, your Alpha is +10%.
+
+Positive alpha = your stock selection added value beyond what the market gave for free.
+This is the whole point of factor investing — generating consistent alpha through systematic stock selection.`,
+
+  "sharpe spread": `Sharpe Spread = Your Portfolio Sharpe minus NIFTY 50 Sharpe.
+
+A positive Sharpe Spread means your portfolio delivered better risk-adjusted returns than just buying NIFTY 50.
+Example: Portfolio Sharpe 1.8, NIFTY 50 Sharpe 0.9 → Sharpe Spread = +0.9 (excellent).`,
+
+  "1w return": `1W Return is your portfolio's performance over the last ~5 trading sessions (one week).
+Useful for tracking very recent momentum.`,
+
+  "2w return": `2W Return is your portfolio's performance over the last ~10 trading sessions (two weeks).
+Aligns with LightninBull's 2-week rebalancing cycle.`,
+
+  "1m return": `1M Return covers the last ~21 trading sessions (one month). Good for medium-term trend check.`,
+
+  "3m return": `3M Return covers the last ~63 trading sessions (three months). Shows momentum over a quarter.`,
+
+  "6m return": `6M Return covers the last ~126 trading sessions (six months). Core lookback for Consistent Trending and Slow Movement factors.`,
+};
+
+const MVO_EXPLANATION = `MVO — Mean-Variance Optimization — is the mathematical foundation of modern portfolio theory, developed by Harry Markowitz in 1952 (Nobel Prize in Economics).
+
+THE CORE IDEA
+Don't just pick stocks with high returns. Find the combination of weights that gives the maximum return for the minimum risk. Risk here means volatility (how much prices fluctuate).
+
+HOW IT WORKS ON LIGHTNINBULL
+1. Takes your watchlist stocks and their 1-year daily return history.
+2. Calculates expected return for each stock.
+3. Builds a covariance matrix — how each stock moves relative to every other stock.
+4. Runs an optimizer to find weights that maximize the Sharpe Ratio (return ÷ risk).
+5. Assigns higher weight to stocks that: (a) have strong returns AND (b) reduce total portfolio risk by moving differently from other stocks.
+
+SIMPLE EXAMPLE
+Say your watchlist has 3 stocks:
+• INFY: 22% return, 28% volatility
+• HDFC: 18% return, 16% volatility
+• TITAN: 26% return, 32% volatility
+
+Equal Weight gives each 33.3%.
+MVO might give: HDFC 45%, INFY 35%, TITAN 20% — because HDFC's lower volatility and low correlation with the others reduces total portfolio risk significantly, even though its individual return is lower.
+
+Result: slightly lower return than TITAN-heavy, but far smoother ride and higher Sharpe Ratio.
+
+WHO USES MVO IN REAL LIFE
+• BlackRock, Vanguard, Fidelity use MVO variants in index and smart-beta funds.
+• Every SEBI-regulated PMS (Portfolio Management Service) in India runs some form of MVO.
+• Pension funds (LIC, EPFO) use it to balance equity and debt allocations.
+• Hedge funds use it as the base layer before adding their own alpha signals.
+
+MVO SHORT (on LightninBull)
+Same math but inverted — finds weights for a short portfolio. Useful in Regime Downside phases when you want to benefit from falling prices. The optimizer identifies which stocks are likely to underperform and allocates negative weights to them.
+
+WHEN TO USE WHICH STRATEGY
+• Equal Weight → Simple, works well, good for beginners, no math bias.
+• MVO Weights → Better risk-adjusted returns when stocks in your watchlist have different volatilities.
+• MVO Short → For bearish market conditions (use with Regime Downside or Bear Put Spreads).`;
+
+const EQUAL_WEIGHT_EXPLANATION = `Equal Weight is the simplest portfolio construction method — divide your capital equally among all stocks.
+
+HOW IT WORKS
+If you have 5 stocks in your watchlist and ₹1,00,000 to invest:
+Each stock gets ₹20,000 (20% weight each).
+
+If you have 10 stocks: each gets 10%.
+
+EXAMPLE ON LIGHTNINBULL
+Watchlist: LUPIN, ICICIGI, MARICO, BHARTIARTL, APOLLOHOSP
+Equal Weight: 20% each → ₹20,000 in each stock.
+
+PROS
+• No complex math — easy to understand and execute.
+• Works surprisingly well — research shows equal-weight portfolios outperform cap-weighted indices over the long term.
+• Rebalancing is simple: just bring each back to equal after 2 weeks.
+
+CONS
+• Ignores volatility — a very volatile stock gets the same weight as a stable one.
+• No diversification optimization — two similar stocks both get full weight.
+
+WHEN TO USE
+Use Equal Weight first to understand your watchlist's raw performance. Then compare with MVO to see if optimization adds value for your specific stock mix.`;
+
+const REBALANCING_EXPLANATION = `LightninBull uses 3 rebalancing rules — all three run in parallel, whichever triggers first wins.
+
+RULE 1 — TIME BASED (every 2 weeks)
+Even if nothing dramatic happened, rebalance every 2 weeks. This keeps the portfolio aligned with the latest factor rankings. Stocks that drifted up get trimmed, stocks that fell get topped up — classic "buy low, sell high" discipline built into the process.
+
+RULE 2 — LOSS BASED (portfolio falls 3%)
+If your portfolio drops 3% from its last rebalance point, rebalance immediately. This forces a systematic review — are the stocks still in their factor buckets? Should some be replaced? It prevents riding bad positions too long.
+
+RULE 3 — PROFIT BASED (portfolio gains 5%)
+If the portfolio gains 5%, lock in some profits through rebalancing. This trims winners before they become overweight and concentrates your risk. Many retail investors hold winners too long — this rule enforces discipline.
+
+WHY THESE NUMBERS (3% and 5%)
+3% downside tolerance matches typical intraday swing + a buffer. 5% upside is roughly 2-3x the market's weekly move — a meaningful gain worth protecting.
+
+Industry parallel: Most PMS and AIF (Alternative Investment Funds) in India use similar threshold-based rebalancing. It reduces emotional decision-making and systematic drift.`;
+
+const WORKFLOW_EXPLANATION = `LightninBull follows a 6-step AI Quant Fund Manager workflow:
+
+STEP 1 — STOCK DISCOVERY
+The AI scans the Indian market universe (NSE TOP 200 F&O stocks) using 6 quantitative models: Momentum, Low Volatility, Value, Quality, Regime, and Range Bound.
+
+STEP 2 — INTELLIGENT BUCKETS
+Stocks are classified into factor buckets:
+• Consistent Trending (momentum leaders)
+• Slow Movement (low-vol steady movers)
+• Cheap Value (fundamentally undervalued)
+• Best Quality (high-quality businesses)
+• Regime Upside / Downside (market-phase signals)
+• Range Bound Upside / Downside (sideways opportunities)
+• Aggressive Call / Put Option Stocks (derivative demand signals)
+
+STEP 3 — ADD TO WATCHLIST
+Select high-conviction stocks from any bucket and add them to your Watchlist. You can add top or bottom N stocks from any factor.
+
+STEP 4 — PORTFOLIO BACKTEST
+Test your watchlist using 3 strategies:
+• Equal Weight (simple, 1 year historical simulation)
+• MVO Weights (optimized allocation, max Sharpe)
+• MVO Short (bearish optimized portfolio)
+All benchmarked against NIFTY 50.
+
+STEP 5 — RISK REBALANCING
+Rebalance every 2 weeks, or when portfolio falls 3%, or gains 5%. This enforces discipline and prevents emotional decisions.
+
+STEP 6 — MONITOR & IMPROVE
+Track CAGR, Sharpe Ratio, Alpha, Max Drawdown vs NIFTY 50. Refine your factor selection over time.`;
+
+const PLATFORM_EXPLANATION = `LightninBull is a Quant Intelligence Platform built for serious Indian market participants.
+
+WHAT IT IS
+A complete AI-driven Quant Fund Manager workflow — not just a screener. It covers stock discovery, intelligent classification, watchlist management, portfolio backtesting, and disciplined rebalancing.
+
+WHAT IT COVERS
+• Indian Equities (NSE TOP 200 F&O universe)
+• Factor Research (Momentum, Value, Quality, Low Vol, Regime, Range Bound)
+• Derivatives Intelligence (Aggressive Call/Put Option demand signals)
+• Live Bull Call Spread and Bear Put Spread signals (intraday)
+• Live Upside and Downside Trend Stock signals (intraday)
+• Portfolio Backtest with NIFTY 50 benchmark comparison
+• Retail allocation guide (₹10,000 to ₹100 crore)
+
+WHO IT IS FOR
+Indian traders and investors who want to move from gut-feel to systematic, data-driven decisions — like a professional quant fund but accessible to retail.`;
+
+const FACTOR_DETAIL: Record<string, string> = {
+  "Consistent Trending": `Consistent Trending identifies stocks with sustained price momentum across multiple timeframes (1W, 1M, 3M, 6M).
+
+How it works: Stocks are ranked by how consistently they have been moving upward across short, medium, and long timeframes. A stock that is trending up across all 4 windows gets a high rank.
+
+When to use: Bull markets, when broader indices are trending up. These stocks tend to continue their momentum for 2-6 weeks before mean-reverting.
+
+Example of stocks in this bucket: Large-cap leaders with strong institutional buying across multiple sessions.`,
+
+  "Slow Movement": `Slow Movement targets low-volatility stocks with strong risk-adjusted returns.
+
+How it works: Ranks stocks by return-to-volatility ratio. A stock gaining 15% with 10% volatility scores better than one gaining 20% with 25% volatility.
+
+When to use: All market conditions — low-vol stocks tend to hold up better in corrections and keep compounding steadily. This is the "sleep well at night" factor.
+
+Industry parallel: The Low Volatility factor (popularised by Robeco, AQR, BlackRock) has outperformed global markets for decades. In India it works especially well because retail investors tend to chase high-volatility momentum stocks, leaving low-vol names underpriced.`,
+
+  "Cheap Value": `Cheap Value screens for fundamentally undervalued stocks.
+
+How it works: Combines valuation metrics (P/E, P/B, EV/EBITDA) with quality filters to avoid value traps. Only stocks with strong fundamentals at cheap prices qualify.
+
+When to use: Market corrections, when high-quality stocks have sold off due to market sentiment rather than fundamentals.
+
+Industry parallel: Classic Graham-Dodd value investing, modernised by AQR's Value factor research. Shown to outperform over 5-10 year horizons.`,
+
+  "Best Quality": `Best Quality identifies high-quality businesses with strong balance sheets.
+
+How it works: Screens for low debt, high return on equity, consistent earnings growth, and strong cash flows.
+
+When to use: Defensive positioning — in uncertain or bear markets, quality stocks hold value better than speculative names.
+
+Industry parallel: The Quality factor is used by most factor-based ETFs globally (iShares MSCI Quality, Invesco S&P 500 Quality). In India, NIFTY Quality 30 tracks similar criteria.`,
+
+  "Regime Upside": `Regime Upside identifies bull-market leaders using market-regime-aware signals.
+
+How it works: Detects the current market regime (bull/bear/sideways) and surfaces stocks that outperform during bullish phases — high beta, strong momentum, rising volumes.
+
+When to use: When NIFTY and SENSEX are in uptrend, breadth is positive, FII buying is active.`,
+
+  "Regime Downside": `Regime Downside surfaces stocks that perform in bearish market regimes.
+
+How it works: Identifies stocks with negative beta, defensive characteristics, or sector rotation into safety — used for hedging or short positioning.
+
+When to use: When broader indices are in downtrend, FII selling is heavy, or global risk-off is active.`,
+
+  "Range Bound Upside": `Range Bound Upside finds mean-reversion long opportunities in sideways markets.
+
+How it works: Identifies stocks trading near the bottom of their established price range with high probability of bouncing back to the middle or top of the range.
+
+When to use: Sideways markets where indices are oscillating within a band. Works well when VIX is low and there is no strong directional trend.`,
+
+  "Range Bound Downside": `Range Bound Downside finds mean-reversion short opportunities in sideways markets.
+
+How it works: Identifies stocks near the top of their range that are likely to revert back down. Mirror of Range Bound Upside.
+
+When to use: Same sideways conditions, used for hedging existing long positions or short trading.`,
+
+  "Aggressive Call Option Stocks": `Aggressive Call Option Stocks shows stocks with unusually high Call option demand — a signal of institutional bullish positioning.
+
+How it works: Monitors unusual open interest buildup, large block trades, and skew in Call options vs Put options. When institutions aggressively buy Calls, they are betting the stock will rise sharply.
+
+When to use: Short-term directional trades. The derivative demand signal often precedes a sharp move in the underlying stock.`,
+
+  "Aggressive Put Option Stocks": `Aggressive Put Option Stocks shows stocks with unusually high Put option demand — a signal of institutional bearish or hedging positioning.
+
+How it works: Same as Aggressive Calls but for Puts. High Put buying signals that smart money expects a fall or is aggressively hedging a position.
+
+When to use: Short-term defensive trades or identifying stocks to avoid in the near term.`,
+};
+
 // ─── Intent Parser ────────────────────────────────────────────────────────────
 
 type Intent =
   | { type: "add_to_watchlist"; category: string; count: number; direction: "top" | "bottom" }
   | { type: "needs_category"; count: number; direction: "top" | "bottom" }
   | { type: "navigate"; tab: string }
+  | { type: "explain_mvo" }
+  | { type: "explain_equal_weight" }
+  | { type: "explain_rebalancing" }
+  | { type: "explain_workflow" }
+  | { type: "explain_platform" }
   | { type: "explain_alpha" }
-  | { type: "explain_product" }
+  | { type: "explain_factor"; factor: string }
+  | { type: "explain_metric"; metric: string }
   | { type: "list_factors" }
   | { type: "unknown" };
 
 function parseIntent(text: string): Intent {
   const lower = text.toLowerCase().trim();
 
-  // "add … to watchlist" or "add … stocks"
+  // ── Add to watchlist ───────────────────────────────────────────────────────
   const wantsAdd =
     /\badd\b/.test(lower) ||
-    (/\bwatchlist\b/.test(lower) &&
-      (/\bfrom\b|\btop\b|\bbottom\b|\bstock/.test(lower)));
+    (/\bwatchlist\b/.test(lower) && /\bfrom\b|\btop\b|\bbottom\b|\bstock/.test(lower));
 
   if (wantsAdd) {
     const direction: "top" | "bottom" = /\bbottom\b/.test(lower) ? "bottom" : "top";
     const count = extractNumber(lower) ?? 5;
     const category = matchCategory(lower);
-    if (category) {
-      return { type: "add_to_watchlist", category, count, direction };
-    }
-    // Wants to add but no category found → ask which factor
+    if (category) return { type: "add_to_watchlist", category, count, direction };
     return { type: "needs_category", count, direction };
   }
 
-  // Navigation: "show", "open", "go to", "take me to", "view"
+  // ── Navigation ─────────────────────────────────────────────────────────────
   const wantsNav = /\b(show|open|go to|take me|view|navigate|see)\b/.test(lower);
 
-  if (wantsNav || !wantsAdd) {
+  if (wantsNav) {
     if (/\bwatchlist\b/.test(lower)) return { type: "navigate", tab: "Watchlist" };
     if (/\bbull.?call\b/.test(lower)) return { type: "navigate", tab: "Bull Call Spreads" };
     if (/\bbear.?put\b/.test(lower)) return { type: "navigate", tab: "Bear Put Spreads" };
-    if (/\bbacktest\b|\bback.test\b|\bportfolio\b/.test(lower))
-      return { type: "navigate", tab: "Portfolio Backtest" };
+    if (/\bbacktest\b|\bback.test\b|\bportfolio\b/.test(lower)) return { type: "navigate", tab: "Portfolio Backtest" };
     if (/\bupside.trend\b/.test(lower)) return { type: "navigate", tab: "Upside Trend Stocks" };
     if (/\bdownside.trend\b/.test(lower)) return { type: "navigate", tab: "Downside Trend Stocks" };
-
     const category = matchCategory(lower);
     if (category) return { type: "navigate", tab: category };
   }
 
-  // Backtest without "show/open"
-  if (/\bbacktest\b/.test(lower)) return { type: "navigate", tab: "Portfolio Backtest" };
+  if (/\bbacktest\b/.test(lower) && !wantsNav) return { type: "navigate", tab: "Portfolio Backtest" };
 
-  // Explain intents
-  if (/\balpha\b|\bhow.?it.?work|\bexplain.?model|\bsignal/.test(lower))
+  // ── MVO ────────────────────────────────────────────────────────────────────
+  if (/\bmvo\b|\bmean.varian|\bmarkowitz|\boptimiz|\bmodern portfolio/.test(lower))
+    return { type: "explain_mvo" };
+
+  // ── Equal Weight ───────────────────────────────────────────────────────────
+  if (/\bequal.weight\b|\bequal weight/.test(lower))
+    return { type: "explain_equal_weight" };
+
+  // ── Rebalancing ────────────────────────────────────────────────────────────
+  if (/\brebalanc|\b2.?week|\bthreshold\b|\b3.?%\b|\b5.?%\b/.test(lower) &&
+      /\bwhat|how|when|why|explain/.test(lower))
+    return { type: "explain_rebalancing" };
+
+  // ── Specific metric questions ──────────────────────────────────────────────
+  for (const [key] of Object.entries(METRIC_KNOWLEDGE)) {
+    if (lower.includes(key)) return { type: "explain_metric", metric: key };
+  }
+
+  // ── Specific factor questions ──────────────────────────────────────────────
+  for (const [factorName] of Object.entries(FACTOR_DETAIL)) {
+    if (lower.includes(factorName.toLowerCase()))
+      return { type: "explain_factor", factor: factorName };
+  }
+
+  // ── Workflow ───────────────────────────────────────────────────────────────
+  if (/\bworkflow\b|\bhow does.+work|\bstep.by.step|\bprocess/.test(lower))
+    return { type: "explain_workflow" };
+
+  // ── Alpha engine / signals ─────────────────────────────────────────────────
+  if (/\balpha.engine|\bsignal\b|\bhow.+rank|\bscor(e|ing)|\bquant.model/.test(lower))
     return { type: "explain_alpha" };
 
-  if (
-    /\bfactor|\bcategor|\bbucket|\blist\b/.test(lower) &&
-    /\bwhat|\bshow|\blist\b/.test(lower)
-  )
+  // ── Platform overview ──────────────────────────────────────────────────────
+  if (/\bwhat is lightninbull|\bwhat is this|\babout this|\bplatform\b/.test(lower))
+    return { type: "explain_platform" };
+
+  // ── Factor/bucket list ─────────────────────────────────────────────────────
+  if (/\bfactor|\bcategor|\bbucket|\blist\b/.test(lower) && /\bwhat|\bshow|\blist\b|\ball\b/.test(lower))
     return { type: "list_factors" };
 
-  if (/\bwhat|\bhow|\bhelp\b|\bexplain\b|\bcan you/.test(lower))
-    return { type: "explain_product" };
+  // ── Generic help ──────────────────────────────────────────────────────────
+  if (/\bwhat can|\bhelp\b|\bwhat do you|\bcan you\b/.test(lower))
+    return { type: "explain_platform" };
+
+  // ── Factor-only input (no add/show verb) — treat as nav ───────────────────
+  const category = matchCategory(lower);
+  if (category) return { type: "navigate", tab: category };
 
   return { type: "unknown" };
 }
 
 // ─── Static Responses ─────────────────────────────────────────────────────────
 
-const ALPHA_EXPLANATION = `LightninBull's alpha engine uses 6 quantitative models:
+const ALPHA_EXPLANATION = `LightninBull's alpha engine uses 6 quantitative models, each independently ranking the NSE TOP 200 F&O universe:
 
-• Consistent Trending — Stocks with sustained price momentum across 1W to 6M timeframes.
-• Slow Movement — Strong risk-adjusted returns with low drawdown and low volatility.
-• Cheap Value — Fundamentally undervalued stocks screened by quality metrics.
-• Best Quality — High-quality businesses with strong balance sheets.
-• Regime — Market-regime-aware: Upside in bull phases, Downside in bear phases.
-• Range Bound — Mean-reversion opportunities in sideways markets.
+• Consistent Trending — Sustained momentum across 1W, 1M, 3M, 6M timeframes.
+• Slow Movement — Highest return-to-volatility ratio. Smooth, steady compounders.
+• Cheap Value — Fundamentally undervalued stocks screened to avoid value traps.
+• Best Quality — Low debt, high ROE, consistent earnings, strong cash flows.
+• Regime — Market-phase-aware: Upside signals in bull regimes, Downside in bear regimes.
+• Range Bound — Mean-reversion longs and shorts for sideways markets.
+• Derivatives Intelligence — Aggressive Call/Put demand signals from options flow.
 
-Each model ranks stocks by a proprietary score. Add top-ranked stocks from any bucket to your Watchlist and backtest them using Equal Weight or MVO allocation.`;
+Each model scores stocks 0–100. The Watchlist + Portfolio Backtest workflow lets you test whether the scores translated into real alpha vs NIFTY 50.`;
 
-const PRODUCT_EXPLANATION = `I'm the Lightnin Bull AI Agent. Here's what I can do:
+const FACTOR_LIST = `All 10 factor buckets on LightninBull:
 
-• Add stocks to watchlist — "Add top 5 Slow Movement stocks to my watchlist"
-• Navigate to any section — "Show Regime Upside" or "Open Portfolio Backtest"
-• View live option spreads — "Show Bull Call Spreads" or "Show Bear Put Spreads"
-• Explain the models — "Explain the alpha engine"
+1. Consistent Trending — momentum leaders, 1W-6M timeframe
+2. Slow Movement — low-volatility steady compounders
+3. Cheap Value — fundamentally undervalued stocks
+4. Best Quality — high-quality, low-debt businesses
+5. Regime Upside — bull-phase market leaders
+6. Regime Downside — bear-phase or defensive signals
+7. Range Bound Upside — mean-reversion longs (sideways market)
+8. Range Bound Downside — mean-reversion shorts (sideways market)
+9. Aggressive Call Option Stocks — institutional bullish derivative demand
+10. Aggressive Put Option Stocks — institutional bearish derivative demand
 
-Available factor buckets:
-Consistent Trending · Slow Movement · Cheap Value · Best Quality
-Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside
-Aggressive Call Options · Aggressive Put Options`;
+Ask me to explain any factor in detail, e.g. "What is Slow Movement?"
+Or: "Add top 5 [factor] to watchlist"`;
 
-const FACTOR_LIST = `Available factor buckets on LightninBull:
+const UNKNOWN_RESPONSE = `I didn't quite catch that. Here's what I can help with:
 
-1. Consistent Trending — momentum stocks
-2. Slow Movement — low-volatility, steady movers
-3. Cheap Value — undervalued opportunities
-4. Best Quality — high-quality businesses
-5. Regime Upside — bull-market leaders
-6. Regime Downside — bear-market signals
-7. Range Bound Upside — sideways breakout longs
-8. Range Bound Downside — sideways breakout shorts
-9. Aggressive Call Option Stocks — derivative demand (calls)
-10. Aggressive Put Option Stocks — derivative demand (puts)
-
-Say "Add top 5 [factor name] stocks to watchlist" to get started.`;
-
-const UNKNOWN_RESPONSE = `I didn't quite catch that. Try:
-
-• "Add top 5 Slow Movement stocks to watchlist"
-• "Show Consistent Trending"
-• "Open Portfolio Backtest"
-• "Show Bull Call Spreads"
-• "Explain the alpha engine"
-• "List all factor buckets"`;
+• Add stocks — "Add top 5 Slow Movement to watchlist"
+• Explain strategies — "What is MVO?" / "What is Equal Weight?"
+• Explain metrics — "What is Sharpe Ratio?" / "What is CAGR?" / "What is Max Drawdown?"
+• Explain factors — "What is Consistent Trending?" / "Explain Regime Upside"
+• Explain workflow — "How does LightninBull work?"
+• Navigate — "Show Bull Call Spreads" / "Open Portfolio Backtest"
+• Rebalancing — "When should I rebalance?"
+• Platform — "What is LightninBull?"`;
 
 // ─── Quick Actions ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
+  "What is MVO?",
   "Add top 5 Consistent Trending to watchlist",
   "Add top 5 Slow Movement to watchlist",
-  "Add top 5 Regime Upside to watchlist",
-  "Show Bull Call Spreads",
+  "What is Sharpe Ratio?",
   "Open Portfolio Backtest",
   "Explain the alpha engine",
 ];
@@ -478,12 +775,36 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           setTimeout(() => onNavigate(intent.tab), 400);
           break;
 
+        case "explain_mvo":
+          pushMsg("assistant", MVO_EXPLANATION);
+          break;
+
+        case "explain_equal_weight":
+          pushMsg("assistant", EQUAL_WEIGHT_EXPLANATION);
+          break;
+
+        case "explain_rebalancing":
+          pushMsg("assistant", REBALANCING_EXPLANATION);
+          break;
+
+        case "explain_workflow":
+          pushMsg("assistant", WORKFLOW_EXPLANATION);
+          break;
+
+        case "explain_platform":
+          pushMsg("assistant", PLATFORM_EXPLANATION);
+          break;
+
         case "explain_alpha":
           pushMsg("assistant", ALPHA_EXPLANATION);
           break;
 
-        case "explain_product":
-          pushMsg("assistant", PRODUCT_EXPLANATION);
+        case "explain_factor":
+          pushMsg("assistant", FACTOR_DETAIL[intent.factor] ?? `${intent.factor} is one of LightninBull's factor buckets. Ask me to "Add top 5 ${intent.factor} to watchlist" to explore it.`);
+          break;
+
+        case "explain_metric":
+          pushMsg("assistant", METRIC_KNOWLEDGE[intent.metric] ?? `${intent.metric} is a portfolio performance metric shown in the Portfolio Backtest section.`);
           break;
 
         case "list_factors":
