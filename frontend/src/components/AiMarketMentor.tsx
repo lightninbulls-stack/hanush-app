@@ -497,6 +497,7 @@ function parseIntent(text: string): Intent {
   // ── Add to watchlist ───────────────────────────────────────────────────────
   const wantsAdd =
     /\badd\b/.test(lower) ||
+    (/\btake\b|\bgrab\b|\bpick\b|\bfetch\b/.test(lower) && /\bstock|\bfrom\b|\ball\b|\btop\b|\bbottom\b/.test(lower)) ||
     (/\bwatchlist\b/.test(lower) && /\bfrom\b|\btop\b|\bbottom\b|\bstock/.test(lower));
 
   if (wantsAdd) {

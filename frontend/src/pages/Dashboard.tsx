@@ -9,6 +9,7 @@ import PortfolioBacktestPanel from "../components/PortfolioBacktestPanelGate";
 import IntradaySpreadsPanel from "../components/IntradaySpreadsPanel";
 import IntradayStockSignalsPanel from "../components/IntradayStockSignalsPanel";
 import DashboardWelcome from "../components/DashboardWelcome";
+import AiMarketMentor from "../components/AiMarketMentor";
 
 
 import {
@@ -510,6 +511,10 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="lb-dashboard-shell">
+      <AiMarketMentor
+        onNavigate={handleCategoryChange}
+        starredSymbols={starredSymbols}
+        onBulkAddToWatchlist={handleBulkAddToWatchlist}
       />
       {!isMobile && (
         <Sidebar
