@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import List
-import csv
 import logging
 import math
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -43,6 +43,7 @@ EXCLUDED_UNIVERSE_SYMBOLS = {
 DATE_LIKE_COLUMNS = {"DATE", "DATETIME", "TIME", "TIMESTAMP"}
 
 DEFAULT_RETAIL_CAPITAL = 100000.0
+TRADING_DAYS_PER_YEAR = 252
 
 
 class WatchlistBacktestRequest(BaseModel):
@@ -54,13 +55,60 @@ def normalize_symbol(value: str) -> str:
     return str(value or "").strip().upper()
 
 
+def safe_round(value: float | None, digits: int = 2) -> float | None:
+    if value is None:
+        return None
+    try:
+        if not math.isfinite(float(value)):
+            return None
+        return round(float(value), digits)
+    except Exception:
+        return None
+
+
+def pct_return(series: pd.Series, lookback: int) -> float | None:
+    clean = pd.to_numeric(series, errors="coerce").dropna()
+    if len(clean) <= lookback:
+        return None
+
+    latest = float(clean.iloc[-1])
+    previous = float(clean.iloc[-lookback - 1])
+
+    if previous <= 0:
+        return None
+
+    return ((latest / previous) - 1.0) * 100.0
+
+
+def annualized_volatility(series: pd.Series, lookback: int = 126) -> float | None:
+    clean = pd.to_numeric(series, errors="coerce").dropna()
+    if len(clean) < lookback + 1:
+        return None
+
+    returns = clean.pct_change().dropna().tail(lookback)
+    if returns.empty:
+        return None
+
+    return float(returns.std() * math.sqrt(TRADING_DAYS_PER_YEAR) * 100.0)
+
+
+def volatility_bucket(volatility_6m: float | None) -> str | None:
+    if volatility_6m is None:
+        return None
+    if volatility_6m < 20:
+        return "Low"
+    if volatility_6m < 35:
+        return "Medium"
+    return "High"
+
+
 def load_nse_top_200_fo_universe() -> list[dict]:
     """
     Build the NSE TOP 200 F&O stock universe directly from close_prices_wide.csv.
 
     The close wide file contains both stocks and index/sector symbols. For this
-    user-facing universe, we exclude the index/sector columns and keep all stock
-    ticker columns so users can add them to their watchlist and backtest them.
+    user-facing universe, we exclude the index/sector columns and calculate the
+    same return/volatility analytics shown in other screener tables.
     """
     if not CLOSE_PRICES_PATH.exists():
         raise HTTPException(
@@ -68,18 +116,19 @@ def load_nse_top_200_fo_universe() -> list[dict]:
             detail=f"close_prices_wide.csv not found at: {CLOSE_PRICES_PATH}",
         )
 
-    with CLOSE_PRICES_PATH.open("r", newline="", encoding="utf-8-sig") as file:
-        reader = csv.reader(file)
-        try:
-            headers = next(reader)
-        except StopIteration:
-            headers = []
+    close_df = pd.read_csv(CLOSE_PRICES_PATH, index_col=0)
+
+    if close_df.empty:
+        return []
+
+    close_df.columns = [normalize_symbol(col) for col in close_df.columns]
+    close_df = close_df.apply(pd.to_numeric, errors="coerce")
 
     stocks: list[dict] = []
     seen: set[str] = set()
 
-    for raw_header in headers:
-        symbol = normalize_symbol(raw_header)
+    for symbol in close_df.columns:
+        symbol = normalize_symbol(symbol)
 
         if not symbol:
             continue
@@ -91,20 +140,41 @@ def load_nse_top_200_fo_universe() -> list[dict]:
             continue
 
         seen.add(symbol)
+
+        price_series = close_df[symbol]
+        ret_1w = safe_round(pct_return(price_series, 5))
+        ret_1m = safe_round(pct_return(price_series, 21))
+        ret_3m = safe_round(pct_return(price_series, 63))
+        ret_6m = safe_round(pct_return(price_series, 126))
+        vol_6m = safe_round(annualized_volatility(price_series, 126))
+
+        score = ret_6m
+        if score is None:
+            score = ret_3m
+        if score is None:
+            score = ret_1m
+        if score is None:
+            score = 0.0
+
         stocks.append(
             {
-                "rank": len(stocks) + 1,
+                "rank": 0,
                 "symbol": symbol,
                 "sector": NSE_TOP_200_FO_CATEGORY,
-                "score": 0,
-                "return_1w": None,
-                "return_1m": None,
-                "return_3m": None,
-                "return_6m": None,
-                "volatility_6m": None,
-                "volatility_bucket": None,
+                "score": safe_round(score) or 0,
+                "return_1w": ret_1w,
+                "return_1m": ret_1m,
+                "return_3m": ret_3m,
+                "return_6m": ret_6m,
+                "volatility_6m": vol_6m,
+                "volatility_bucket": volatility_bucket(vol_6m),
             }
         )
+
+    stocks.sort(key=lambda row: float(row.get("score") or 0), reverse=True)
+
+    for index, stock in enumerate(stocks, start=1):
+        stock["rank"] = index
 
     return stocks
 
