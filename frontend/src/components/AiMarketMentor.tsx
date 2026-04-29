@@ -517,11 +517,16 @@ function parseIntent(text: string): Intent {
 
   if (/\bbacktest\b/.test(lower) && !wantsNav) return { type: "navigate", tab: "Portfolio Backtest" };
 
-  // ── MVO ────────────────────────────────────────────────────────────────────
+  // ── "run/start/do mvo / equal weight / backtest" → navigate, don't explain ─
+  const wantsRun = /\brun\b|\bstart\b|\bdo\b|\bexecute\b|\blaunch\b/.test(lower);
+  if (wantsRun && (/\bmvo\b|\bequal.weight\b|\bbacktest\b/.test(lower)))
+    return { type: "navigate", tab: "Portfolio Backtest" };
+
+  // ── MVO (explain, not run) ─────────────────────────────────────────────────
   if (/\bmvo\b|\bmean.varian|\bmarkowitz|\boptimiz|\bmodern portfolio/.test(lower))
     return { type: "explain_mvo" };
 
-  // ── Equal Weight ───────────────────────────────────────────────────────────
+  // ── Equal Weight (explain, not run) ───────────────────────────────────────
   if (/\bequal.weight\b|\bequal weight/.test(lower))
     return { type: "explain_equal_weight" };
 
@@ -566,6 +571,28 @@ function parseIntent(text: string): Intent {
   if (category) return { type: "navigate", tab: category };
 
   return { type: "unknown" };
+}
+
+// Split "add X and run Y" into [intentX, intentY] and parse each independently.
+// Handles "and", "then", "also", "after that".
+function parseCompoundIntents(text: string): Intent[] {
+  const SPLITTER = /\band\b|\bthen\b|\balso\b|\bafter that\b|\bafter adding\b/i;
+  const parts = text.split(SPLITTER).map((s) => s.trim()).filter(Boolean);
+
+  if (parts.length <= 1) return [parseIntent(text)];
+
+  const intents = parts.map((part) => parseIntent(part));
+
+  // Deduplicate: if two parts resolve to the same intent type+tab, keep first
+  const seen = new Set<string>();
+  return intents.filter((intent) => {
+    const key = intent.type === "navigate"
+      ? `navigate:${intent.tab}`
+      : intent.type;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // ─── Static Responses ─────────────────────────────────────────────────────────
@@ -752,67 +779,69 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
         return;
       }
 
-      // ── Normal intent parsing ─────────────────────────────────────────────
-      const intent = parseIntent(trimmed);
+      // ── Parse one or more intents (compound: "add X and run Y") ─────────────
+      const intents = parseCompoundIntents(trimmed);
 
-      switch (intent.type) {
-        case "add_to_watchlist":
-          await executeAddToWatchlist(intent.category, intent.count, intent.direction);
-          break;
+      for (const intent of intents) {
+        switch (intent.type) {
+          case "add_to_watchlist":
+            await executeAddToWatchlist(intent.category, intent.count, intent.direction);
+            break;
 
-        case "needs_category": {
-          const countWord = intent.count === 5 ? "stocks" : `${intent.count} stock${intent.count > 1 ? "s" : ""}`;
-          setPending({ type: "awaiting_category", count: intent.count, direction: intent.direction });
-          pushMsg(
-            "assistant",
-            `Sure! I'll add ${countWord} once you tell me which factor bucket.\n\nChoose one:\nConsistent Trending · Slow Movement · Cheap Value · Best Quality · Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside · Aggressive Call Options · Aggressive Put Options`
-          );
-          break;
+          case "needs_category": {
+            const countWord = intent.count === 5 ? "stocks" : `${intent.count} stock${intent.count > 1 ? "s" : ""}`;
+            setPending({ type: "awaiting_category", count: intent.count, direction: intent.direction });
+            pushMsg(
+              "assistant",
+              `Sure! I'll add ${countWord} once you tell me which factor bucket.\n\nChoose one:\nConsistent Trending · Slow Movement · Cheap Value · Best Quality · Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside · Aggressive Call Options · Aggressive Put Options`
+            );
+            break;
+          }
+
+          case "navigate":
+            pushMsg("assistant", `Opening "${intent.tab}"…`);
+            setTimeout(() => onNavigate(intent.tab), 400);
+            break;
+
+          case "explain_mvo":
+            pushMsg("assistant", MVO_EXPLANATION);
+            break;
+
+          case "explain_equal_weight":
+            pushMsg("assistant", EQUAL_WEIGHT_EXPLANATION);
+            break;
+
+          case "explain_rebalancing":
+            pushMsg("assistant", REBALANCING_EXPLANATION);
+            break;
+
+          case "explain_workflow":
+            pushMsg("assistant", WORKFLOW_EXPLANATION);
+            break;
+
+          case "explain_platform":
+            pushMsg("assistant", PLATFORM_EXPLANATION);
+            break;
+
+          case "explain_alpha":
+            pushMsg("assistant", ALPHA_EXPLANATION);
+            break;
+
+          case "explain_factor":
+            pushMsg("assistant", FACTOR_DETAIL[intent.factor] ?? `${intent.factor} is one of LightninBull's factor buckets. Ask me to "Add top 5 ${intent.factor} to watchlist" to explore it.`);
+            break;
+
+          case "explain_metric":
+            pushMsg("assistant", METRIC_KNOWLEDGE[intent.metric] ?? `${intent.metric} is a portfolio performance metric shown in the Portfolio Backtest section.`);
+            break;
+
+          case "list_factors":
+            pushMsg("assistant", FACTOR_LIST);
+            break;
+
+          default:
+            if (intents.length === 1) pushMsg("assistant", UNKNOWN_RESPONSE);
         }
-
-        case "navigate":
-          pushMsg("assistant", `Opening "${intent.tab}"…`);
-          setTimeout(() => onNavigate(intent.tab), 400);
-          break;
-
-        case "explain_mvo":
-          pushMsg("assistant", MVO_EXPLANATION);
-          break;
-
-        case "explain_equal_weight":
-          pushMsg("assistant", EQUAL_WEIGHT_EXPLANATION);
-          break;
-
-        case "explain_rebalancing":
-          pushMsg("assistant", REBALANCING_EXPLANATION);
-          break;
-
-        case "explain_workflow":
-          pushMsg("assistant", WORKFLOW_EXPLANATION);
-          break;
-
-        case "explain_platform":
-          pushMsg("assistant", PLATFORM_EXPLANATION);
-          break;
-
-        case "explain_alpha":
-          pushMsg("assistant", ALPHA_EXPLANATION);
-          break;
-
-        case "explain_factor":
-          pushMsg("assistant", FACTOR_DETAIL[intent.factor] ?? `${intent.factor} is one of LightninBull's factor buckets. Ask me to "Add top 5 ${intent.factor} to watchlist" to explore it.`);
-          break;
-
-        case "explain_metric":
-          pushMsg("assistant", METRIC_KNOWLEDGE[intent.metric] ?? `${intent.metric} is a portfolio performance metric shown in the Portfolio Backtest section.`);
-          break;
-
-        case "list_factors":
-          pushMsg("assistant", FACTOR_LIST);
-          break;
-
-        default:
-          pushMsg("assistant", UNKNOWN_RESPONSE);
       }
     } finally {
       setBusy(false);
