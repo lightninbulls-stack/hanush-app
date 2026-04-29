@@ -994,7 +994,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
 
   return (
     <>
-      {/* Floating bubble */}
+      {/* Floating pill trigger */}
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
@@ -1002,29 +1002,39 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           bottom: 28,
           right: 28,
           zIndex: 9999,
-          width: 54,
-          height: 54,
-          borderRadius: "50%",
+          height: 44,
+          paddingLeft: 16,
+          paddingRight: 18,
+          borderRadius: 999,
           background: "linear-gradient(135deg, #facc15, #d6a21f)",
           border: "none",
           cursor: "pointer",
           boxShadow: "0 4px 24px rgba(250,204,21,0.45)",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          fontSize: 22,
+          gap: 8,
           transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          whiteSpace: "nowrap",
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
+          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.04)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
         }}
-        aria-label="Open Quant Fund Manager AI"
-        title="Quant Fund Manager AI"
+        aria-label="Open Lightnin Bull AI Agent"
+        title="Lightnin Bull AI Agent"
       >
-        {open ? "✕" : "⚡"}
+        <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? "✕" : "⚡"}</span>
+        <span style={{
+          fontFamily: "var(--font-sans, sans-serif)",
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#1a1200",
+          letterSpacing: 0.2,
+        }}>
+          {open ? "Close" : "Lightnin Bull AI Agent"}
+        </span>
       </button>
 
       {/* Chat panel */}
