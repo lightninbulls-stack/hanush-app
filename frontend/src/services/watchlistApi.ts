@@ -5,6 +5,7 @@ const RENDER_API_URL = (
 ).replace(/\/+$/, "");
 
 const WATCHLIST_STORAGE_KEY = "starredStocks";
+export const WATCHLIST_UPDATED_EVENT = "lightninbull:watchlist-updated";
 
 export interface PortfolioMetrics {
   annualised_return_pct?: number | null;
@@ -84,6 +85,20 @@ function normalizeSymbol(symbol: string): string {
   return String(symbol || "").trim().toUpperCase();
 }
 
+function broadcastWatchlistUpdate(symbols: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(WATCHLIST_UPDATED_EVENT, {
+      detail: {
+        symbols: symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
+      },
+    })
+  );
+}
+
 function readWatchlistFromStorage(): string[] {
   if (typeof window === "undefined") {
     return [];
@@ -118,6 +133,7 @@ function writeWatchlistToStorage(symbols: string[]): void {
   );
 
   window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(uniqueSymbols));
+  broadcastWatchlistUpdate(uniqueSymbols);
 }
 
 export async function fetchWatchlistSymbols(): Promise<string[]> {
@@ -138,6 +154,16 @@ export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
   return updated;
 }
 
+export async function addWatchlistSymbols(symbols: string[]): Promise<string[]> {
+  const normalized = symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean);
+  const existing = readWatchlistFromStorage();
+
+  const updated = Array.from(new Set([...existing, ...normalized]));
+  writeWatchlistToStorage(updated);
+
+  return updated;
+}
+
 export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
   const normalized = normalizeSymbol(symbol);
   const existing = readWatchlistFromStorage();
@@ -146,6 +172,21 @@ export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
   writeWatchlistToStorage(updated);
 
   return updated;
+}
+
+export async function removeWatchlistSymbols(symbols: string[]): Promise<string[]> {
+  const removeSet = new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean));
+  const existing = readWatchlistFromStorage();
+
+  const updated = existing.filter((item) => !removeSet.has(item));
+  writeWatchlistToStorage(updated);
+
+  return updated;
+}
+
+export async function clearWatchlistSymbols(): Promise<string[]> {
+  writeWatchlistToStorage([]);
+  return [];
 }
 
 export async function runWatchlistBacktest(
