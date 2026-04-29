@@ -8,6 +8,7 @@ const API_BASE_URL = (
 
 const CATEGORY_CACHE_PREFIX = "lightninbull:category:";
 const CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000;
+const NSE_TOP_200_FO_CATEGORY = "NSE TOP 200 F&O Universe";
 
 const FRONTEND_CSV_CATEGORY_MAP: Record<string, string> = {
   "Aggressive Call Option Stocks": "/data/frontend_aggressive_calls.csv",
@@ -358,6 +359,16 @@ export async function fetchStocksByCategory(
     if (cached) {
       return cached;
     }
+  }
+
+  if (category === NSE_TOP_200_FO_CATEGORY) {
+    const response = await axios.get(
+      `${API_BASE_URL}/portfolio/universe/nse-top-200-fo`
+    );
+
+    const normalized = normalizeResponse(response.data, category);
+    setCachedStocksByCategory(category, normalized);
+    return normalized;
   }
 
   const response = await axios.get(
