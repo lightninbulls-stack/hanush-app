@@ -881,11 +881,34 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
               }
             }
 
-            setPending({ type: "awaiting_strategy" });
-            pushMsg(
-              "assistant",
-              `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n• **MVO Weights** — optimized allocation for maximum Sharpe Ratio\n\nJust say "Equal Weight" or "MVO".`
-            );
+            // Check if the user already named a strategy in the same message
+            const msgLower = trimmed.toLowerCase();
+            const inlineStrategy =
+              /\bmvo.short\b/.test(msgLower) ? "mvo_short" :
+              /\bmvo\b|\boptimiz|\bmean.varian/.test(msgLower) ? "mvo" :
+              /\bequal.weight\b|\bequal\b|\bsimple\b/.test(msgLower) ? "equal_weight" :
+              null;
+
+            if (inlineStrategy) {
+              const label = inlineStrategy === "mvo" ? "MVO Weights" : inlineStrategy === "mvo_short" ? "MVO Short" : "Equal Weight";
+              localStorage.setItem("lightninbull:pending-strategy", inlineStrategy);
+              setTimeout(() => onNavigate("Portfolio Backtest"), 400);
+              setTimeout(() => {
+                window.dispatchEvent(
+                  new CustomEvent("lightninbull:select-strategy", { detail: { strategy: inlineStrategy } })
+                );
+              }, 800);
+              pushMsg(
+                "assistant",
+                `Factor portfolio ready!\n\n${summary.join("\n")}\n\nRunning **${label}** backtest — opening Portfolio Backtest now…`
+              );
+            } else {
+              setPending({ type: "awaiting_strategy" });
+              pushMsg(
+                "assistant",
+                `Factor portfolio ready!\n\n${summary.join("\n")}\n\nWhich strategy would you like to backtest?\n\n• **Equal Weight** — equal allocation across all stocks\n• **MVO Weights** — optimized allocation for maximum Sharpe Ratio\n\nJust say "Equal Weight" or "MVO".`
+              );
+            }
             break;
           }
 
