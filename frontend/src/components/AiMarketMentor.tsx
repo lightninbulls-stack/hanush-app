@@ -1021,8 +1021,8 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
         }}
-        aria-label="Open Lightnin Bull AI Agent"
-        title="Lightnin Bull AI Agent"
+        aria-label="Open Quant Fund Manager AI"
+        title="Quant Fund Manager AI"
       >
         {open ? "✕" : "⚡"}
       </button>
@@ -1064,7 +1064,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
                 marginBottom: 4,
               }}
             >
-              AI MARKET MENTOR
+              QUANT FUND MANAGER AI
             </div>
             <div
               style={{
@@ -1074,7 +1074,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
                 color: "#f7f0df",
               }}
             >
-              Lightnin Bull AI Agent
+              Quant Fund Manager AI
             </div>
           </div>
 
