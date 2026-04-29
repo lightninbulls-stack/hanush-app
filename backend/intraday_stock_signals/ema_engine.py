@@ -1,92 +1,144 @@
 from __future__ import annotations
 
-from typing import Optional, Dict
+from collections import deque
+from typing import Deque, Dict, Optional, Tuple
 
 
 # -------------------------------------------------------
-# 🔹 EMA STATE CLASS (YOUR LOGIC — IMPROVED)
+# 🔹 SMA STATE CLASS
 # -------------------------------------------------------
-class EMAState:
+class SMAState:
+    """
+    Maintains rolling FAST / SLOW SMA for one symbol.
+
+    Note:
+    - Signal becomes valid only after enough ticks are collected.
+    - FAST SMA = last 500 ticks
+    - SLOW SMA = last 1500 ticks
+    """
+
     def __init__(self, fast_span: int, slow_span: int) -> None:
+        if fast_span <= 0 or slow_span <= 0:
+            raise ValueError("SMA spans must be positive integers")
+        if fast_span >= slow_span:
+            raise ValueError("fast_span should be lower than slow_span")
+
         self.fast_span = fast_span
         self.slow_span = slow_span
 
-        self.fast_alpha = 2 / (fast_span + 1)
-        self.slow_alpha = 2 / (slow_span + 1)
+        self.prices: Deque[float] = deque(maxlen=slow_span)
 
-        self.fast_ema: Optional[float] = None
-        self.slow_ema: Optional[float] = None
+        self.fast_sma: Optional[float] = None
+        self.slow_sma: Optional[float] = None
 
-        self.prev_fast_ema: Optional[float] = None
-        self.prev_slow_ema: Optional[float] = None
+        self.prev_fast_sma: Optional[float] = None
+        self.prev_slow_sma: Optional[float] = None
 
     def update(self, price: float) -> None:
-        # FAST EMA
-        if self.fast_ema is None:
-            self.fast_ema = price
-        else:
-            self.prev_fast_ema = self.fast_ema
-            self.fast_ema = (price * self.fast_alpha) + (self.fast_ema * (1 - self.fast_alpha))
+        price = float(price)
 
-        # SLOW EMA
-        if self.slow_ema is None:
-            self.slow_ema = price
+        self.prev_fast_sma = self.fast_sma
+        self.prev_slow_sma = self.slow_sma
+
+        self.prices.append(price)
+
+        if len(self.prices) >= self.fast_span:
+            fast_window = list(self.prices)[-self.fast_span:]
+            self.fast_sma = sum(fast_window) / self.fast_span
         else:
-            self.prev_slow_ema = self.slow_ema
-            self.slow_ema = (price * self.slow_alpha) + (self.slow_ema * (1 - self.slow_alpha))
+            self.fast_sma = None
+
+        if len(self.prices) >= self.slow_span:
+            slow_window = list(self.prices)[-self.slow_span:]
+            self.slow_sma = sum(slow_window) / self.slow_span
+        else:
+            self.slow_sma = None
 
     def bullish_crossover(self) -> bool:
-        if None in (self.prev_fast_ema, self.prev_slow_ema, self.fast_ema, self.slow_ema):
+        if None in (
+            self.prev_fast_sma,
+            self.prev_slow_sma,
+            self.fast_sma,
+            self.slow_sma,
+        ):
             return False
 
         return (
-            self.prev_fast_ema <= self.prev_slow_ema
-            and self.fast_ema > self.slow_ema
+            self.prev_fast_sma <= self.prev_slow_sma
+            and self.fast_sma > self.slow_sma
         )
 
     def bearish_crossover(self) -> bool:
-        if None in (self.prev_fast_ema, self.prev_slow_ema, self.fast_ema, self.slow_ema):
+        if None in (
+            self.prev_fast_sma,
+            self.prev_slow_sma,
+            self.fast_sma,
+            self.slow_sma,
+        ):
             return False
 
         return (
-            self.prev_fast_ema >= self.prev_slow_ema
-            and self.fast_ema < self.slow_ema
+            self.prev_fast_sma >= self.prev_slow_sma
+            and self.fast_sma < self.slow_sma
         )
 
 
 # -------------------------------------------------------
-# 🔹 GLOBAL EMA STORE (ONE PER SYMBOL)
+# 🔹 GLOBAL SMA STORE (ONE PER SYMBOL)
 # -------------------------------------------------------
-ema_store: Dict[str, EMAState] = {}
+sma_store: Dict[str, SMAState] = {}
 
 
 # -------------------------------------------------------
-# 🔹 PUBLIC FUNCTION (THIS FIXES YOUR ERROR)
+# 🔹 PUBLIC SMA FUNCTIONS
 # -------------------------------------------------------
-def update_ema(symbol: str, price: float):
+def update_sma(
+    symbol: str,
+    price: float,
+    fast_span: int = 500,
+    slow_span: int = 1500,
+) -> Tuple[Optional[float], Optional[float]]:
     """
-    Main function used by strategy
+    Updates rolling SMA for one symbol.
+
     Returns:
-        (fast_ema, slow_ema)
+        (fast_sma, slow_sma)
     """
+    clean_symbol = str(symbol).strip().upper()
 
-    if symbol not in ema_store:
-        ema_store[symbol] = EMAState(fast_span=500, slow_span=1500)
+    if clean_symbol not in sma_store:
+        sma_store[clean_symbol] = SMAState(
+            fast_span=fast_span,
+            slow_span=slow_span,
+        )
 
-    state = ema_store[symbol]
-    state.update(price)
+    state = sma_store[clean_symbol]
+    state.update(float(price))
 
-    return state.fast_ema, state.slow_ema
+    return state.fast_sma, state.slow_sma
 
 
-# -------------------------------------------------------
-# 🔹 OPTIONAL: SIGNAL HELPERS (VERY USEFUL)
-# -------------------------------------------------------
 def is_bullish(symbol: str) -> bool:
-    state = ema_store.get(symbol)
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
     return state.bullish_crossover() if state else False
 
 
 def is_bearish(symbol: str) -> bool:
-    state = ema_store.get(symbol)
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
     return state.bearish_crossover() if state else False
+
+
+# -------------------------------------------------------
+# 🔹 BACKWARD-COMPATIBILITY ALIAS
+# -------------------------------------------------------
+# Existing strategy files earlier imported update_ema from this module.
+# Keep this alias so older imports do not crash during deployment.
+def update_ema(
+    symbol: str,
+    price: float,
+    fast_span: int = 500,
+    slow_span: int = 1500,
+) -> Tuple[Optional[float], Optional[float]]:
+    return update_sma(symbol, price, fast_span=fast_span, slow_span=slow_span)
