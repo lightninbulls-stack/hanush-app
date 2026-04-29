@@ -46,14 +46,19 @@ LOG_FILE_NAME = "sensex_bull_call_spread.log"
 
 IST = pytz.timezone("Asia/Kolkata")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE_NAME, mode="a", encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
+class _ISTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=IST)
+        return dt.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+
+_ist_fmt = _ISTFormatter("%(asctime)s | %(levelname)s | %(message)s")
+_handlers = [
+    logging.FileHandler(LOG_FILE_NAME, mode="a", encoding="utf-8"),
+    logging.StreamHandler(sys.stdout),
+]
+for _h in _handlers:
+    _h.setFormatter(_ist_fmt)
+logging.basicConfig(level=logging.INFO, handlers=_handlers)
 logger = logging.getLogger("alpha_bull_sensex_strategy")
 
 
