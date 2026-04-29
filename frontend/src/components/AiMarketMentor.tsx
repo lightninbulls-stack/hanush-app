@@ -105,13 +105,14 @@ const WORD_NUMBERS: Record<string, number> = {
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
 };
 
-function extractNumber(text: string): number {
+function extractNumber(text: string): number | null {
   const lower = text.toLowerCase();
   for (const [word, num] of Object.entries(WORD_NUMBERS)) {
     if (new RegExp(`\\b${word}\\b`).test(lower)) return num;
   }
   const match = lower.match(/\b(\d+)\b/);
-  return match ? Math.min(parseInt(match[1], 10), 20) : 5;
+  if (match) return Math.min(parseInt(match[1], 10), 20);
+  return null; // caller decides the default
 }
 
 // ─── Fuzzy Matching ───────────────────────────────────────────────────────────
@@ -199,8 +200,8 @@ function looksLikeTicker(symbol: string): boolean {
 // ─── Intent Parser ────────────────────────────────────────────────────────────
 
 type Intent =
-  | { type: "add_to_watchlist"; category: string; count: number }
-  | { type: "needs_category"; count: number }
+  | { type: "add_to_watchlist"; category: string; count: number; direction: "top" | "bottom" }
+  | { type: "needs_category"; count: number; direction: "top" | "bottom" }
   | { type: "navigate"; tab: string }
   | { type: "explain_alpha" }
   | { type: "explain_product" }
@@ -214,15 +215,17 @@ function parseIntent(text: string): Intent {
   const wantsAdd =
     /\badd\b/.test(lower) ||
     (/\bwatchlist\b/.test(lower) &&
-      (/\bfrom\b|\btop\b|\bstock/.test(lower)));
+      (/\bfrom\b|\btop\b|\bbottom\b|\bstock/.test(lower)));
 
   if (wantsAdd) {
+    const direction: "top" | "bottom" = /\bbottom\b/.test(lower) ? "bottom" : "top";
+    const count = extractNumber(lower) ?? 5;
     const category = matchCategory(lower);
     if (category) {
-      return { type: "add_to_watchlist", category, count: extractNumber(lower) };
+      return { type: "add_to_watchlist", category, count, direction };
     }
     // Wants to add but no category found → ask which factor
-    return { type: "needs_category", count: extractNumber(lower) };
+    return { type: "needs_category", count, direction };
   }
 
   // Navigation: "show", "open", "go to", "take me to", "view"
@@ -330,7 +333,7 @@ interface Message {
 }
 
 // Remembers an incomplete "add" intent while waiting for the user to name a factor
-type PendingState = { type: "awaiting_category"; count: number } | null;
+type PendingState = { type: "awaiting_category"; count: number; direction: "top" | "bottom" } | null;
 
 interface AiMarketMentorProps {
   onNavigate: (tab: string) => void;
@@ -373,8 +376,13 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     setMessages((prev) => [...prev, { id: ++msgId, role, content, isError }]);
   };
 
-  const executeAddToWatchlist = async (category: string, count: number) => {
-    pushMsg("assistant", `Fetching top ${count} stocks from "${category}"…`);
+  const executeAddToWatchlist = async (
+    category: string,
+    count: number,
+    direction: "top" | "bottom" = "top"
+  ) => {
+    const label = direction === "bottom" ? "bottom" : "top";
+    pushMsg("assistant", `Fetching ${label} ${count} stocks from "${category}"…`);
 
     let result;
     try {
@@ -388,9 +396,11 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       return;
     }
 
-    const top = (result.stocks ?? [])
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, count)
+    const sorted = (result.stocks ?? []).sort((a, b) => a.rank - b.rank);
+    const selected = direction === "bottom"
+      ? sorted.slice(-count)          // last N = lowest ranked
+      : sorted.slice(0, count);       // first N = highest ranked
+    const top = selected
       .map((s) => s.symbol.toUpperCase().trim())
       .filter(looksLikeTicker);
 
@@ -435,7 +445,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
         const category = matchCategory(trimmed.toLowerCase());
         if (category) {
           setPending(null);
-          await executeAddToWatchlist(category, pending.count);
+          await executeAddToWatchlist(category, pending.count, pending.direction);
         } else {
           pushMsg(
             "assistant",
@@ -450,12 +460,12 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
 
       switch (intent.type) {
         case "add_to_watchlist":
-          await executeAddToWatchlist(intent.category, intent.count);
+          await executeAddToWatchlist(intent.category, intent.count, intent.direction);
           break;
 
         case "needs_category": {
           const countWord = intent.count === 5 ? "stocks" : `${intent.count} stock${intent.count > 1 ? "s" : ""}`;
-          setPending({ type: "awaiting_category", count: intent.count });
+          setPending({ type: "awaiting_category", count: intent.count, direction: intent.direction });
           pushMsg(
             "assistant",
             `Sure! I'll add ${countWord} once you tell me which factor bucket.\n\nChoose one:\nConsistent Trending · Slow Movement · Cheap Value · Best Quality · Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside · Aggressive Call Options · Aggressive Put Options`
