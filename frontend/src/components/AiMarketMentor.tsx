@@ -524,9 +524,9 @@ function parseIntent(text: string): Intent {
 
   if (/\bbacktest\b/.test(lower) && !wantsNav) return { type: "navigate", tab: "Portfolio Backtest" };
 
-  // ── "run/start/do mvo / equal weight / backtest" → navigate, don't explain ─
-  const wantsRun = /\brun\b|\bstart\b|\bdo\b|\bexecute\b|\blaunch\b/.test(lower);
-  if (wantsRun && (/\bmvo\b|\bequal.weight\b|\bbacktest\b/.test(lower)))
+  // ── "run/build/create mvo / equal weight / backtest / portfolio" → navigate ──
+  const wantsRun = /\brun\b|\bstart\b|\bdo\b|\bexecute\b|\blaunch\b|\bbuild\b|\bcreate\b/.test(lower);
+  if (wantsRun && (/\bmvo\b|\bequal.weight\b|\bbacktest\b|\bportfolio\b/.test(lower)))
     return { type: "navigate", tab: "Portfolio Backtest" };
 
   // ── MVO (explain, not run) ─────────────────────────────────────────────────
