@@ -5,7 +5,9 @@ const RENDER_API_URL = (
 ).replace(/\/+$/, "");
 
 const WATCHLIST_STORAGE_KEY = "starredStocks";
+const MAX_WATCHLIST_SYMBOLS = 50;
 export const WATCHLIST_UPDATED_EVENT = "lightninbull:watchlist-updated";
+export const WATCHLIST_MAX_SYMBOLS = MAX_WATCHLIST_SYMBOLS;
 
 export interface PortfolioMetrics {
   annualised_return_pct?: number | null;
@@ -85,6 +87,10 @@ function normalizeSymbol(symbol: string): string {
   return String(symbol || "").trim().toUpperCase();
 }
 
+function limitWatchlistSymbols(symbols: string[]): string[] {
+  return symbols.slice(0, MAX_WATCHLIST_SYMBOLS);
+}
+
 function broadcastWatchlistUpdate(symbols: string[]): void {
   if (typeof window === "undefined") {
     return;
@@ -94,6 +100,7 @@ function broadcastWatchlistUpdate(symbols: string[]): void {
     new CustomEvent(WATCHLIST_UPDATED_EVENT, {
       detail: {
         symbols: symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
+        maxSymbols: MAX_WATCHLIST_SYMBOLS,
       },
     })
   );
@@ -117,7 +124,9 @@ function readWatchlistFromStorage(): string[] {
       return [];
     }
 
-    return parsed.map((symbol) => normalizeSymbol(String(symbol))).filter(Boolean);
+    return limitWatchlistSymbols(
+      parsed.map((symbol) => normalizeSymbol(String(symbol))).filter(Boolean)
+    );
   } catch {
     return [];
   }
@@ -128,8 +137,10 @@ function writeWatchlistToStorage(symbols: string[]): void {
     return;
   }
 
-  const uniqueSymbols = Array.from(
-    new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean))
+  const uniqueSymbols = limitWatchlistSymbols(
+    Array.from(
+      new Set(symbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean))
+    )
   );
 
   window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(uniqueSymbols));
@@ -148,10 +159,15 @@ export async function addWatchlistSymbol(symbol: string): Promise<string[]> {
     return existing;
   }
 
+  if (!existing.includes(normalized) && existing.length >= MAX_WATCHLIST_SYMBOLS) {
+    writeWatchlistToStorage(existing);
+    return existing;
+  }
+
   const updated = Array.from(new Set([...existing, normalized]));
   writeWatchlistToStorage(updated);
 
-  return updated;
+  return limitWatchlistSymbols(updated);
 }
 
 export async function addWatchlistSymbols(symbols: string[]): Promise<string[]> {
@@ -161,7 +177,7 @@ export async function addWatchlistSymbols(symbols: string[]): Promise<string[]> 
   const updated = Array.from(new Set([...existing, ...normalized]));
   writeWatchlistToStorage(updated);
 
-  return updated;
+  return limitWatchlistSymbols(updated);
 }
 
 export async function removeWatchlistSymbol(symbol: string): Promise<string[]> {
@@ -194,7 +210,7 @@ export async function runWatchlistBacktest(
   strategyType: "equal_weight" | "mvo" | "mvo_short" = "equal_weight"
 ): Promise<PortfolioBacktestResponse> {
   const response = await axios.post(`${RENDER_API_URL}/portfolio/backtest/watchlist`, {
-    symbols,
+    symbols: limitWatchlistSymbols(symbols),
     strategy_type: strategyType,
   });
 
