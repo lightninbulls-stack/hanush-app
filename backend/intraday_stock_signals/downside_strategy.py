@@ -27,6 +27,7 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
         now = datetime.now(IST)
 
         if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
+            logger.info("DS RUN STOP: Market closed — stopping downside strategy")
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 ui_state="STOPPED",
