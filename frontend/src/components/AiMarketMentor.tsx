@@ -481,7 +481,7 @@ type Intent =
   | { type: "needs_category"; count: number; direction: "top" | "bottom" }
   | { type: "build_factor_portfolio" }
   | { type: "navigate"; tab: string }
-  | { type: "scroll"; direction: "up" | "down" | "top" | "bottom" }
+  | { type: "scroll"; direction: "up" | "down" | "top" | "bottom"; slow?: boolean }
   | { type: "explain_mvo" }
   | { type: "explain_equal_weight" }
   | { type: "explain_rebalancing" }
@@ -516,14 +516,16 @@ function parseIntent(text: string): Intent {
   const scrollCmd = /\bscroll\b|\bmove\b|\bslide\b/.test(lower); // these alone (without direction) are still scroll intents
 
   if (scrollVerb || scrollCmd) {
+    const slow = /\bslowly\b|\bslow\b|\bgently\b|\ba little\b|\bsmall\b|\bit\b/.test(lower);
+
     if (/\bto the top\b|\bto top\b|\bgo to top\b|\bjump to top\b|\bstart\b/.test(lower) && !/\bstart\b.*\bstrateg\b/.test(lower))
       return { type: "scroll", direction: "top" };
     if (/\bto the bottom\b|\bto bottom\b|\bjump to bottom\b|\bend of page\b/.test(lower))
       return { type: "scroll", direction: "bottom" };
     if (/\bup\b/.test(lower) && (scrollVerb || scrollCmd))
-      return { type: "scroll", direction: "up" };
+      return { type: "scroll", direction: "up", slow };
     if (/\bdown\b/.test(lower) && (scrollVerb || scrollCmd))
-      return { type: "scroll", direction: "down" };
+      return { type: "scroll", direction: "down", slow };
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -1007,11 +1009,11 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           }
 
           case "scroll": {
-            const scrollTarget =
+            const el =
               document.querySelector<HTMLElement>(".lb-dashboard-main") ??
               document.querySelector<HTMLElement>("main") ??
               null;
-            const el = scrollTarget;
+            const step = intent.slow ? 140 : 380;
 
             if (intent.direction === "top") {
               el ? el.scrollTo({ top: 0, behavior: "smooth" }) : window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1020,9 +1022,9 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
                 ? el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
                 : window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
             } else if (intent.direction === "up") {
-              el ? el.scrollBy({ top: -380, behavior: "smooth" }) : window.scrollBy({ top: -380, behavior: "smooth" });
+              el ? el.scrollBy({ top: -step, behavior: "smooth" }) : window.scrollBy({ top: -step, behavior: "smooth" });
             } else {
-              el ? el.scrollBy({ top: 380, behavior: "smooth" }) : window.scrollBy({ top: 380, behavior: "smooth" });
+              el ? el.scrollBy({ top: step, behavior: "smooth" }) : window.scrollBy({ top: step, behavior: "smooth" });
             }
             break;
           }
