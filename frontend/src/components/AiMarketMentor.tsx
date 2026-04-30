@@ -481,6 +481,7 @@ type Intent =
   | { type: "needs_category"; count: number; direction: "top" | "bottom" }
   | { type: "build_factor_portfolio" }
   | { type: "navigate"; tab: string }
+  | { type: "scroll"; direction: "up" | "down" | "top" | "bottom" }
   | { type: "explain_mvo" }
   | { type: "explain_equal_weight" }
   | { type: "explain_rebalancing" }
@@ -507,6 +508,22 @@ function parseIntent(text: string): Intent {
     const category = matchCategory(lower);
     if (category) return { type: "add_to_watchlist", category, count, direction };
     return { type: "needs_category", count, direction };
+  }
+
+  // ── Scroll ─────────────────────────────────────────────────────────────────
+  // "scroll up", "move up", "go up", "screen up", "page up", "slide up", etc.
+  const scrollVerb = /\bscroll\b|\bmove\b|\bgo\b|\bscreen\b|\bpage\b|\bslide\b|\bpush\b/.test(lower);
+  const scrollCmd = /\bscroll\b|\bmove\b|\bslide\b/.test(lower); // these alone (without direction) are still scroll intents
+
+  if (scrollVerb || scrollCmd) {
+    if (/\bto the top\b|\bto top\b|\bgo to top\b|\bjump to top\b|\bstart\b/.test(lower) && !/\bstart\b.*\bstrateg\b/.test(lower))
+      return { type: "scroll", direction: "top" };
+    if (/\bto the bottom\b|\bto bottom\b|\bjump to bottom\b|\bend of page\b/.test(lower))
+      return { type: "scroll", direction: "bottom" };
+    if (/\bup\b/.test(lower) && (scrollVerb || scrollCmd))
+      return { type: "scroll", direction: "up" };
+    if (/\bdown\b/.test(lower) && (scrollVerb || scrollCmd))
+      return { type: "scroll", direction: "down" };
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -986,6 +1003,27 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
               "assistant",
               `Sure! I'll add ${countWord} once you tell me which factor bucket.\n\nChoose one:\nConsistent Trending · Slow Movement · Cheap Value · Best Quality · Regime Upside · Regime Downside · Range Bound Upside · Range Bound Downside · Aggressive Call Options · Aggressive Put Options`
             );
+            break;
+          }
+
+          case "scroll": {
+            const scrollTarget =
+              document.querySelector<HTMLElement>(".lb-dashboard-main") ??
+              document.querySelector<HTMLElement>("main") ??
+              null;
+            const el = scrollTarget;
+
+            if (intent.direction === "top") {
+              el ? el.scrollTo({ top: 0, behavior: "smooth" }) : window.scrollTo({ top: 0, behavior: "smooth" });
+            } else if (intent.direction === "bottom") {
+              el
+                ? el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+                : window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+            } else if (intent.direction === "up") {
+              el ? el.scrollBy({ top: -380, behavior: "smooth" }) : window.scrollBy({ top: -380, behavior: "smooth" });
+            } else {
+              el ? el.scrollBy({ top: 380, behavior: "smooth" }) : window.scrollBy({ top: 380, behavior: "smooth" });
+            }
             break;
           }
 
