@@ -13,8 +13,8 @@ class SMAState:
 
     Note:
     - Signal becomes valid only after enough ticks are collected.
-    - FAST SMA = last 500 ticks
-    - SLOW SMA = last 1500 ticks
+    - FAST SMA = last 50 ticks  (~5 min at 1 tick/6s per symbol)
+    - SLOW SMA = last 150 ticks (~15 min at 1 tick/6s per symbol)
     """
 
     def __init__(self, fast_span: int, slow_span: int) -> None:

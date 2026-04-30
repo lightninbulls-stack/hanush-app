@@ -11,8 +11,11 @@ IST = pytz.timezone("Asia/Kolkata")
 INDEX_NAME = "STOCKS"
 SPREAD_TYPE = "intraday_stock_signal"
 
-FAST_EMA_SPAN = 500
-SLOW_EMA_SPAN = 1500
+# Each symbol gets ~1 tick every 6 seconds (35-40 symbols, ~1s sleep per cycle).
+# 50 ticks × 6s = 300s = 5-min fast SMA; 150 ticks × 6s = 900s = 15-min slow SMA.
+# Old values (500/1500) required 50 min / 2.5 hr of warmup — SMAs never computed.
+FAST_EMA_SPAN = 50
+SLOW_EMA_SPAN = 150
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
