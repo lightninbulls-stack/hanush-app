@@ -2,8 +2,7 @@ name: Bull Call Spread Scheduler
 
 on:
   schedule:
-    - cron: '15 9 * * 1-5'
-      timezone: 'Asia/Kolkata'
+    - cron: '45 3 * * 1-5'   # 9:15 AM IST = 3:45 AM UTC, Mon-Fri
   workflow_dispatch:
 
 jobs:

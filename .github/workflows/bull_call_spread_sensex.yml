@@ -2,8 +2,7 @@ name: Bull Call Spread SENSEX Scheduler
 
 on:
   schedule:
-    - cron: '18 9 * * 1-5'
-      timezone: 'Asia/Kolkata'
+    - cron: '48 3 * * 1-5'   # 9:18 AM IST = 3:48 AM UTC, Mon-Fri
   workflow_dispatch:
 
 jobs:
