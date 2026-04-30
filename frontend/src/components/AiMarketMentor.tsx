@@ -794,13 +794,19 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
   const [pending, setPending] = useState<PendingState>(null);
   const [isListening, setIsListening] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const isMutedRef = useRef(false);
+  const isMutedRef    = useRef(false);
+  const openRef       = useRef(false);
+  const busyRef       = useRef(false);
+  const isListeningRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<unknown>(null);
 
-  // Keep ref in sync so speakText (a closure) always reads current mute state
-  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  // Keep refs in sync with state so async callbacks always see current values
+  useEffect(() => { isMutedRef.current     = isMuted;     }, [isMuted]);
+  useEffect(() => { openRef.current        = open;        }, [open]);
+  useEffect(() => { busyRef.current        = busy;        }, [busy]);
+  useEffect(() => { isListeningRef.current = isListening; }, [isListening]);
 
   useEffect(() => {
     if (open) {
@@ -809,29 +815,76 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     }
   }, [open, messages]);
 
+  // ── Auto-start listening (internal — no toggle) ───────────────────────────
+  const startListening = () => {
+    if (
+      !voiceSupported ||
+      isListeningRef.current ||
+      busyRef.current ||
+      !openRef.current
+    ) return;
+
+    const SpeechRec = (
+      (window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+    ) as new () => {
+      lang: string; interimResults: boolean; maxAlternatives: number;
+      start: () => void; stop: () => void;
+      onresult: ((e: SpeechRecognitionEvent) => void) | null;
+      onerror: (() => void) | null;
+      onend: (() => void) | null;
+    };
+
+    const rec = new SpeechRec();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    recognitionRef.current = rec;
+    setIsListening(true);
+
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0][0].transcript.trim();
+      setIsListening(false);
+      if (transcript) handleSend(transcript);
+    };
+    rec.onerror = () => setIsListening(false);
+    rec.onend   = () => setIsListening(false);
+    rec.start();
+  };
+
+  // ── Schedule resume listening after agent finishes speaking ───────────────
+  const scheduleResume = () => {
+    setTimeout(() => {
+      if (openRef.current && !busyRef.current) startListening();
+    }, 500);
+  };
+
+  // ── Text-to-Speech ─────────────────────────────────────────────────────────
   const speakText = (text: string) => {
-    if (!window.speechSynthesis || isMutedRef.current) return;
+    // If muted: skip speech but still auto-resume listening
+    if (isMutedRef.current) { scheduleResume(); return; }
+    if (!window.speechSynthesis) { scheduleResume(); return; }
+
     window.speechSynthesis.cancel();
 
-    // Strip markdown syntax and flatten to plain prose
+    // Strip markdown and flatten to plain prose
     let clean = text
       .replace(/\*\*/g, "")
       .replace(/^[•\-\*]\s*/gm, "")
       .replace(/\n+/g, " ")
       .trim();
 
-    // For long responses speak only the first sentence (up to 180 chars)
+    // Long replies: speak only the first sentence (max 180 chars)
     if (clean.length > 180) {
       const first = clean.match(/^[^.!?]+[.!?]/);
       clean = first ? first[0].trim() : clean.slice(0, 180);
     }
 
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang = "en-IN";
-    utterance.rate = 0.93;
+    utterance.lang  = "en-IN";
+    utterance.rate  = 0.93;
     utterance.pitch = 1.05;
 
-    // Prefer Indian English voice, fall back to any English
     const voices = window.speechSynthesis.getVoices();
     const voice =
       voices.find((v) => v.lang === "en-IN") ||
@@ -841,6 +894,9 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       null;
     if (voice) utterance.voice = voice;
 
+    // After agent finishes speaking → auto-listen again
+    utterance.onend = scheduleResume;
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -848,6 +904,21 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     setMessages((prev) => [...prev, { id: ++msgId, role, content, isError }]);
     if (role === "assistant" && !isError) speakText(content);
   };
+
+  // ── Panel open/close lifecycle ────────────────────────────────────────────
+  useEffect(() => {
+    if (open) {
+      // Auto-start listening as soon as panel opens
+      const t = setTimeout(() => startListening(), 700);
+      return () => clearTimeout(t);
+    } else {
+      // Panel closed — stop everything
+      window.speechSynthesis?.cancel();
+      (recognitionRef.current as { stop?: () => void } | null)?.stop();
+      setIsListening(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const executeAddToWatchlist = async (
     category: string,
@@ -1202,45 +1273,15 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
 
   const startVoice = () => {
     if (!voiceSupported) return;
-
-    // If already listening, stop
+    // If already listening → stop (toggle off)
     if (isListening) {
       (recognitionRef.current as { stop: () => void } | null)?.stop();
       setIsListening(false);
       return;
     }
-
-    const SpeechRec = (
-      (window as unknown as Record<string, unknown>).SpeechRecognition ||
-      (window as unknown as Record<string, unknown>).webkitSpeechRecognition
-    ) as new () => {
-      lang: string;
-      interimResults: boolean;
-      maxAlternatives: number;
-      start: () => void;
-      stop: () => void;
-      onresult: ((e: SpeechRecognitionEvent) => void) | null;
-      onerror: (() => void) | null;
-      onend: (() => void) | null;
-    };
-
-    const recognition = new SpeechRec();
-    recognition.lang = "en-IN";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognitionRef.current = recognition;
-    setIsListening(true);
-
-    recognition.onresult = (e: SpeechRecognitionEvent) => {
-      const transcript = e.results[0][0].transcript.trim();
-      setIsListening(false);
-      if (transcript) handleSend(transcript);
-    };
-
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-
-    recognition.start();
+    // Cancel any ongoing speech so the user can speak immediately
+    window.speechSynthesis?.cancel();
+    startListening();
   };
 
   return (
