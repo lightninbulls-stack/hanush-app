@@ -718,6 +718,43 @@ function parseCompoundIntents(text: string): Intent[] {
   });
 }
 
+// ─── Voice Display Text ───────────────────────────────────────────────────────
+// When voice input is used, show the INTERPRETED clean text in the chat bubble
+// instead of the raw (often garbled) STT transcript.
+function getVoiceDisplayText(transcript: string, intent: Intent): string {
+  switch (intent.type) {
+    case "greeting":
+      return "Hi LightninBull";
+    case "navigate":
+      return `Open ${intent.tab}`;
+    case "add_to_watchlist": {
+      const label = intent.count === ALL_STOCKS_SENTINEL ? "all" : `top ${intent.count}`;
+      return `Add ${label} ${intent.category} to watchlist`;
+    }
+    case "needs_category":
+      return `Add top ${intent.count} stocks to watchlist`;
+    case "build_factor_portfolio":
+      return "Build factor portfolio";
+    case "scroll": {
+      const dir =
+        intent.direction === "top" ? "to top" :
+        intent.direction === "bottom" ? "to bottom" :
+        intent.direction;
+      return `Scroll ${dir}${intent.slow ? " slowly" : ""}`;
+    }
+    case "explain_mvo":           return "What is MVO?";
+    case "explain_equal_weight":  return "What is Equal Weight?";
+    case "explain_rebalancing":   return "When should I rebalance?";
+    case "explain_workflow":      return "How does LightninBull work?";
+    case "explain_platform":      return "What can you do for me?";
+    case "explain_alpha":         return "How does the alpha engine work?";
+    case "explain_factor":        return `What is ${intent.factor}?`;
+    case "explain_metric":        return `What is ${intent.metric}?`;
+    case "list_factors":          return "Show all factor buckets";
+    default:                      return transcript; // unknown: show raw so user can rephrase
+  }
+}
+
 // ─── Static Responses ─────────────────────────────────────────────────────────
 
 const ALPHA_EXPLANATION = `LightninBull's alpha engine uses 6 quantitative models, each independently ranking the NSE TOP 200 F&O universe:
@@ -875,7 +912,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     rec.onresult = (e: SpeechRecognitionEvent) => {
       const transcript = e.results[0][0].transcript.trim();
       setIsListening(false);
-      if (transcript) handleSend(transcript);
+      if (transcript) handleSend(transcript, true); // isVoice=true → clean display text
     };
     rec.onerror = () => setIsListening(false);
     rec.onend   = () => setIsListening(false);
@@ -1023,12 +1060,20 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     pushMsg("assistant", reply || "All selected stocks were already in your watchlist.");
   };
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, isVoice = false) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
 
     setInput("");
-    pushMsg("user", trimmed);
+
+    // For voice input: show interpreted clean text, not raw garbled STT transcript
+    if (isVoice) {
+      const firstIntent = parseCompoundIntents(trimmed)[0];
+      pushMsg("user", getVoiceDisplayText(trimmed, firstIntent));
+    } else {
+      pushMsg("user", trimmed);
+    }
+
     setBusy(true);
 
     try {
