@@ -387,22 +387,11 @@ Rebalance every 2 weeks, or when portfolio falls 3%, or gains 5%. This enforces 
 STEP 6 — MONITOR & IMPROVE
 Track CAGR, Sharpe Ratio, Alpha, Max Drawdown vs NIFTY 50. Refine your factor selection over time.`;
 
-const PLATFORM_EXPLANATION = `LightninBull is a Quant Intelligence Platform built for serious Indian market participants.
+const PLATFORM_EXPLANATION = `Hey, I'm your personal trading buddy right here on LightninBull! Think of me as your quant friend who knows this dashboard inside-out. Here's what I can do for you:
 
-WHAT IT IS
-A complete AI-driven Quant Fund Manager workflow — not just a screener. It covers stock discovery, intelligent classification, watchlist management, portfolio backtesting, and disciplined rebalancing.
+Build you a solid factor portfolio from the top-ranked NSE stocks, add stocks to your watchlist with one command, run Equal Weight or MVO backtests to see how your picks actually performed, explain any metric or strategy in plain English, and open any section of the dashboard — bull call spreads, bear puts, live signals, your profile, everything.
 
-WHAT IT COVERS
-• Indian Equities (NSE TOP 200 F&O universe)
-• Factor Research (Momentum, Value, Quality, Low Vol, Regime, Range Bound)
-• Derivatives Intelligence (Aggressive Call/Put Option demand signals)
-• Live Bull Call Spread and Bear Put Spread signals (intraday)
-• Live Upside and Downside Trend Stock signals (intraday)
-• Portfolio Backtest with NIFTY 50 benchmark comparison
-• Retail allocation guide (₹10,000 to ₹100 crore)
-
-WHO IT IS FOR
-Indian traders and investors who want to move from gut-feel to systematic, data-driven decisions — like a professional quant fund but accessible to retail.`;
+Basically if it's on this dashboard, just ask and I'll sort it out for you. What do you want to start with?`;
 
 const FACTOR_DETAIL: Record<string, string> = {
   "Consistent Trending": `Consistent Trending identifies stocks with sustained price momentum across multiple timeframes (1W, 1M, 3M, 6M).
@@ -629,9 +618,13 @@ function parseIntent(text: string): Intent {
   if (/\bfactor|\bcategor|\bbucket|\blist\b/.test(lower) && /\bwhat|\bshow|\blist\b|\ball\b/.test(lower))
     return { type: "list_factors" };
 
-  // ── Generic help ──────────────────────────────────────────────────────────
-  if (/\bwhat can|\bhelp\b|\bwhat do you|\bcan you\b/.test(lower))
-    return { type: "explain_platform" };
+  // ── Generic help / capability question ───────────────────────────────────
+  if (
+    /\bwhat can\b|\bwhat do you\b|\bcan you\b|\bhelp\b/.test(lower) ||
+    /\bwhat (you|will|would|are you)\b/.test(lower) ||
+    /\bwhat.*do for (me|us)\b|\bhow can you\b|\btell me what\b/.test(lower) ||
+    /\bwhat (are you|you are)\b/.test(lower)
+  ) return { type: "explain_platform" };
 
   // ── Greeting detection ────────────────────────────────────────────────────
   // Strip ALL product name variants first, including STT artifacts:
@@ -718,16 +711,16 @@ const FACTOR_LIST = `All 10 factor buckets on LightninBull:
 Ask me to explain any factor in detail, e.g. "What is Slow Movement?"
 Or: "Add top 5 [factor] to watchlist"`;
 
-const UNKNOWN_RESPONSE = `I didn't quite catch that. Here's what I can help with:
+const UNKNOWN_RESPONSE = `Hmm, I didn't quite get that — no worries though! Try something like:
 
-• Add stocks — "Add top 5 Slow Movement to watchlist"
-• Explain strategies — "What is MVO?" / "What is Equal Weight?"
-• Explain metrics — "What is Sharpe Ratio?" / "What is CAGR?" / "What is Max Drawdown?"
-• Explain factors — "What is Consistent Trending?" / "Explain Regime Upside"
-• Explain workflow — "How does LightninBull work?"
-• Navigate — "Show Bull Call Spreads" / "Open Portfolio Backtest"
-• Rebalancing — "When should I rebalance?"
-• Platform — "What is LightninBull?"`;
+"Add top 5 Slow Movement to watchlist"
+"Build my factor portfolio"
+"Open Bull Call Spreads"
+"What is Sharpe Ratio?"
+"How does LightninBull work?"
+"Run equal weight backtest"
+
+What do you need? I'm right here!`;
 
 // ─── Quick Actions ─────────────────────────────────────────────────────────────
 
@@ -882,14 +875,26 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
 
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang  = "en-IN";
-    utterance.rate  = 0.93;
-    utterance.pitch = 1.05;
+    utterance.rate  = 0.90;
+    utterance.pitch = 1.18; // higher pitch = softer, more feminine tone
+
+    // Known female voice name fragments (cross-platform)
+    const FEMALE_HINTS = [
+      "heera", "priya", "zira", "samantha", "karen", "moira",
+      "fiona", "tessa", "veena", "female", "woman", "girl",
+      "natasha", "susan", "victoria", "allison", "ava", "nicky",
+    ];
+    const isFemale = (v: SpeechSynthesisVoice) =>
+      FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h));
 
     const voices = window.speechSynthesis.getVoices();
     const voice =
+      voices.find((v) => v.lang === "en-IN" && isFemale(v)) ||
+      voices.find((v) => v.lang.startsWith("en-IN") && isFemale(v)) ||
+      voices.find((v) => v.lang.startsWith("en-GB") && isFemale(v)) ||
+      voices.find((v) => v.lang.startsWith("en") && isFemale(v)) ||
       voices.find((v) => v.lang === "en-IN") ||
       voices.find((v) => v.lang.startsWith("en-IN")) ||
-      voices.find((v) => v.lang.startsWith("en-GB")) ||
       voices.find((v) => v.lang.startsWith("en")) ||
       null;
     if (voice) utterance.voice = voice;
