@@ -874,28 +874,31 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     }
 
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang  = "en-IN";
-    utterance.rate  = 0.90;
-    utterance.pitch = 1.18; // higher pitch = softer, more feminine tone
-
-    // Known female voice name fragments (cross-platform)
-    const FEMALE_HINTS = [
-      "heera", "priya", "zira", "samantha", "karen", "moira",
-      "fiona", "tessa", "veena", "female", "woman", "girl",
-      "natasha", "susan", "victoria", "allison", "ava", "nicky",
-    ];
-    const isFemale = (v: SpeechSynthesisVoice) =>
-      FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h));
+    utterance.lang  = "en-US";
+    utterance.rate  = 1.0;   // Siri speaks at a natural, clear pace
+    utterance.pitch = 1.05;  // slight lift — Siri-style, not artificially high
 
     const voices = window.speechSynthesis.getVoices();
+    const find = (pred: (v: SpeechSynthesisVoice) => boolean) =>
+      voices.find(pred) ?? null;
+
+    // Priority: Samantha = actual macOS/iOS Siri voice
+    // → Google UK English Female (Chrome desktop)
+    // → Google US English (Chrome, female-sounding)
+    // → other Apple female voices (Karen, Moira, Fiona, Tessa)
+    // → any voice with "female" in the name
+    // → Heera / Zira (Windows Indian/US female)
+    // → any English fallback
     const voice =
-      voices.find((v) => v.lang === "en-IN" && isFemale(v)) ||
-      voices.find((v) => v.lang.startsWith("en-IN") && isFemale(v)) ||
-      voices.find((v) => v.lang.startsWith("en-GB") && isFemale(v)) ||
-      voices.find((v) => v.lang.startsWith("en") && isFemale(v)) ||
-      voices.find((v) => v.lang === "en-IN") ||
-      voices.find((v) => v.lang.startsWith("en-IN")) ||
-      voices.find((v) => v.lang.startsWith("en")) ||
+      find((v) => /samantha/i.test(v.name)) ||
+      find((v) => /google uk english female/i.test(v.name)) ||
+      find((v) => /google us english/i.test(v.name)) ||
+      find((v) => /\b(karen|moira|fiona|tessa|veena|allison|ava|victoria|susan|nicky)\b/i.test(v.name)) ||
+      find((v) => /female/i.test(v.name) && v.lang.startsWith("en")) ||
+      find((v) => /\b(heera|priya|zira)\b/i.test(v.name)) ||
+      find((v) => v.lang === "en-US") ||
+      find((v) => v.lang === "en-GB") ||
+      find((v) => v.lang.startsWith("en")) ||
       null;
     if (voice) utterance.voice = voice;
 
