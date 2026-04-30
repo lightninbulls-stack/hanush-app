@@ -793,9 +793,14 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<PendingState>(null);
   const [isListening, setIsListening] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const isMutedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<unknown>(null);
+
+  // Keep ref in sync so speakText (a closure) always reads current mute state
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
   useEffect(() => {
     if (open) {
@@ -804,8 +809,44 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     }
   }, [open, messages]);
 
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis || isMutedRef.current) return;
+    window.speechSynthesis.cancel();
+
+    // Strip markdown syntax and flatten to plain prose
+    let clean = text
+      .replace(/\*\*/g, "")
+      .replace(/^[•\-\*]\s*/gm, "")
+      .replace(/\n+/g, " ")
+      .trim();
+
+    // For long responses speak only the first sentence (up to 180 chars)
+    if (clean.length > 180) {
+      const first = clean.match(/^[^.!?]+[.!?]/);
+      clean = first ? first[0].trim() : clean.slice(0, 180);
+    }
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = "en-IN";
+    utterance.rate = 0.93;
+    utterance.pitch = 1.05;
+
+    // Prefer Indian English voice, fall back to any English
+    const voices = window.speechSynthesis.getVoices();
+    const voice =
+      voices.find((v) => v.lang === "en-IN") ||
+      voices.find((v) => v.lang.startsWith("en-IN")) ||
+      voices.find((v) => v.lang.startsWith("en-GB")) ||
+      voices.find((v) => v.lang.startsWith("en")) ||
+      null;
+    if (voice) utterance.voice = voice;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   const pushMsg = (role: Message["role"], content: string, isError = false) => {
     setMessages((prev) => [...prev, { id: ++msgId, role, content, isError }]);
+    if (role === "assistant" && !isError) speakText(content);
   };
 
   const executeAddToWatchlist = async (
@@ -1273,29 +1314,64 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
               padding: "14px 18px",
               borderBottom: "1px solid rgba(255,255,255,0.07)",
               background: "rgba(250,204,21,0.04)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
-            <div
-              style={{
-                fontFamily: "var(--font-mono, monospace)",
-                fontSize: 9,
-                letterSpacing: 4,
-                color: "rgba(250,204,21,0.75)",
-                marginBottom: 4,
-              }}
-            >
-              QUANT FUND MANAGER AI
+            <div>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono, monospace)",
+                  fontSize: 9,
+                  letterSpacing: 4,
+                  color: "rgba(250,204,21,0.75)",
+                  marginBottom: 4,
+                }}
+              >
+                QUANT FUND MANAGER AI
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-sans, sans-serif)",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#f7f0df",
+                }}
+              >
+                Quant Fund Manager AI
+              </div>
             </div>
-            <div
+
+            {/* Mute / unmute voice toggle */}
+            <button
+              onClick={() => {
+                if (!isMuted) window.speechSynthesis?.cancel();
+                setIsMuted((m) => !m);
+              }}
+              title={isMuted ? "Voice off — click to enable" : "Voice on — click to mute"}
               style={{
-                fontFamily: "var(--font-sans, sans-serif)",
+                width: 34,
+                height: 34,
+                flexShrink: 0,
+                borderRadius: 6,
+                border: isMuted
+                  ? "1px solid rgba(255,255,255,0.12)"
+                  : "1px solid rgba(250,204,21,0.28)",
+                background: isMuted
+                  ? "rgba(255,255,255,0.04)"
+                  : "rgba(250,204,21,0.08)",
+                color: isMuted ? "rgba(255,255,255,0.3)" : "rgba(250,204,21,0.9)",
                 fontSize: 15,
-                fontWeight: 600,
-                color: "#f7f0df",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.18s ease",
               }}
             >
-              Quant Fund Manager AI
-            </div>
+              {isMuted ? "🔇" : "🔊"}
+            </button>
           </div>
 
           {/* Messages */}
