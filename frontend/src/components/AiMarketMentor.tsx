@@ -491,6 +491,7 @@ type Intent =
   | { type: "explain_factor"; factor: string }
   | { type: "explain_metric"; metric: string }
   | { type: "list_factors" }
+  | { type: "greeting" }
   | { type: "unknown" };
 
 function parseIntent(text: string): Intent {
@@ -631,6 +632,23 @@ function parseIntent(text: string): Intent {
   // ── Generic help ──────────────────────────────────────────────────────────
   if (/\bwhat can|\bhelp\b|\bwhat do you|\bcan you\b/.test(lower))
     return { type: "explain_platform" };
+
+  // ── Greeting detection ────────────────────────────────────────────────────
+  // Strip product name so "hi lightninbull" still matches as a greeting
+  const greetingCore = lower
+    .replace(/\b(lightninbull|lightnin\s*bull|lightnin|lightbull|lb)\b/g, "")
+    .replace(/[!.,?]+/g, "")
+    .trim();
+
+  const isGreeting =
+    /^(hi+|hey+|hiya|heya|yo+|sup|whats?\s*up|hows?\s*it\s*going|bro+|mate|dude|buddy|friend|pal)$/.test(greetingCore) ||
+    /^(hello+|good\s*(morning|afternoon|evening|night|day)|how\s*do\s*you\s*do|its?\s*a\s*pleasure|greetings|howdy|aloha)$/.test(greetingCore) ||
+    /^(namaste|hola|bonjour|salaam|konnichiwa|ciao|shalom|salam|vanakkam|sat\s*sri\s*akal)$/.test(greetingCore) ||
+    /^(welcome|happy\s+(diwali|birthday|new\s+year|holi)|congratulations|congrats|long\s*time\s*no\s*see)$/.test(greetingCore) ||
+    /^(wave|nod|smile|handshake|👋|🤝|🙂|😊|🙏)$/.test(greetingCore) ||
+    /^(great\s*to\s*(see|meet)|nice\s*to\s*(meet|see)|pleasure\s*(meeting|to\s*meet)|so\s*happy\s*to\s*meet|what'?s\s*happening)$/.test(greetingCore);
+
+  if (isGreeting) return { type: "greeting" };
 
   // ── Factor-only input (no add/show verb) — treat as nav ───────────────────
   const category = matchCategory(lower);
@@ -1093,6 +1111,31 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
           case "list_factors":
             pushMsg("assistant", FACTOR_LIST);
             break;
+
+          case "greeting": {
+            const hour = new Date().getHours();
+            const timeTag =
+              hour < 12 ? "Good morning!" :
+              hour < 17 ? "Good afternoon!" :
+              "Good evening!";
+            const casualReplies = [
+              `${timeTag} Hi there! What are you looking for today?`,
+              "Hey mate! How's it going? What can I do for you?",
+              "Hi friend! Great to have you here. What's up?",
+              "Hey! Good to see you. How may I help you today?",
+              "Hiya! What's on your mind? I'm all ears.",
+              "Hey there! What would you like to do on the dashboard?",
+              "Hi! Ready to help. What are you looking for?",
+              "Hello! Happy to assist. What's up?",
+              "Hey buddy! What can I sort out for you today?",
+              "Yo! How's it going? What do you need?",
+              `${timeTag} What's up? How can I help?`,
+              "Hi mate! Tell me what you need and I'll get it done.",
+            ];
+            const reply = casualReplies[Math.floor(Math.random() * casualReplies.length)];
+            pushMsg("assistant", reply);
+            break;
+          }
 
           default:
             if (intents.length === 1) pushMsg("assistant", UNKNOWN_RESPONSE);
