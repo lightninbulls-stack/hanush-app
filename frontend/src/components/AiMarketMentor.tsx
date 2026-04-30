@@ -914,7 +914,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     } else {
       // Panel closed — stop everything
       window.speechSynthesis?.cancel();
-      (recognitionRef.current as { stop?: () => void } | null)?.stop();
+      (recognitionRef.current as { stop?: () => void } | null)?.stop?.();
       setIsListening(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
