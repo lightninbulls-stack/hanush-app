@@ -28,7 +28,9 @@ import {
 
 import {
   fetchSubscriptionStatus,
+  fetchUserProfile,
   type SubscriptionStatus,
+  type UserProfile,
 } from "../services/subscriptionApi";
 
 const UPSIDE_STOCK_SIGNAL_KEY = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL";
@@ -126,6 +128,8 @@ const Dashboard: React.FC = () => {
     days_left: 0,
   });
 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
   const isPremium = subscription.is_active;
 
   const handleLogout = () => {
@@ -153,15 +157,21 @@ const Dashboard: React.FC = () => {
         const status = await fetchSubscriptionStatus();
         setSubscription(status);
       } catch {
-        setSubscription({
-          is_active: false,
-          valid_till: null,
-          days_left: 0,
-        });
+        setSubscription({ is_active: false, valid_till: null, days_left: 0 });
+      }
+    };
+
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchUserProfile();
+        setUserProfile(profile);
+      } catch {
+        // silently ignore — profile is non-critical
       }
     };
 
     loadSubscription();
+    loadProfile();
   }, []);
 
   useEffect(() => {
@@ -621,32 +631,105 @@ const Dashboard: React.FC = () => {
               </div>
             </>
           ) : activeTab === "Profile / Settings" ? (
-            <div className="lb-card" style={{ maxWidth: 720 }}>
-              <div className="lb-eyebrow" style={{ marginBottom: 16 }}>
-                Account
-              </div>
-
-              <h2 className="lb-title" style={{ fontSize: 32, marginBottom: 12 }}>
-                Profile &amp; Settings
+            <div style={{ maxWidth: 520 }}>
+              <div className="lb-eyebrow" style={{ marginBottom: 12 }}>Account</div>
+              <h2 className="lb-title" style={{ fontSize: 28, marginBottom: 24 }}>
+                Profile
               </h2>
 
-              <p className="lb-text">
-                Manage your account preferences and application settings here.
-              </p>
+              {/* User info card */}
+              <div style={{
+                background: "rgba(8,9,12,0.96)",
+                border: "1px solid rgba(250,204,21,0.12)",
+                borderRadius: 16,
+                padding: "28px 28px 24px",
+                marginBottom: 16,
+              }}>
+                {/* Avatar initial */}
+                <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 24 }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: "50%",
+                    background: "linear-gradient(135deg,#facc15,#d6a21f)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "var(--font-serif)", fontSize: 24, fontWeight: 600,
+                    color: "#1a1200", flexShrink: 0,
+                  }}>
+                    {(userProfile?.name ?? "?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: "var(--font-serif)", fontSize: 20, fontWeight: 300, color: "var(--lb-cream)" }}>
+                      {userProfile?.name ?? "—"}
+                    </div>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.38)", marginTop: 3 }}>
+                      Member since {userProfile?.member_since ?? "—"}
+                    </div>
+                  </div>
+                </div>
 
-              <div style={{ marginTop: 20 }}>
-                {isPremium ? (
-                  <p style={{ color: "#66ffb2" }}>
-                    Premium subscription active. Days left: {subscription.days_left}
-                  </p>
-                ) : (
-                  <button
-                    className="lb-gold-button"
-                    onClick={() => navigate("/pricing")}
-                  >
-                    Upgrade to Premium
-                  </button>
-                )}
+                {/* Fields */}
+                {[
+                  { label: "NAME", value: userProfile?.name ?? "—" },
+                  { label: "EMAIL", value: userProfile?.email ?? "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{
+                    display: "flex", flexDirection: "column", gap: 4,
+                    padding: "14px 0",
+                    borderTop: "1px solid rgba(255,255,255,0.05)",
+                  }}>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, color: "rgba(250,204,21,0.55)", textTransform: "uppercase" }}>
+                      {label}
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Subscription badge */}
+                <div style={{
+                  display: "flex", flexDirection: "column", gap: 4,
+                  padding: "14px 0",
+                  borderTop: "1px solid rgba(255,255,255,0.05)",
+                }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, color: "rgba(250,204,21,0.55)", textTransform: "uppercase" }}>
+                    SUBSCRIPTION
+                  </span>
+                  {isPremium ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "5px 14px", borderRadius: 99,
+                        background: "rgba(74,222,128,0.1)",
+                        border: "1px solid rgba(74,222,128,0.3)",
+                        fontFamily: "var(--font-mono)", fontSize: 11,
+                        color: "#4ade80", letterSpacing: 0.5,
+                      }}>
+                        ● Premium Active
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.38)" }}>
+                        {subscription.days_left} days left
+                        {subscription.valid_till ? ` · expires ${new Date(subscription.valid_till).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 2 }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "5px 14px", borderRadius: 99,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        fontFamily: "var(--font-mono)", fontSize: 11,
+                        color: "rgba(255,255,255,0.38)", letterSpacing: 0.5,
+                      }}>
+                        ○ Free Plan
+                      </span>
+                      <button className="lb-gold-button" onClick={() => navigate("/pricing")}
+                        style={{ padding: "5px 16px", fontSize: 11 }}>
+                        Upgrade to Premium
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : isLockedPremiumTab ? (

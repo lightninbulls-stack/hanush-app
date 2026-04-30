@@ -61,6 +61,8 @@ class TokenResponse(BaseModel):
 
 class MeResponse(BaseModel):
     email: str
+    name: str
+    member_since: str
 
 
 def get_db():
@@ -303,8 +305,12 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=MeResponse)
-def me(current_email: str = Depends(get_current_email)):
-    return MeResponse(email=current_email)
+def me(user: User = Depends(get_current_user)):
+    return MeResponse(
+        email=user.email,
+        name=user.name,
+        member_since=user.created_at.strftime("%d %b %Y"),
+    )
 
 
 @router.get("/users")

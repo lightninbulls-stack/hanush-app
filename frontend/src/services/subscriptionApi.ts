@@ -4,6 +4,24 @@ const API_BASE_URL = (
   "https://hanush-backend-service1.onrender.com"
 ).replace(/\/+$/, "");
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  member_since: string;
+}
+
+export async function fetchUserProfile(): Promise<UserProfile> {
+  const token = localStorage.getItem("token");
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) throw new Error("Failed to fetch user profile");
+  return response.json();
+}
+
 export interface SubscriptionStatus {
   is_active: boolean;
   valid_till: string | null;
