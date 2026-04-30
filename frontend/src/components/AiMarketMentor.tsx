@@ -656,6 +656,43 @@ function parseIntent(text: string): Intent {
   const category = matchCategory(lower);
   if (category) return { type: "navigate", tab: category };
 
+  // ── STT artifact: relaxed greeting fallback ────────────────────────────────
+  // STT often mishears "hi lightninbull" → "highlight angle", "high lifhnin bull" → "high lightning bull"
+  // If the input is short, has no actionable verb, and the FIRST WORD starts
+  // with a greeting sound, treat the whole utterance as a greeting.
+  {
+    const sttWords = lower.trim().split(/\s+/).filter(Boolean);
+    const sttFirst = sttWords[0] ?? "";
+    const hasActionVerb = /\b(add|show|open|build|run|explain|get|list|fetch|navigate|scroll|move|what|which|when|why)\b/.test(lower);
+    if (
+      sttWords.length <= 4 &&
+      !hasActionVerb &&
+      /^(hi|he|hey|yo|sup|hel|how|nam|goo|hol|sal|kon|cia|alo|van|wel|hap|con|bro|mat|dud|bud|pal)/.test(sttFirst)
+    ) return { type: "greeting" };
+  }
+
+  // ── STT artifact: fuzzy tab match on individual words ─────────────────────
+  // When STT garbles a tab name ("portfolio" → "port folio", "backtest" → "back test"),
+  // scan every word against all navigation alias phrases and return the best hit.
+  {
+    const NAV_ALIASES: Array<{ pattern: RegExp; tab: string }> = [
+      { pattern: /\b(bull|call|spread|bul|cal|spre|bl|cl)\b/,            tab: "Bull Call Spreads" },
+      { pattern: /\b(bear|put|spread|ber|pt|bea)\b/,                     tab: "Bear Put Spreads" },
+      { pattern: /\b(watch|list|wach|wathc|lst)\b/,                      tab: "Watchlist" },
+      { pattern: /\b(backtest|back|test|portfolio|port|backt|portfl)\b/,  tab: "Portfolio Backtest" },
+      { pattern: /\b(upside|up|upsid|uside)\b/,                          tab: "Upside Trend Stocks" },
+      { pattern: /\b(downside|down|dwnside|dwn)\b/,                      tab: "Downside Trend Stocks" },
+      { pattern: /\b(guide|tutorial|help|guid|tutor)\b/,                 tab: "Guide" },
+      { pattern: /\b(profile|setting|account|subscri|profil|sett)\b/,    tab: "Profile / Settings" },
+    ];
+
+    const inputWords = lower.split(/\s+/);
+    for (const { pattern, tab } of NAV_ALIASES) {
+      if (inputWords.some((w) => pattern.test(w)))
+        return { type: "navigate", tab };
+    }
+  }
+
   return { type: "unknown" };
 }
 
@@ -711,16 +748,16 @@ const FACTOR_LIST = `All 10 factor buckets on LightninBull:
 Ask me to explain any factor in detail, e.g. "What is Slow Movement?"
 Or: "Add top 5 [factor] to watchlist"`;
 
-const UNKNOWN_RESPONSE = `Hmm, I didn't quite get that — no worries though! Try something like:
+const UNKNOWN_RESPONSE = `Hmm, voice may not have been clear — try saying it again, or rephrase. Here's what I understand:
 
 "Add top 5 Slow Movement to watchlist"
 "Build my factor portfolio"
-"Open Bull Call Spreads"
-"What is Sharpe Ratio?"
+"Open Bull Call Spreads" / "Open Watchlist"
+"What is Sharpe Ratio?" / "What is CAGR?"
 "How does LightninBull work?"
 "Run equal weight backtest"
 
-What do you need? I'm right here!`;
+Just say it again — I'm listening!`;
 
 // ─── Quick Actions ─────────────────────────────────────────────────────────────
 
