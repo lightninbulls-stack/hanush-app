@@ -1,7 +1,7 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-04-29,1,JSWENERGY,Power,100,-0.03,13.37,13.82,5.08,32.41,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
-2026-04-29,2,RECLTD,Financial Services,49,-5.16,10.94,-0.72,-3.03,31.3,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
-2026-04-29,3,TIINDIA,Automobile and Auto Components,46,-1.96,10.54,29.1,-7.53,36.74,Very High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
-2026-04-29,4,NHPC,Power,32,1.77,8.92,8.57,-2.02,23.81,Medium Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
-2026-04-29,5,DMART,Consumer Services,4,-0.03,17.45,23.34,7.62,25.88,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
-2026-04-29,6,COALINDIA,Oil Gas & Consumable Fuels,0,8.05,8.16,13.4,22.22,27.41,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,1,JSWENERGY,Power,100,-0.04,15.75,17.48,5.65,32.4,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,2,RECLTD,Financial Services,49,-5.88,11.26,-1.95,-4.91,31.49,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,3,NHPC,Power,32,2.14,8.63,10.56,-1.88,23.79,Medium Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,4,PFC,Financial Services,5,-4.56,13.23,25.02,13.92,31.49,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,5,DMART,Consumer Services,4,1.43,17.49,25.11,8.83,25.81,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
+2026-04-30,6,COALINDIA,Oil Gas & Consumable Fuels,0,6.83,8.18,15.07,22.18,27.41,High Vol,Recent 2M z-score >= +1.50 + (recent bear cross OR EMA(3/8) bearish)
