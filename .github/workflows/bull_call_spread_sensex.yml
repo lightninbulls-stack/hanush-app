@@ -8,6 +8,7 @@ on:
 jobs:
   run-bull-call-sensex-spread:
     runs-on: ubuntu-latest
+    timeout-minutes: 390   # 9:18 AM IST start → 3:30 PM IST close = 6h 12min; 390 gives safe buffer
 
     steps:
       - name: Checkout code

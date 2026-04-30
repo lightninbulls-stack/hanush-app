@@ -8,6 +8,7 @@ on:
 jobs:
   run-bear-put-sensex-spread:
     runs-on: ubuntu-latest
+    timeout-minutes: 390   # 9:28 AM IST start → 3:30 PM IST close = 6h 2min; 390 gives safe buffer
 
     steps:
       - name: Checkout code

@@ -8,6 +8,7 @@ on:
 jobs:
   run-bull-call-spread:
     runs-on: ubuntu-latest
+    timeout-minutes: 390   # 9:15 AM IST start → 3:30 PM IST close = 6h 15min; 390 gives safe buffer
 
     steps:
       - name: Checkout code
