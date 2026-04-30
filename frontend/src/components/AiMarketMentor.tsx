@@ -720,6 +720,14 @@ interface AiMarketMentorProps {
 
 let msgId = 0;
 
+// Check once at module level — avoids repeated window lookups
+const voiceSupported =
+  typeof window !== "undefined" &&
+  !!(
+    (window as unknown as Record<string, unknown>).SpeechRecognition ||
+    (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+  );
+
 const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
   onNavigate,
   starredSymbols,
@@ -738,8 +746,10 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<PendingState>(null);
+  const [isListening, setIsListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<unknown>(null);
 
   useEffect(() => {
     if (open) {
@@ -1057,6 +1067,49 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     if (e.key === "Enter") handleSend(input);
   };
 
+  const startVoice = () => {
+    if (!voiceSupported) return;
+
+    // If already listening, stop
+    if (isListening) {
+      (recognitionRef.current as { stop: () => void } | null)?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRec = (
+      (window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+    ) as new () => {
+      lang: string;
+      interimResults: boolean;
+      maxAlternatives: number;
+      start: () => void;
+      stop: () => void;
+      onresult: ((e: SpeechRecognitionEvent) => void) | null;
+      onerror: (() => void) | null;
+      onend: (() => void) | null;
+    };
+
+    const recognition = new SpeechRec();
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+    setIsListening(true);
+
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0][0].transcript.trim();
+      setIsListening(false);
+      if (transcript) handleSend(transcript);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognition.start();
+  };
+
   return (
     <>
       {/* Floating pill trigger */}
@@ -1282,19 +1335,53 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={busy}
-              placeholder="Type or tap mic: run MVO backtest…"
+              placeholder={isListening ? "Listening… speak now" : "Type or say your command…"}
               style={{
                 flex: 1,
                 padding: "10px 12px",
                 borderRadius: 6,
-                border: "1px solid rgba(250,204,21,0.18)",
+                border: `1px solid ${isListening ? "rgba(239,68,68,0.4)" : "rgba(250,204,21,0.18)"}`,
                 background: "rgba(255,255,255,0.04)",
                 color: "#f7f0df",
                 fontFamily: "var(--font-mono, monospace)",
                 fontSize: 12,
                 outline: "none",
+                transition: "border-color 0.2s ease",
               }}
             />
+
+            {/* Mic button */}
+            {voiceSupported && (
+              <button
+                onClick={startVoice}
+                disabled={busy}
+                title={isListening ? "Stop listening" : "Voice command"}
+                style={{
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  borderRadius: 6,
+                  border: isListening
+                    ? "1px solid rgba(239,68,68,0.55)"
+                    : "1px solid rgba(250,204,21,0.22)",
+                  background: isListening
+                    ? "rgba(239,68,68,0.15)"
+                    : "rgba(255,255,255,0.04)",
+                  color: isListening ? "#f87171" : "rgba(250,204,21,0.75)",
+                  fontSize: 16,
+                  cursor: busy ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: busy ? 0.45 : 1,
+                  transition: "all 0.18s ease",
+                  animation: isListening ? "lb-mic-pulse 1s ease-in-out infinite" : "none",
+                }}
+              >
+                🎤
+              </button>
+            )}
+
             <button
               onClick={() => handleSend(input)}
               disabled={busy || !input.trim()}
@@ -1316,6 +1403,14 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
             >
               Send
             </button>
+
+            {/* Pulse animation for mic */}
+            <style>{`
+              @keyframes lb-mic-pulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+                50%       { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+              }
+            `}</style>
           </div>
         </div>
       )}
