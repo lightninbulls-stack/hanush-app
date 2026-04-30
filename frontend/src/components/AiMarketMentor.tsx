@@ -634,18 +634,27 @@ function parseIntent(text: string): Intent {
     return { type: "explain_platform" };
 
   // ── Greeting detection ────────────────────────────────────────────────────
-  // Strip product name so "hi lightninbull" still matches as a greeting
+  // Strip ALL product name variants first, including STT artifacts:
+  // "lightninbull" → typed; "lightning bull" / "lightnin bull" → spoken by STT
   const greetingCore = lower
-    .replace(/\b(lightninbull|lightnin\s*bull|lightnin|lightbull|lb)\b/g, "")
+    .replace(/\b(lightninbull|lightnin\s*bull|lightning\s*bull|lightnin|lightning|lightbull|lb)\b/g, "")
     .replace(/[!.,?]+/g, "")
     .trim();
 
   const isGreeting =
-    /^(hi+|hey+|hiya|heya|yo+|sup|whats?\s*up|hows?\s*it\s*going|bro+|mate|dude|buddy|friend|pal)$/.test(greetingCore) ||
+    // User just said the product name alone → treat as a hello
+    greetingCore === "" ||
+    // Informal — includes STT artifacts: "high" (for "hi"), "hai", "he" (for "hey")
+    /^(hi+|hey+|hiya|heya|yo+|sup|high|hai|he|whats?\s*up|hows?\s*it\s*going|bro+|mate|dude|buddy|friend|pal)$/.test(greetingCore) ||
+    // Formal
     /^(hello+|good\s*(morning|afternoon|evening|night|day)|how\s*do\s*you\s*do|its?\s*a\s*pleasure|greetings|howdy|aloha)$/.test(greetingCore) ||
+    // Cultural / global
     /^(namaste|hola|bonjour|salaam|konnichiwa|ciao|shalom|salam|vanakkam|sat\s*sri\s*akal)$/.test(greetingCore) ||
+    // Situational
     /^(welcome|happy\s+(diwali|birthday|new\s+year|holi)|congratulations|congrats|long\s*time\s*no\s*see)$/.test(greetingCore) ||
+    // Non-verbal
     /^(wave|nod|smile|handshake|👋|🤝|🙂|😊|🙏)$/.test(greetingCore) ||
+    // Emotional
     /^(great\s*to\s*(see|meet)|nice\s*to\s*(meet|see)|pleasure\s*(meeting|to\s*meet)|so\s*happy\s*to\s*meet|what'?s\s*happening)$/.test(greetingCore);
 
   if (isGreeting) return { type: "greeting" };
