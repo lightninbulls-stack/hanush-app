@@ -28,6 +28,7 @@ import {
 
 import {
   fetchSubscriptionStatus,
+  getCachedSubscriptionStatus,
   fetchUserProfile,
   type SubscriptionStatus,
   type UserProfile,
@@ -122,11 +123,11 @@ const buildWatchlistStocks = (
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
-  const [subscription, setSubscription] = useState<SubscriptionStatus>({
-    is_active: false,
-    valid_till: null,
-    days_left: 0,
-  });
+  // Initialise from localStorage cache so isPremium is correct on first render,
+  // no flash of "non-premium" while the API call is in-flight.
+  const [subscription, setSubscription] = useState<SubscriptionStatus>(
+    getCachedSubscriptionStatus
+  );
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
@@ -154,10 +155,10 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadSubscription = async () => {
       try {
-        const status = await fetchSubscriptionStatus();
+        const status = await fetchSubscriptionStatus(); // also writes to localStorage cache
         setSubscription(status);
       } catch {
-        setSubscription({ is_active: false, valid_till: null, days_left: 0 });
+        // API failed — keep whatever is already in state (loaded from cache above)
       }
     };
 

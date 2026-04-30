@@ -28,6 +28,22 @@ export interface SubscriptionStatus {
   days_left: number;
 }
 
+const SUB_CACHE_KEY = "lb:sub_status";
+
+export function getCachedSubscriptionStatus(): SubscriptionStatus {
+  try {
+    const raw = localStorage.getItem(SUB_CACHE_KEY);
+    if (raw) return JSON.parse(raw) as SubscriptionStatus;
+  } catch {}
+  return { is_active: false, valid_till: null, days_left: 0 };
+}
+
+function setCachedSubscriptionStatus(status: SubscriptionStatus): void {
+  try {
+    localStorage.setItem(SUB_CACHE_KEY, JSON.stringify(status));
+  } catch {}
+}
+
 export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
   const token = localStorage.getItem("token");
 
@@ -43,7 +59,9 @@ export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
     throw new Error("Failed to fetch subscription status");
   }
 
-  return response.json();
+  const status: SubscriptionStatus = await response.json();
+  setCachedSubscriptionStatus(status); // keep cache fresh
+  return status;
 }
 
 export async function createCashfreeOrder(): Promise<{
