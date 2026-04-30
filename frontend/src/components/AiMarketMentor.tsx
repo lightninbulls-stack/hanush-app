@@ -510,17 +510,52 @@ function parseIntent(text: string): Intent {
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const wantsNav = /\b(show|open|go to|take me|view|navigate|see)\b/.test(lower);
+  const wantsNav = /\b(show|open|go to|take me|view|navigate|see|launch|bring up|switch to|load)\b/.test(lower);
 
   if (wantsNav) {
     if (/\bwatchlist\b/.test(lower)) return { type: "navigate", tab: "Watchlist" };
-    if (/\bbull.?call\b/.test(lower)) return { type: "navigate", tab: "Bull Call Spreads" };
-    if (/\bbear.?put\b/.test(lower)) return { type: "navigate", tab: "Bear Put Spreads" };
-    if (/\bbacktest\b|\bback.test\b|\bportfolio\b/.test(lower)) return { type: "navigate", tab: "Portfolio Backtest" };
-    if (/\bupside.trend\b/.test(lower)) return { type: "navigate", tab: "Upside Trend Stocks" };
-    if (/\bdownside.trend\b/.test(lower)) return { type: "navigate", tab: "Downside Trend Stocks" };
+
+    // Bull Call Spreads — "open bull call", "open call spread", "open bull spread"
+    if (/\bbull.?call\b|\bcall.?spread\b|\bbull.?spread\b/.test(lower))
+      return { type: "navigate", tab: "Bull Call Spreads" };
+
+    // Bear Put Spreads — "open bear put", "open put spread", "open bear spread"
+    if (/\bbear.?put\b|\bput.?spread\b|\bbear.?spread\b/.test(lower))
+      return { type: "navigate", tab: "Bear Put Spreads" };
+
+    // Portfolio Backtest
+    if (/\bbacktest\b|\bback.test\b|\bportfolio\b/.test(lower))
+      return { type: "navigate", tab: "Portfolio Backtest" };
+
+    // Upside Trend Stocks — "open upside trend", "open upside signals", "open upside stocks",
+    //   "open live upside", "open intraday upside", "open upside" (only if "signal/trend/stock/live/intraday" nearby)
+    if (/\bupside.trend\b|\bupside.signal\b|\bupside.stock\b|\blive.upside\b|\bintraday.upside\b|\btrend.upside\b/.test(lower))
+      return { type: "navigate", tab: "Upside Trend Stocks" };
+
+    // Downside Trend Stocks — mirror of above
+    if (/\bdownside.trend\b|\bdownside.signal\b|\bdownside.stock\b|\blive.downside\b|\bintraday.downside\b|\btrend.downside\b/.test(lower))
+      return { type: "navigate", tab: "Downside Trend Stocks" };
+
+    // Guide
+    if (/\bguide\b|\bhow.to.use\b|\buser.guide\b/.test(lower))
+      return { type: "navigate", tab: "Guide" };
+
+    // Profile / Settings
+    if (/\bprofile\b|\bsettings\b|\baccount\b|\bsubscription\b/.test(lower))
+      return { type: "navigate", tab: "Profile / Settings" };
+
+    // Factor category tabs (Consistent Trending, Slow Movement, Regime Upside, etc.)
     const category = matchCategory(lower);
     if (category) return { type: "navigate", tab: category };
+
+    // Plain "open upside" / "open downside" — fallback after matchCategory so
+    // "open regime upside" still routes to the Regime Upside factor tab above
+    if (/\bupside\b/.test(lower)) return { type: "navigate", tab: "Upside Trend Stocks" };
+    if (/\bdownside\b/.test(lower)) return { type: "navigate", tab: "Downside Trend Stocks" };
+    // Plain spread without bull/bear context — default to bull call
+    if (/\bspread\b/.test(lower)) return { type: "navigate", tab: "Bull Call Spreads" };
+    // Plain "signals" — default to upside trend signals
+    if (/\bsignal\b/.test(lower)) return { type: "navigate", tab: "Upside Trend Stocks" };
   }
 
   if (/\bbacktest\b/.test(lower) && !wantsNav) return { type: "navigate", tab: "Portfolio Backtest" };
