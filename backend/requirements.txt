@@ -22,4 +22,5 @@ scipy
 pyyaml
 pytz
 kiteconnect
+httpx
 

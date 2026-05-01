@@ -926,13 +926,17 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
     }, 500);
   };
 
-  // ── Text-to-Speech ─────────────────────────────────────────────────────────
-  const speakText = (text: string) => {
-    // If muted: skip speech but still auto-resume listening
-    if (isMutedRef.current) { scheduleResume(); return; }
-    if (!window.speechSynthesis) { scheduleResume(); return; }
+  // ── Text-to-Speech (OpenAI alloy voice) ───────────────────────────────────
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    window.speechSynthesis.cancel();
+  const speakText = (text: string) => {
+    if (isMutedRef.current) { scheduleResume(); return; }
+
+    // Stop any currently playing TTS
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
 
     // Strip markdown and flatten to plain prose
     let clean = text
@@ -941,45 +945,44 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       .replace(/\n+/g, " ")
       .trim();
 
-    // Long replies: speak only the first sentence (max 180 chars)
-    if (clean.length > 180) {
+    // Speak only the first sentence (max 200 chars) to stay snappy
+    if (clean.length > 200) {
       const first = clean.match(/^[^.!?]+[.!?]/);
-      clean = first ? first[0].trim() : clean.slice(0, 180);
+      clean = first ? first[0].trim() : clean.slice(0, 200);
     }
 
-    const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang  = "en-US";
-    utterance.rate  = 1.0;   // Siri speaks at a natural, clear pace
-    utterance.pitch = 1.05;  // slight lift — Siri-style, not artificially high
+    const API_BASE = (
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      "https://hanush-backend-service1.onrender.com"
+    ).replace(/\/+$/, "");
 
-    const voices = window.speechSynthesis.getVoices();
-    const find = (pred: (v: SpeechSynthesisVoice) => boolean) =>
-      voices.find(pred) ?? null;
-
-    // Priority: Samantha = actual macOS/iOS Siri voice
-    // → Google UK English Female (Chrome desktop)
-    // → Google US English (Chrome, female-sounding)
-    // → other Apple female voices (Karen, Moira, Fiona, Tessa)
-    // → any voice with "female" in the name
-    // → Heera / Zira (Windows Indian/US female)
-    // → any English fallback
-    const voice =
-      find((v) => /samantha/i.test(v.name)) ||
-      find((v) => /google uk english female/i.test(v.name)) ||
-      find((v) => /google us english/i.test(v.name)) ||
-      find((v) => /\b(karen|moira|fiona|tessa|veena|allison|ava|victoria|susan|nicky)\b/i.test(v.name)) ||
-      find((v) => /female/i.test(v.name) && v.lang.startsWith("en")) ||
-      find((v) => /\b(heera|priya|zira)\b/i.test(v.name)) ||
-      find((v) => v.lang === "en-US") ||
-      find((v) => v.lang === "en-GB") ||
-      find((v) => v.lang.startsWith("en")) ||
-      null;
-    if (voice) utterance.voice = voice;
-
-    // After agent finishes speaking → auto-listen again
-    utterance.onend = scheduleResume;
-
-    window.speechSynthesis.speak(utterance);
+    fetch(`${API_BASE}/api/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: clean }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("TTS fetch failed");
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        ttsAudioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          ttsAudioRef.current = null;
+          scheduleResume();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          ttsAudioRef.current = null;
+          scheduleResume();
+        };
+        audio.play().catch(() => scheduleResume());
+      })
+      .catch(() => scheduleResume());
   };
 
   const pushMsg = (role: Message["role"], content: string, isError = false) => {
@@ -995,7 +998,7 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       return () => clearTimeout(t);
     } else {
       // Panel closed — stop everything
-      window.speechSynthesis?.cancel();
+      if (ttsAudioRef.current) { ttsAudioRef.current.pause(); ttsAudioRef.current = null; }
       (recognitionRef.current as { stop?: () => void } | null)?.stop?.();
       setIsListening(false);
     }
@@ -1369,8 +1372,8 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
       setIsListening(false);
       return;
     }
-    // Cancel any ongoing speech so the user can speak immediately
-    window.speechSynthesis?.cancel();
+    // Stop any ongoing TTS so the user can speak immediately
+    if (ttsAudioRef.current) { ttsAudioRef.current.pause(); ttsAudioRef.current = null; }
     startListening();
   };
 
@@ -1477,7 +1480,10 @@ const AiMarketMentor: React.FC<AiMarketMentorProps> = ({
             {/* Mute / unmute voice toggle */}
             <button
               onClick={() => {
-                if (!isMuted) window.speechSynthesis?.cancel();
+                if (!isMuted && ttsAudioRef.current) {
+                  ttsAudioRef.current.pause();
+                  ttsAudioRef.current = null;
+                }
                 setIsMuted((m) => !m);
               }}
               title={isMuted ? "Voice off — click to enable" : "Voice on — click to mute"}

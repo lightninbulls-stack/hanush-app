@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from models.payment import Payment
 from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
 from api_service import cashfree_routes, admin_payment_routes
+from api_service import tts_routes
 
 from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
@@ -228,6 +229,7 @@ app.include_router(portfolio_routes.router, prefix="/portfolio", tags=["portfoli
 app.include_router(intraday_spreads_routes.router, prefix="/api", tags=["intraday_spreads"])
 app.include_router(cashfree_routes.router, prefix="/cashfree")
 app.include_router(admin_payment_routes.router, prefix="/admin")
+app.include_router(tts_routes.router)
 
 
 def get_db():
