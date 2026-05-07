@@ -101,7 +101,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
   const isDownside = strategyName.toUpperCase().includes("DOWNSIDE") || strategyName.toUpperCase().includes("BEAR");
   const powerLabel    = isDownside ? "SELLING POWER / STOCK" : "BUYING POWER / STOCK";
   const powerNote     = isDownside ? `₹${capitalPerStock.toLocaleString("en-IN")} × ${leverage} = ₹${(capitalPerStock*leverage).toLocaleString("en-IN")} to short` : `₹${capitalPerStock.toLocaleString("en-IN")} × ${leverage} = ₹${(capitalPerStock*leverage).toLocaleString("en-IN")} to deploy`;
-  const investedLabel = isDownside ? "Shorted ₹" : "Invested ₹";
+  const investedLabel = "Exposure ₹";   // leveraged exposure, NOT actual capital
+  const actualCapital = capitalPerStock * maxStocks;
 
   // Portfolio-level PnL: from backend or computed from entered signals
   const portfolioPnl = useMemo(() => {
@@ -408,7 +409,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                     PORTFOLIO TOTAL
                   </td>
                   <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"#94a3b8", paddingTop:10 }}>
-                    ₹{totalInvested.toLocaleString("en-IN")} <span style={{fontSize:9, color:"rgba(255,255,255,0.3)"}}>{isDownside ? "SHORTED" : "INVESTED"}</span>
+                    <div>₹{totalInvested.toLocaleString("en-IN")} <span style={{fontSize:9, color:"rgba(255,255,255,0.3)"}}>EXPOSURE ({leverage}×)</span></div>
+                    <div style={{fontSize:10, color:"rgba(250,204,21,0.55)", marginTop:2}}>₹{actualCapital.toLocaleString("en-IN")} <span style={{fontSize:9, color:"rgba(255,255,255,0.3)"}}>ACTUAL MARGIN</span></div>
                   </td>
                   <td colSpan={2} />
                   <td style={{ fontFamily:"var(--font-mono)", fontWeight:700, fontSize:13, color:pnlColor(totalRealPnl), paddingTop:10 }}>
@@ -429,12 +431,12 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         </div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:24 }}>
           {[
-            { label:"Capital per stock", value:`₹${capitalPerStock.toLocaleString("en-IN")}`, note:"Your margin allocation per trade" },
-            { label:"Intraday leverage", value:`${leverage}×`, note:"Broker provides 5× intraday margin" },
+            { label:"Margin capital / stock", value:`₹${capitalPerStock.toLocaleString("en-IN")}`, note:"Your actual money at risk per trade" },
+            { label:"Intraday leverage", value:`${leverage}×`, note:"Broker multiplies your margin by 5×" },
             { label: powerLabel, value:`₹${(capitalPerStock * leverage).toLocaleString("en-IN")}`, note: powerNote },
             { label:"Max stocks", value:`${maxStocks} stocks`, note:"Cap to control risk concentration" },
-            { label:"Total capital deployed", value:`₹${(capitalPerStock * maxStocks).toLocaleString("en-IN")}`, note:"10 × ₹10,000 margin = ₹1,00,000" },
-            { label:"Qty formula", value:"⌊₹50,000 ÷ price⌋", note:"Whole shares only, no fractions" },
+            { label:"Total actual capital", value:`₹${(capitalPerStock * maxStocks).toLocaleString("en-IN")}`, note:`${maxStocks} × ₹${capitalPerStock.toLocaleString("en-IN")} margin = your real money` },
+            { label:"Qty formula", value:`⌊₹${(capitalPerStock * leverage).toLocaleString("en-IN")} ÷ price⌋`, note:"Whole shares only, no fractions" },
           ].map(item => (
             <div key={item.label} style={{ minWidth:160 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:1, marginBottom:3 }}>{item.label.toUpperCase()}</div>
@@ -443,17 +445,26 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             </div>
           ))}
         </div>
-        <div style={{ marginTop:16, padding:"10px 14px", borderRadius:8, background:"rgba(250,204,21,0.04)", border:"1px solid rgba(250,204,21,0.12)", fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.7 }}>
+
+        {/* Capital vs Exposure clarification */}
+        <div style={{ marginTop:14, padding:"10px 14px", borderRadius:8, background:"rgba(250,204,21,0.06)", border:"1px solid rgba(250,204,21,0.2)", fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.6)", lineHeight:1.8 }}>
+          <strong style={{ color:"rgba(250,204,21,0.85)" }}>⚡ Capital vs Exposure — </strong>
+          Your real investment is only <strong style={{ color:"#f7f0df" }}>₹{(capitalPerStock * maxStocks).toLocaleString("en-IN")}</strong> ({maxStocks} × ₹{capitalPerStock.toLocaleString("en-IN")} margin).
+          The <strong style={{ color:"#94a3b8" }}>Exposure ₹</strong> column shows how much stock you <em>control</em> via {leverage}× leverage — roughly ₹{(capitalPerStock * leverage).toLocaleString("en-IN")} per stock.
+          Your P&L and risk are calculated on the exposure, but you only put up ₹{(capitalPerStock * maxStocks).toLocaleString("en-IN")} of actual capital.
+        </div>
+
+        <div style={{ marginTop:10, padding:"10px 14px", borderRadius:8, background:"rgba(250,204,21,0.04)", border:"1px solid rgba(250,204,21,0.12)", fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.7 }}>
           <strong style={{ color:"rgba(250,204,21,0.7)" }}>Example — </strong>
           {isDownside ? (
             <>
-              Stock at ₹4,000 · Selling power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Shorted = ₹48,000 &nbsp;|&nbsp;
+              Stock at ₹4,000 · Selling power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Exposure = ₹48,000 · Margin = ₹10,000 &nbsp;|&nbsp;
               Target −1% → exit at ₹3,960 · price fell → profit · Real P&L = (₹4,000 − ₹3,960) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
               Stop +1.5% → exit at ₹4,060 · price rose → loss · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
             </>
           ) : (
             <>
-              Stock at ₹4,000 · Buying power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Invested = ₹48,000 &nbsp;|&nbsp;
+              Stock at ₹4,000 · Buying power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Exposure = ₹48,000 · Margin = ₹10,000 &nbsp;|&nbsp;
               Target +1% → exit at ₹4,040 · price rose → profit · Real P&L = (₹4,040 − ₹4,000) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
               Stop −1.5% → exit at ₹3,940 · price fell → loss · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
             </>
