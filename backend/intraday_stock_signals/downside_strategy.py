@@ -5,7 +5,7 @@ from datetime import datetime
 
 from kiteconnect import KiteConnect
 
-from .config import DOWNSIDE_CONFIG, IST, STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT
+from .config import DOWNSIDE_CONFIG, IST, STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT, MAX_STOCK_PRICE
 from .data_loader import build_signal_universe
 from .ema_engine import update_sma, is_bearish
 from .publisher import publish_strategy_state
@@ -76,6 +76,11 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     continue
 
                 ltp = float(all_ltp_data[quote_key]["last_price"])
+
+                # ── Price filter: skip stocks ≥ ₹5000 ─────────────────────
+                if ltp >= MAX_STOCK_PRICE:
+                    logger.info("DS SKIP | %s | ltp=%.2f >= ₹%.0f price cap", symbol, ltp, MAX_STOCK_PRICE)
+                    continue
 
                 # ── SMA update ────────────────────────────────────────────
                 sma_fast, sma_slow = update_sma(
