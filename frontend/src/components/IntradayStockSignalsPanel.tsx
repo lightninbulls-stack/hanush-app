@@ -97,6 +97,12 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
   const totalInvested    = spread?.total_invested ?? 0;
   const totalRealPnl     = spread?.total_real_pnl ?? 0;
 
+  // Detect direction so all labels/examples flip for short side
+  const isDownside = strategyName.toUpperCase().includes("DOWNSIDE") || strategyName.toUpperCase().includes("BEAR");
+  const powerLabel    = isDownside ? "SELLING POWER / STOCK" : "BUYING POWER / STOCK";
+  const powerNote     = isDownside ? `₹${capitalPerStock.toLocaleString("en-IN")} × ${leverage} = ₹${(capitalPerStock*leverage).toLocaleString("en-IN")} to short` : `₹${capitalPerStock.toLocaleString("en-IN")} × ${leverage} = ₹${(capitalPerStock*leverage).toLocaleString("en-IN")} to deploy`;
+  const investedLabel = isDownside ? "Shorted ₹" : "Invested ₹";
+
   // Portfolio-level PnL: from backend or computed from entered signals
   const portfolioPnl = useMemo(() => {
     const active = signals.filter((s) => s.signal_status === "ENTERED");
@@ -319,7 +325,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
               <tr>
                 {[
                   "Symbol", "Status", "Entry Time", "Entry Price",
-                  "Current LTP", "Qty", "Invested ₹",
+                  "Current LTP", "Qty", investedLabel,
                   "P&L Pts", "P&L %", "Real P&L ₹",
                   "Target", "Stop Loss",
                 ].map((h) => (
@@ -402,7 +408,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                     PORTFOLIO TOTAL
                   </td>
                   <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"#94a3b8", paddingTop:10 }}>
-                    ₹{totalInvested.toLocaleString("en-IN")}
+                    ₹{totalInvested.toLocaleString("en-IN")} <span style={{fontSize:9, color:"rgba(255,255,255,0.3)"}}>{isDownside ? "SHORTED" : "INVESTED"}</span>
                   </td>
                   <td colSpan={2} />
                   <td style={{ fontFamily:"var(--font-mono)", fontWeight:700, fontSize:13, color:pnlColor(totalRealPnl), paddingTop:10 }}>
@@ -425,7 +431,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
           {[
             { label:"Capital per stock", value:`₹${capitalPerStock.toLocaleString("en-IN")}`, note:"Your margin allocation per trade" },
             { label:"Intraday leverage", value:`${leverage}×`, note:"Broker provides 5× intraday margin" },
-            { label:"Buying power / stock", value:`₹${(capitalPerStock * leverage).toLocaleString("en-IN")}`, note:"₹10,000 × 5 = ₹50,000 to deploy" },
+            { label: powerLabel, value:`₹${(capitalPerStock * leverage).toLocaleString("en-IN")}`, note: powerNote },
             { label:"Max stocks", value:`${maxStocks} stocks`, note:"Cap to control risk concentration" },
             { label:"Total capital deployed", value:`₹${(capitalPerStock * maxStocks).toLocaleString("en-IN")}`, note:"10 × ₹10,000 margin = ₹1,00,000" },
             { label:"Qty formula", value:"⌊₹50,000 ÷ price⌋", note:"Whole shares only, no fractions" },
@@ -439,9 +445,19 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         </div>
         <div style={{ marginTop:16, padding:"10px 14px", borderRadius:8, background:"rgba(250,204,21,0.04)", border:"1px solid rgba(250,204,21,0.12)", fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.7 }}>
           <strong style={{ color:"rgba(250,204,21,0.7)" }}>Example — </strong>
-          Stock at ₹4,000 · Buying power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Invested = ₹48,000 &nbsp;|&nbsp;
-          Target +1% → exit at ₹4,040 · Real P&L = (₹4,040 − ₹4,000) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
-          Stop −1.5% → exit at ₹3,940 · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
+          {isDownside ? (
+            <>
+              Stock at ₹4,000 · Selling power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Shorted = ₹48,000 &nbsp;|&nbsp;
+              Target −1% → exit at ₹3,960 · price fell → profit · Real P&L = (₹4,000 − ₹3,960) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
+              Stop +1.5% → exit at ₹4,060 · price rose → loss · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
+            </>
+          ) : (
+            <>
+              Stock at ₹4,000 · Buying power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Invested = ₹48,000 &nbsp;|&nbsp;
+              Target +1% → exit at ₹4,040 · price rose → profit · Real P&L = (₹4,040 − ₹4,000) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
+              Stop −1.5% → exit at ₹3,940 · price fell → loss · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
+            </>
+          )}
         </div>
       </div>
     </div>
