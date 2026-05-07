@@ -10,7 +10,7 @@ const PortfolioBacktestPanelGate: React.FC<PortfolioBacktestPanelGateProps> = ({
 }) => {
   return (
     <div className={isPremium ? "" : "lb-backtest-free-gate"}>
-      <PortfolioBacktestPanel />
+      <PortfolioBacktestPanel isPremium={isPremium} />
 
       {!isPremium && (
         <style>{`
