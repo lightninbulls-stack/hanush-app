@@ -246,6 +246,38 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
           </div>
         ))}
 
+        {/* Total Real P&L chip */}
+        {totalRealPnl !== 0 && (
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 12,
+              background: totalRealPnl > 0
+                ? "rgba(34,197,94,0.08)"
+                : totalRealPnl < 0
+                ? "rgba(248,113,113,0.08)"
+                : "rgba(255,255,255,0.04)",
+              border: totalRealPnl > 0
+                ? "1px solid rgba(34,197,94,0.25)"
+                : totalRealPnl < 0
+                ? "1px solid rgba(248,113,113,0.25)"
+                : "1px solid rgba(250,204,21,0.14)",
+              fontFamily: "var(--font-mono)",
+              minWidth: 150,
+            }}
+          >
+            <span style={{ color: "rgba(255,255,255,0.35)", display: "block", fontSize: 9, letterSpacing: 1.5, marginBottom: 4 }}>
+              TOTAL REAL P&amp;L ₹
+            </span>
+            <strong style={{ color: pnlColor(totalRealPnl), fontSize: 18, display: "block" }}>
+              {totalRealPnl > 0 ? "+" : ""}₹{totalRealPnl.toLocaleString("en-IN")}
+            </strong>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>
+              across {signals.filter(s => s.signal_status === "ENTERED" || s.real_pnl != null).length} stocks
+            </span>
+          </div>
+        )}
+
         {/* Portfolio PnL chip */}
         {portfolioPnl !== null && (
           <div
