@@ -130,8 +130,53 @@ const Dashboard: React.FC = () => {
   );
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
 
   const isPremium = subscription.is_active;
+
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
+  const loadApiKey = async () => {
+    setApiKeyLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/auth/me/api-key`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setApiKey(json.api_key ?? null);
+    } catch {
+      // silently ignore
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
+  const regenerateApiKey = async () => {
+    setApiKeyLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/auth/me/regenerate-api-key`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setApiKey(json.api_key ?? null);
+    } catch {
+      // silently ignore
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
+  const copyApiKey = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    setApiKeyCopied(true);
+    setTimeout(() => setApiKeyCopied(false), 2000);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -732,6 +777,96 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* API Key section — premium only */}
+              {isPremium && (
+                <div style={{
+                  background: "rgba(8,9,12,0.96)",
+                  border: "1px solid rgba(250,204,21,0.12)",
+                  borderRadius: 16,
+                  padding: "24px 28px",
+                  marginBottom: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, color: "rgba(250,204,21,0.55)", textTransform: "uppercase" }}>
+                      Signal API Key
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(255,255,255,0.25)", letterSpacing: 0.5 }}>
+                      Premium
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.38)", lineHeight: 1.7, margin: "0 0 14px" }}>
+                    Use this key to access live BUY / SHORT signals via the LightninBull API from your own trading system.
+                  </p>
+
+                  {apiKey ? (
+                    <>
+                      {/* Key display */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        background: "#0a0b0e", border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 8, padding: "10px 14px", marginBottom: 12,
+                      }}>
+                        <span style={{
+                          fontFamily: "var(--font-mono)", fontSize: 12,
+                          color: "#facc15", flex: 1, wordBreak: "break-all",
+                        }}>
+                          {apiKey}
+                        </span>
+                        <button
+                          onClick={copyApiKey}
+                          style={{
+                            background: apiKeyCopied ? "rgba(74,222,128,0.12)" : "rgba(250,204,21,0.08)",
+                            border: apiKeyCopied ? "1px solid rgba(74,222,128,0.3)" : "1px solid rgba(250,204,21,0.2)",
+                            color: apiKeyCopied ? "#4ade80" : "#facc15",
+                            fontFamily: "var(--font-mono)", fontSize: 10,
+                            padding: "5px 12px", borderRadius: 6, cursor: "pointer",
+                            whiteSpace: "nowrap", transition: "all 0.2s",
+                          }}
+                        >
+                          {apiKeyCopied ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          onClick={regenerateApiKey}
+                          disabled={apiKeyLoading}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "rgba(255,255,255,0.38)",
+                            fontFamily: "var(--font-mono)", fontSize: 10,
+                            padding: "6px 14px", borderRadius: 6,
+                            cursor: apiKeyLoading ? "not-allowed" : "pointer",
+                            letterSpacing: 0.5,
+                          }}
+                        >
+                          {apiKeyLoading ? "Regenerating…" : "Regenerate key"}
+                        </button>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.22)", alignSelf: "center" }}>
+                          Regenerating invalidates your old key immediately.
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={loadApiKey}
+                      disabled={apiKeyLoading}
+                      style={{
+                        background: "rgba(250,204,21,0.08)",
+                        border: "1px solid rgba(250,204,21,0.25)",
+                        color: "#facc15",
+                        fontFamily: "var(--font-mono)", fontSize: 11,
+                        padding: "8px 20px", borderRadius: 8,
+                        cursor: apiKeyLoading ? "not-allowed" : "pointer",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      {apiKeyLoading ? "Loading…" : "Reveal API Key"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : isLockedPremiumTab ? (
             <PremiumLockCard />
