@@ -11,11 +11,12 @@ IST = pytz.timezone("Asia/Kolkata")
 INDEX_NAME = "STOCKS"
 SPREAD_TYPE = "intraday_stock_signal"
 
-# Each symbol gets ~1 tick every 6 seconds (35-40 symbols, ~1s sleep per cycle).
-# 50 ticks × 6s = 300s = 5-min fast SMA; 150 ticks × 6s = 900s = 15-min slow SMA.
-# Old values (500/1500) required 50 min / 2.5 hr of warmup — SMAs never computed.
-FAST_EMA_SPAN = 50
-SLOW_EMA_SPAN = 150
+# Each symbol gets ~1 tick per second (batch LTP fetch).
+# 500 ticks  = ~8.3 min fast SMA  (short-term price pressure)
+# 1500 ticks = ~25 min slow SMA   (medium-term baseline)
+# First entry possible at ~9:40 AM IST (market open 9:15 + 25 min warmup).
+FAST_EMA_SPAN = 500
+SLOW_EMA_SPAN = 1500
 
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15

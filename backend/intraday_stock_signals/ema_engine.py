@@ -130,6 +130,12 @@ def is_bearish(symbol: str) -> bool:
     return state.bearish_crossover() if state else False
 
 
+def get_tick_count(symbol: str) -> int:
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
+    return len(state.prices) if state else 0
+
+
 # -------------------------------------------------------
 # 🔹 BACKWARD-COMPATIBILITY ALIAS
 # -------------------------------------------------------
