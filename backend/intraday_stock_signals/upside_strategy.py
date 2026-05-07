@@ -48,18 +48,26 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
 
         signals_output = []
 
+        # Batch-fetch all LTPs in one API call instead of one per stock
+        all_quote_keys = [f"NSE:{str(r['symbol']).strip().upper()}" for _, r in universe_df.iterrows()]
+        try:
+            all_ltp_data = kite.ltp(all_quote_keys)
+        except Exception as exc:
+            logger.error("US BATCH LTP FAIL: %s", exc)
+            time.sleep(1)
+            continue
+
         for _, row in universe_df.iterrows():
             symbol = str(row["symbol"]).strip().upper()
 
             try:
                 quote_key = f"NSE:{symbol}"
-                ltp_data = kite.ltp(quote_key)
 
-                if quote_key not in ltp_data:
-                    logger.error("US LTP FAIL: %s missing in ltp response=%s", quote_key, ltp_data)
+                if quote_key not in all_ltp_data:
+                    logger.error("US LTP FAIL: %s missing in batch ltp response", quote_key)
                     continue
 
-                ltp = float(ltp_data[quote_key]["last_price"])
+                ltp = float(all_ltp_data[quote_key]["last_price"])
 
                 sma_fast, sma_slow = update_sma(
                     symbol=symbol,

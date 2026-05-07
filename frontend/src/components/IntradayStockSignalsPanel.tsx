@@ -26,6 +26,25 @@ function formatUpdatedAt(value?: string) {
   }
 }
 
+function pnlColor(val: number | null | undefined): string {
+  if (val === null || val === undefined) return "rgba(255,255,255,0.45)";
+  if (val > 0) return "#4ade80";
+  if (val < 0) return "#f87171";
+  return "rgba(255,255,255,0.45)";
+}
+
+function formatPnlPoints(val: number | null | undefined): string {
+  if (val === null || val === undefined) return "--";
+  const sign = val > 0 ? "+" : "";
+  return `${sign}${val.toFixed(2)}`;
+}
+
+function formatPnlPct(val: number | null | undefined): string {
+  if (val === null || val === undefined) return "--";
+  const sign = val > 0 ? "+" : "";
+  return `${sign}${val.toFixed(2)}%`;
+}
+
 const IntradayStockSignalsPanel: React.FC<Props> = ({
   strategyName,
   title,
@@ -71,6 +90,15 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
   const enteredCount = spread?.entered_count ?? signals.length;
   const totalCount = spread?.total_count ?? signals.length;
 
+  // Portfolio-level PnL: sum of all entered signal pnl_points
+  const portfolioPnl = useMemo(() => {
+    const entered = signals.filter((s) => s.signal_status === "ENTERED");
+    if (entered.length === 0) return null;
+    const totalPoints = entered.reduce((sum, s) => sum + (s.pnl_points ?? 0), 0);
+    const avgPct = entered.reduce((sum, s) => sum + (s.pnl_pct ?? 0), 0) / entered.length;
+    return { totalPoints, avgPct, count: entered.length };
+  }, [signals]);
+
   const statusColor =
     spread?.status === "RUNNING"
       ? "#22c55e"
@@ -89,6 +117,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         color: "#fff",
       }}
     >
+      {/* ── Header ── */}
       <div
         style={{
           display: "flex",
@@ -162,6 +191,7 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* ── Summary chips ── */}
       <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
         {[
           { label: "Entered", value: String(enteredCount) },
@@ -194,8 +224,57 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             <strong style={{ color: "#f7f0df", fontSize: 13 }}>{chip.value}</strong>
           </div>
         ))}
+
+        {/* Portfolio PnL chip */}
+        {portfolioPnl !== null && (
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 12,
+              background:
+                portfolioPnl.totalPoints > 0
+                  ? "rgba(34,197,94,0.08)"
+                  : portfolioPnl.totalPoints < 0
+                  ? "rgba(248,113,113,0.08)"
+                  : "rgba(255,255,255,0.04)",
+              border:
+                portfolioPnl.totalPoints > 0
+                  ? "1px solid rgba(34,197,94,0.25)"
+                  : portfolioPnl.totalPoints < 0
+                  ? "1px solid rgba(248,113,113,0.25)"
+                  : "1px solid rgba(250,204,21,0.14)",
+              fontFamily: "var(--font-mono)",
+              minWidth: 160,
+            }}
+          >
+            <span
+              style={{
+                color: "rgba(255,255,255,0.35)",
+                display: "block",
+                fontSize: 9,
+                letterSpacing: 1.5,
+                marginBottom: 4,
+              }}
+            >
+              PORTFOLIO P&amp;L ({portfolioPnl.count} stocks)
+            </span>
+            <strong
+              style={{
+                color: pnlColor(portfolioPnl.totalPoints),
+                fontSize: 15,
+                display: "block",
+              }}
+            >
+              {formatPnlPoints(portfolioPnl.totalPoints)} pts
+            </strong>
+            <span style={{ color: pnlColor(portfolioPnl.avgPct), fontSize: 11 }}>
+              avg {formatPnlPct(portfolioPnl.avgPct)}
+            </span>
+          </div>
+        )}
       </div>
 
+      {/* ── Table ── */}
       {loading ? (
         <p style={{ fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
           Loading signals…
@@ -217,6 +296,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                   "Entry Time",
                   "Entry Price",
                   "Current LTP",
+                  "P&L Points",
+                  "P&L %",
                   "Target",
                   "Stop Loss",
                 ].map((h) => (
@@ -228,6 +309,8 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
               {signals.map((row) => {
                 const isEntered = row.signal_status === "ENTERED";
                 const entryPrice = row.entry_price ?? row.avg_price;
+                const pnlPts = row.pnl_points;
+                const pnlPct = row.pnl_pct;
 
                 return (
                   <tr key={row.instrument_token}>
@@ -267,7 +350,36 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                       {row.entry_time || "--"}
                     </td>
                     <td>{formatPrice(entryPrice)}</td>
-                    <td>{formatPrice(row.current_ltp)}</td>
+                    <td
+                      style={{
+                        color: "#f7f0df",
+                        fontWeight: 600,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 13,
+                      }}
+                    >
+                      {formatPrice(row.current_ltp)}
+                    </td>
+                    {/* Stock-level P&L */}
+                    <td
+                      style={{
+                        color: pnlColor(pnlPts),
+                        fontWeight: 700,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 13,
+                      }}
+                    >
+                      {formatPnlPoints(pnlPts)}
+                    </td>
+                    <td
+                      style={{
+                        color: pnlColor(pnlPct),
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 12,
+                      }}
+                    >
+                      {formatPnlPct(pnlPct)}
+                    </td>
                     <td>{formatPrice(row.target_price)}</td>
                     <td>{formatPrice(row.stop_loss_price)}</td>
                   </tr>
