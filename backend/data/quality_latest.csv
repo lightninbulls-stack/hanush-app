@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-06,1,BSE,Financial Services,100,6.23,35.1,34.61,57.4,41.72,Very High Vol,Quality Factor
-2026-05-06,2,ADANIENT,Metals & Mining,93,5.3,38.5,25.81,0.11,38.91,Very High Vol,Quality Factor
-2026-05-06,3,SUZLON,Capital Goods,86,-5.23,33.2,14.5,-6.65,34.26,High Vol,Quality Factor
-2026-05-06,5,DIXON,Consumer Durables,71,-0.62,13.9,9.31,-27.16,42.38,Very High Vol,Quality Factor
-2026-05-06,9,MCX,Financial Services,43,2.59,21.7,10.69,62.02,39.77,Very High Vol,Quality Factor
-2026-05-06,10,TRENT,Consumer Services,36,0.84,20.82,12.19,-10.27,35.58,Very High Vol,Quality Factor
-2026-05-06,11,LUPIN,Healthcare,29,6.09,7.4,14.58,24.9,18.26,Medium Vol,Quality Factor
-2026-05-06,12,INOXWIND,Capital Goods,21,3.92,34.64,0.18,-31.44,40.55,Very High Vol,Quality Factor
-2026-05-06,13,MAXHEALTH,Healthcare,14,1.11,7.55,6.64,-14.59,23.85,Medium Vol,Quality Factor
-2026-05-06,14,KFINTECH,Financial Services,7,-4.4,0.92,-10.35,-19.2,33.85,High Vol,Quality Factor
+2026-05-07,1,BSE,Financial Services,100,9.02,32.9,41.71,62.26,41.87,Very High Vol,Quality Factor
+2026-05-07,2,ADANIENT,Metals & Mining,93,3.62,32.15,24.42,-0.52,38.93,Very High Vol,Quality Factor
+2026-05-07,3,SUZLON,Capital Goods,86,-2.04,33.81,16.74,-4.89,34.43,High Vol,Quality Factor
+2026-05-07,5,DIXON,Consumer Durables,71,-2.45,10.39,5.76,-29.38,42.45,Very High Vol,Quality Factor
+2026-05-07,9,MCX,Financial Services,43,2.5,19.36,20.36,67.15,39.83,Very High Vol,Quality Factor
+2026-05-07,10,TRENT,Consumer Services,36,1.56,12.01,13.44,-9.49,35.57,Very High Vol,Quality Factor
+2026-05-07,11,LUPIN,Healthcare,29,6.43,7.9,14.27,26.43,18.25,Medium Vol,Quality Factor
+2026-05-07,12,INOXWIND,Capital Goods,21,4.36,31.75,-1.2,-31.07,40.53,Very High Vol,Quality Factor
+2026-05-07,13,MAXHEALTH,Healthcare,14,0.86,8.98,6.11,-13.85,23.82,Medium Vol,Quality Factor
+2026-05-07,14,KFINTECH,Financial Services,7,-5.09,0.85,-8.53,-16.59,33.89,High Vol,Quality Factor
