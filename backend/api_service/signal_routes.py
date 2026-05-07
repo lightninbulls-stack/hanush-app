@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from db import SessionLocal
 from models.user import User
+from models.payment import Payment, PaymentStatus
 from shared.intraday_spreads_state import spread_state
 
 router = APIRouter(tags=["signals"])
@@ -16,12 +18,31 @@ UPSIDE_KEY   = "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL"
 DOWNSIDE_KEY = "LIGHTNIN_BEAR_DOWNSIDE_INTRADAY_SIGNAL"
 
 
+def _is_premium_active(user_id: int, db: Session) -> bool:
+    now = datetime.now(timezone.utc)
+    payment = (
+        db.query(Payment)
+        .filter(
+            Payment.user_id == user_id,
+            Payment.status == PaymentStatus.PAID,
+            Payment.valid_till > now,
+        )
+        .first()
+    )
+    return payment is not None
+
+
 def _validate_api_key(api_key: str) -> User:
     db: Session = SessionLocal()
     try:
         user = db.query(User).filter(User.api_key == api_key).first()
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid API key")
+            raise HTTPException(status_code=401, detail="Invalid API key.")
+        if not _is_premium_active(user.id, db):
+            raise HTTPException(
+                status_code=403,
+                detail="Subscription expired. Renew your premium plan at lightninbull.com to continue using the Signal API.",
+            )
         return user
     finally:
         db.close()
