@@ -908,6 +908,311 @@ const Auth: React.FC = () => {
       </section>
 
       {/* ═══════════════════════════════════════════════
+          SIGNAL API DOCUMENTATION
+      ═══════════════════════════════════════════════ */}
+      <section className="api-docs-section" id="api">
+        <div className="api-docs-inner">
+
+          {/* Header */}
+          <div className="api-docs-header">
+            <span className="api-docs-eyebrow">DEVELOPER · SIGNAL API</span>
+            <h2 className="api-docs-title">LightninBull Signal API</h2>
+            <p className="api-docs-desc">
+              Connect your trading system directly to LightninBull's live intraday signals.
+              Get real-time BUY and SHORT entries — with targets, stop losses, and P&L — the moment they fire.
+              Your system places the orders. We provide the intelligence.
+            </p>
+          </div>
+
+          {/* How it works */}
+          <div className="api-how-row">
+            {[
+              { step:"01", title:"Get your API key", desc:"Log in → Profile / Settings → copy your unique API key. One key per account." },
+              { step:"02", title:"Poll /api/signals/live", desc:"Call our endpoint every few seconds. Pass your key in the X-LB-API-Key header." },
+              { step:"03", title:"Place the trade", desc:"Parse the response. Use the symbol, action (BUY / SHORT), qty_suggested, and price levels to place orders on your broker." },
+            ].map(s => (
+              <div className="api-how-card" key={s.step}>
+                <span className="api-how-step">{s.step}</span>
+                <h4 className="api-how-title">{s.title}</h4>
+                <p className="api-how-desc">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Auth box */}
+          <div className="api-block">
+            <div className="api-block-label">AUTHENTICATION</div>
+            <p className="api-block-note">Every request must include your API key as a custom header:</p>
+            <div className="api-code-box">
+              <span className="api-code-comment"># Pass in every request header</span>{"\n"}
+              <span className="api-code-key">X-LB-API-Key</span>
+              <span className="api-code-punct">: </span>
+              <span className="api-code-val">lb_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span>
+            </div>
+            <p className="api-block-note" style={{marginTop:12}}>
+              No key yet? Log in → <strong style={{color:"#facc15"}}>Profile / Settings → API Key</strong>. Keys start with <code className="api-inline-code">lb_live_</code>.
+            </p>
+          </div>
+
+          {/* Endpoints */}
+          <div className="api-block">
+            <div className="api-block-label">ENDPOINTS</div>
+
+            {/* GET /api/signals/live */}
+            <div className="api-endpoint-card">
+              <div className="api-endpoint-top">
+                <span className="api-method api-method-get">GET</span>
+                <span className="api-path">/api/signals/live</span>
+                <span className="api-endpoint-tag">Live signals</span>
+              </div>
+              <p className="api-endpoint-desc">
+                Returns all currently active (ENTERED) intraday signals. Filter by strategy using the <code className="api-inline-code">strategy</code> query parameter.
+              </p>
+
+              {/* Query params */}
+              <div className="api-param-table">
+                <div className="api-param-row api-param-head">
+                  <span>Parameter</span><span>Type</span><span>Default</span><span>Description</span>
+                </div>
+                <div className="api-param-row">
+                  <span><code className="api-inline-code">strategy</code></span>
+                  <span>string</span>
+                  <span><code className="api-inline-code">all</code></span>
+                  <span><code className="api-inline-code">upside</code> · <code className="api-inline-code">downside</code> · <code className="api-inline-code">all</code></span>
+                </div>
+              </div>
+
+              {/* Example request */}
+              <div className="api-code-label">Example request</div>
+              <div className="api-code-box api-code-box-sm">
+                <span className="api-code-comment">### Get all upside BUY signals</span>{"\n"}
+                <span className="api-code-key">curl</span>{" "}
+                <span className="api-code-val">https://lightninbull.com/api/signals/live?strategy=upside</span>{" \\\n"}
+                {"  "}<span className="api-code-key">-H</span>{" "}
+                <span className="api-code-punct">"</span>
+                <span className="api-code-key">X-LB-API-Key</span>
+                <span className="api-code-punct">: lb_live_xxxxxxxxxxxxxxxx"</span>
+              </div>
+
+              {/* Response */}
+              <div className="api-code-label">Response</div>
+              <div className="api-code-box api-code-box-sm">
+{`{
+  "status": "ok",
+  "data": {
+    "upside": {
+      "strategy": "upside",
+      "action": "BUY",
+      "ui_state": "RUNNING",
+      "portfolio_stopped": false,
+      "portfolio_pnl_pct": 0.19,
+      "total_real_pnl": 635.2,
+      "updated_at_ist": "2026-05-07T13:45:00+05:30",
+      "signals": [
+        {
+          "symbol": "INFY",
+          "action": "BUY",
+          "signal_status": "ENTERED",
+          "entry_time": "13:15:30",
+          "entry_price": 1172.00,
+          "current_ltp": 1169.80,
+          "target_price": 1183.72,
+          "stop_loss_price": 1154.42,
+          "qty_suggested": 42,
+          "buying_power": 49224.00,
+          "invested_amount": 49230.00,
+          "pnl_points": 2.20,
+          "pnl_pct": 0.19,
+          "real_pnl": 92.40
+        }
+      ]
+    }
+  }
+}`}
+              </div>
+
+              {/* Field table */}
+              <div className="api-code-label">Signal fields</div>
+              <div className="api-param-table">
+                <div className="api-param-row api-param-head">
+                  <span>Field</span><span>Type</span><span>Description</span>
+                </div>
+                {[
+                  ["symbol","string","NSE ticker (e.g. INFY, TCS)"],
+                  ["action","string","BUY for upside · SHORT for downside"],
+                  ["signal_status","string","ENTERED — trade is active right now"],
+                  ["entry_price","number","Price at which we entered the trade"],
+                  ["current_ltp","number","Live last traded price (updates every ~1s)"],
+                  ["target_price","number","Exit target (+1% from entry for upside)"],
+                  ["stop_loss_price","number","Exit stop loss (−1.5% from entry for upside)"],
+                  ["qty_suggested","number","Shares = ⌊₹50,000 ÷ entry_price⌋"],
+                  ["buying_power","number","₹10,000 margin × 5× leverage = ₹50,000"],
+                  ["pnl_points","number","Current unrealised P&L in points"],
+                  ["pnl_pct","number","Current unrealised P&L in %"],
+                  ["real_pnl","number","Unrealised P&L in ₹ = pnl_points × qty"],
+                ].map(([f,t,d]) => (
+                  <div className="api-param-row api-param-row-3" key={f}>
+                    <span><code className="api-inline-code">{f}</code></span>
+                    <span>{t}</span>
+                    <span>{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* GET /auth/me/api-key */}
+            <div className="api-endpoint-card" style={{marginTop:20}}>
+              <div className="api-endpoint-top">
+                <span className="api-method api-method-get">GET</span>
+                <span className="api-path">/auth/me/api-key</span>
+                <span className="api-endpoint-tag">Fetch key</span>
+              </div>
+              <p className="api-endpoint-desc">Returns your current API key. Auto-generates one if you don't have one yet. Requires your LightninBull JWT token (from login).</p>
+              <div className="api-code-box api-code-box-sm">
+                <span className="api-code-key">curl</span>{" "}
+                <span className="api-code-val">https://lightninbull.com/auth/me/api-key</span>{" \\\n"}
+                {"  "}<span className="api-code-key">-H</span>{" "}
+                <span className="api-code-punct">"Authorization: Bearer &lt;your_jwt_token&gt;"</span>{"\n\n"}
+                <span className="api-code-comment">{"# Response"}</span>{"\n"}
+                {`{ "api_key": "lb_live_abc123..." }`}
+              </div>
+            </div>
+
+            {/* POST /auth/me/regenerate-api-key */}
+            <div className="api-endpoint-card" style={{marginTop:20}}>
+              <div className="api-endpoint-top">
+                <span className="api-method api-method-post">POST</span>
+                <span className="api-path">/auth/me/regenerate-api-key</span>
+                <span className="api-endpoint-tag">Rotate key</span>
+              </div>
+              <p className="api-endpoint-desc">Generates a new API key. Your old key stops working immediately.</p>
+              <div className="api-code-box api-code-box-sm">
+                <span className="api-code-key">curl</span>{" -X POST "}
+                <span className="api-code-val">https://lightninbull.com/auth/me/regenerate-api-key</span>{" \\\n"}
+                {"  "}<span className="api-code-key">-H</span>{" "}
+                <span className="api-code-punct">"Authorization: Bearer &lt;your_jwt_token&gt;"</span>{"\n\n"}
+                <span className="api-code-comment">{"# Response"}</span>{"\n"}
+                {`{ "api_key": "lb_live_newkey...", "message": "New API key generated." }`}
+              </div>
+            </div>
+          </div>
+
+          {/* Code examples */}
+          <div className="api-block">
+            <div className="api-block-label">CODE EXAMPLES</div>
+            <div className="api-examples-grid">
+              <div className="api-example-card">
+                <div className="api-example-lang">Python</div>
+                <div className="api-code-box api-code-box-sm">
+{`import requests, time
+
+API_KEY = "lb_live_xxxxxxxx"
+BASE    = "https://lightninbull.com"
+HEADERS = {"X-LB-API-Key": API_KEY}
+
+while True:
+    r = requests.get(
+        f"{BASE}/api/signals/live?strategy=upside",
+        headers=HEADERS, timeout=10
+    )
+    data = r.json()["data"]["upside"]
+
+    if data["portfolio_stopped"]:
+        print("Portfolio stopped — no new entries")
+        time.sleep(60)
+        continue
+
+    for sig in data["signals"]:
+        print(
+            sig["symbol"],
+            sig["action"],          # BUY
+            "qty:", sig["qty_suggested"],
+            "entry:", sig["entry_price"],
+            "target:", sig["target_price"],
+            "sl:", sig["stop_loss_price"],
+        )
+        # place_order(sig)  ← your broker call here
+
+    time.sleep(2)  # poll every 2s`}
+                </div>
+              </div>
+
+              <div className="api-example-card">
+                <div className="api-example-lang">JavaScript / Node</div>
+                <div className="api-code-box api-code-box-sm">
+{`const API_KEY = "lb_live_xxxxxxxx";
+const BASE    = "https://lightninbull.com";
+
+async function fetchSignals(strategy = "all") {
+  const res = await fetch(
+    \`\${BASE}/api/signals/live?strategy=\${strategy}\`,
+    { headers: { "X-LB-API-Key": API_KEY } }
+  );
+  const json = await res.json();
+  return json.data;
+}
+
+setInterval(async () => {
+  const data = await fetchSignals("upside");
+  const { signals, portfolio_stopped } = data.upside;
+
+  if (portfolio_stopped) return;
+
+  signals.forEach(sig => {
+    console.log(
+      sig.symbol, sig.action,
+      "qty:", sig.qty_suggested,
+      "real_pnl: ₹", sig.real_pnl
+    );
+    // placeOrder(sig);
+  });
+}, 2000);`}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Error codes */}
+          <div className="api-block">
+            <div className="api-block-label">ERROR CODES</div>
+            <div className="api-param-table">
+              <div className="api-param-row api-param-head">
+                <span>HTTP Status</span><span>Meaning</span><span>Fix</span>
+              </div>
+              {[
+                ["401 Unauthorized","Missing or invalid API key","Check your X-LB-API-Key header"],
+                ["400 Bad Request","Unknown strategy value","Use upside, downside, or all"],
+                ["500 Internal Server Error","Backend error","Retry in a few seconds"],
+              ].map(([s,m,f]) => (
+                <div className="api-param-row" key={s}>
+                  <span><code className="api-inline-code">{s}</code></span>
+                  <span>{m}</span>
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="api-notes-row">
+            {[
+              { icon:"⚡", title:"Real-time", desc:"Signals update every ~1 second. Poll every 1–5 seconds for best results." },
+              { icon:"🛑", title:"Portfolio stop", desc:"When portfolio_stopped is true, stop placing new entries. All active positions will close." },
+              { icon:"📐", title:"Qty is a suggestion", desc:"qty_suggested = ⌊₹50,000 ÷ entry_price⌋. Scale it to your own capital as needed." },
+              { icon:"⏱️", title:"Market hours only", desc:"Signals run from 9:15 AM to 3:30 PM IST on NSE trading days only." },
+            ].map(n => (
+              <div className="api-note-card" key={n.title}>
+                <span className="api-note-icon">{n.icon}</span>
+                <strong className="api-note-title">{n.title}</strong>
+                <p className="api-note-desc">{n.desc}</p>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
           FOOTER
       ═══════════════════════════════════════════════ */}
       <footer ref={contactRef} className="footer-strip" id="support">
@@ -1630,6 +1935,71 @@ const Auth: React.FC = () => {
         .footer-bottom span { font-family: 'DM Mono', monospace; font-size: 9.5px; color: rgba(255,255,255,0.26); letter-spacing: 0.8px; }
         .footer-bottom button { border: 1px solid rgba(250,204,21,0.3); background: rgba(250,204,21,0.05); color: #facc15; font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 2.5px; text-transform: uppercase; padding: 11px 16px; border-radius: 3px; cursor: pointer; transition: all 0.2s; }
         .footer-bottom button:hover { background: rgba(250,204,21,0.11); box-shadow: 0 0 22px rgba(250,204,21,0.2); }
+
+        /* ── API DOCS SECTION ── */
+        .api-docs-section { padding: 110px 56px; background: #040507; border-top: 1px solid rgba(250,204,21,0.08); }
+        .api-docs-inner { max-width: 1100px; margin: 0 auto; }
+        .api-docs-header { text-align: center; margin-bottom: 64px; }
+        .api-docs-eyebrow { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 4px; color: #facc15; text-transform: uppercase; display: block; margin-bottom: 16px; }
+        .api-docs-title { font-family: 'Cormorant Garamond', serif; font-size: 52px; font-weight: 300; color: #f7f0df; margin: 0 0 18px; letter-spacing: -0.5px; }
+        .api-docs-desc { font-family: 'DM Mono', monospace; font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.9; max-width: 600px; margin: 0 auto; }
+
+        .api-how-row { display: flex; gap: 20px; margin-bottom: 56px; flex-wrap: wrap; }
+        .api-how-card { flex: 1; min-width: 220px; padding: 24px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+        .api-how-step { font-family: 'DM Mono', monospace; font-size: 10px; color: #facc15; letter-spacing: 2px; display: block; margin-bottom: 10px; }
+        .api-how-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #f7f0df; margin: 0 0 8px; }
+        .api-how-desc { font-family: 'DM Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4); line-height: 1.8; margin: 0; }
+
+        .api-block { margin-bottom: 48px; }
+        .api-block-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 3px; color: rgba(250,204,21,0.6); text-transform: uppercase; margin-bottom: 14px; }
+        .api-block-note { font-family: 'DM Mono', monospace; font-size: 11.5px; color: rgba(255,255,255,0.45); line-height: 1.8; margin: 0 0 10px; }
+
+        .api-code-box { background: #0a0b0e; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 18px 20px; font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9; color: rgba(255,255,255,0.7); white-space: pre; overflow-x: auto; }
+        .api-code-box-sm { font-size: 11px; }
+        .api-code-comment { color: rgba(255,255,255,0.25); }
+        .api-code-key { color: #facc15; }
+        .api-code-val { color: #86efac; }
+        .api-code-punct { color: rgba(255,255,255,0.4); }
+        .api-inline-code { font-family: 'DM Mono', monospace; font-size: 10.5px; background: rgba(250,204,21,0.08); color: #facc15; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(250,204,21,0.15); }
+        .api-code-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin: 14px 0 6px; }
+
+        .api-endpoint-card { padding: 24px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); }
+        .api-endpoint-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .api-method { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 5px; }
+        .api-method-get { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+        .api-method-post { background: rgba(250,204,21,0.10); color: #facc15; border: 1px solid rgba(250,204,21,0.25); }
+        .api-path { font-family: 'DM Mono', monospace; font-size: 13px; color: #f7f0df; letter-spacing: 0.3px; }
+        .api-endpoint-tag { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.25); text-transform: uppercase; }
+        .api-endpoint-desc { font-family: 'DM Mono', monospace; font-size: 11.5px; color: rgba(255,255,255,0.42); line-height: 1.8; margin: 0 0 14px; }
+
+        .api-param-table { border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+        .api-param-row { display: grid; grid-template-columns: 1.2fr 0.7fr 0.8fr 2fr; gap: 0; padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: 'DM Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.5); }
+        .api-param-row:last-child { border-bottom: none; }
+        .api-param-row-3 { grid-template-columns: 1.3fr 0.8fr 2.5fr; }
+        .api-param-head { background: rgba(255,255,255,0.03); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.25); }
+
+        .api-examples-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .api-example-card { background: #0a0b0e; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
+        .api-example-lang { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #facc15; padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(250,204,21,0.04); }
+        .api-example-card .api-code-box { border: none; border-radius: 0; margin: 0; }
+
+        .api-notes-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 48px; }
+        .api-note-card { padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); }
+        .api-note-icon { font-size: 20px; display: block; margin-bottom: 10px; }
+        .api-note-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: #f7f0df; display: block; margin-bottom: 6px; }
+        .api-note-desc { font-family: 'DM Mono', monospace; font-size: 10.5px; color: rgba(255,255,255,0.38); line-height: 1.8; margin: 0; }
+
+        @media (max-width: 900px) {
+          .api-docs-section { padding: 64px 20px; }
+          .api-docs-title { font-size: 36px; }
+          .api-examples-grid { grid-template-columns: 1fr; }
+          .api-notes-row { grid-template-columns: 1fr 1fr; }
+          .api-param-row { grid-template-columns: 1fr 1fr; }
+          .api-param-row-3 { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px) {
+          .api-notes-row { grid-template-columns: 1fr; }
+        }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 1200px) {
