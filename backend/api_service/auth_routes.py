@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import secrets
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
@@ -378,5 +379,38 @@ def export_registered_users_csv(
             "Content-Disposition": 'attachment; filename="registered_users.csv"'
         },
     )
+
+
+@router.get("/me/api-key")
+def get_my_api_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the user's current LightninBull Signal API key. Generate one if not yet created."""
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if db_user.api_key is None:
+        db_user.api_key = "lb_live_" + secrets.token_urlsafe(24)
+        db.commit()
+        db.refresh(db_user)
+    return {
+        "api_key": db_user.api_key,
+        "usage": "Pass this key in the header  X-LB-API-Key: <your_key>  when calling /api/signals/live",
+    }
+
+
+@router.post("/me/regenerate-api-key")
+def regenerate_api_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a new API key (invalidates the old one immediately)."""
+    db_user = db.query(User).filter(User.id == user.id).first()
+    db_user.api_key = "lb_live_" + secrets.token_urlsafe(24)
+    db.commit()
+    db.refresh(db_user)
+    return {
+        "api_key": db_user.api_key,
+        "message": "New API key generated. Your previous key is now invalid.",
+    }
 
 
