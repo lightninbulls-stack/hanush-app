@@ -5,7 +5,11 @@ from datetime import datetime
 
 from kiteconnect import KiteConnect
 
-from .config import DOWNSIDE_CONFIG, IST, STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT, MAX_STOCK_PRICE
+from .config import (
+    DOWNSIDE_CONFIG, IST,
+    STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT,
+    MAX_STOCK_PRICE, CAPITAL_PER_STOCK, INTRADAY_LEVERAGE, MAX_STOCKS_PER_STRATEGY,
+)
 from .data_loader import build_signal_universe
 from .ema_engine import update_sma, is_bearish
 from .publisher import publish_strategy_state
@@ -101,9 +105,20 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 if sma_fast is None or sma_slow is None:
                     continue
 
-                # ── Entry: only if portfolio circuit breaker not triggered ──
-                if not portfolio_stopped and is_bearish(symbol) and symbol not in active_signals:
-                    logger.info("DS SIGNAL ENTERED | %s @ %.2f | time=%s", symbol, ltp, now.strftime("%H:%M:%S"))
+                # ── Entry: only if portfolio circuit breaker not triggered
+                #          and under max stock cap ──────────────────────────
+                if (
+                    not portfolio_stopped
+                    and is_bearish(symbol)
+                    and symbol not in active_signals
+                    and len(active_signals) < MAX_STOCKS_PER_STRATEGY
+                ):
+                    buying_power = CAPITAL_PER_STOCK * INTRADAY_LEVERAGE
+                    qty = int(buying_power // ltp)
+                    logger.info(
+                        "DS SIGNAL ENTERED | %s @ %.2f | qty=%d | buying_power=%.0f | time=%s",
+                        symbol, ltp, qty, buying_power, now.strftime("%H:%M:%S"),
+                    )
                     active_signals[symbol] = {
                         "entry_price": ltp,
                         "entry_time": now.strftime("%H:%M:%S"),
@@ -113,6 +128,9 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                         # Downside: target is below entry, stop loss is above entry
                         "target_price": round(ltp * (1 - STOCK_TARGET_PCT / 100), 2),
                         "stop_loss_price": round(ltp * (1 + STOCK_SL_PCT / 100), 2),
+                        "qty": qty,
+                        "buying_power": round(buying_power, 2),
+                        "invested_amount": round(qty * ltp, 2),
                     }
                     min_ltp_tracker[symbol] = ltp
 
@@ -126,17 +144,20 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 min_ltp_tracker[symbol] = min(min_ltp_tracker.get(symbol, ltp), ltp)
                 min_ltp = min_ltp_tracker[symbol]
 
+                qty           = int(active_signals[symbol].get("qty", 0))
+                buying_power  = float(active_signals[symbol].get("buying_power", 0))
+                invested_amt  = float(active_signals[symbol].get("invested_amount", qty * entry_price))
+
                 # Downside PnL: profit when price falls
-                pnl_points = entry_price - ltp
-                pnl_pct = (pnl_points / entry_price * 100) if entry_price else 0.0
+                pnl_points    = entry_price - ltp
+                pnl_pct       = (pnl_points / entry_price * 100) if entry_price else 0.0
+                real_pnl      = round(pnl_points * qty, 2)
                 points_captured = entry_price - min_ltp
-                pct_captured = (points_captured / entry_price * 100) if entry_price else 0.0
+                pct_captured  = (points_captured / entry_price * 100) if entry_price else 0.0
 
                 # ── Per-stock exit check ───────────────────────────────────
-                # Target hit: price fell to or below target
                 if ltp <= target_price:
                     exit_reason = "TARGET_HIT"
-                # Stop loss hit: price rose to or above stop loss
                 elif ltp >= stop_loss_price:
                     exit_reason = "STOP_LOSS_HIT"
                 else:
@@ -144,8 +165,8 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
 
                 if exit_reason:
                     logger.info(
-                        "DS EXIT | %s | reason=%s | entry=%.2f | ltp=%.2f | pnl_pct=%.2f%%",
-                        symbol, exit_reason, entry_price, ltp, pnl_pct,
+                        "DS EXIT | %s | reason=%s | entry=%.2f | ltp=%.2f | qty=%d | real_pnl=%.2f | pnl_pct=%.2f%%",
+                        symbol, exit_reason, entry_price, ltp, qty, real_pnl, pnl_pct,
                     )
                     exited_rec = {
                         "symbol": symbol,
@@ -162,8 +183,12 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                         "exit_reason": exit_reason,
                         "target_price": round(target_price, 2),
                         "stop_loss_price": round(stop_loss_price, 2),
+                        "qty": qty,
+                        "buying_power": round(buying_power, 2),
+                        "invested_amount": round(invested_amt, 2),
                         "pnl_points": round(pnl_points, 2),
                         "pnl_pct": round(pnl_pct, 2),
+                        "real_pnl": real_pnl,
                         "points_captured": round(points_captured, 2),
                         "pct_captured": round(pct_captured, 2),
                     }
@@ -187,8 +212,12 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     "min_ltp": round(min_ltp, 2),
                     "target_price": round(target_price, 2),
                     "stop_loss_price": round(stop_loss_price, 2),
+                    "qty": qty,
+                    "buying_power": round(buying_power, 2),
+                    "invested_amount": round(invested_amt, 2),
                     "pnl_points": round(pnl_points, 2),
                     "pnl_pct": round(pnl_pct, 2),
+                    "real_pnl": real_pnl,
                     "points_captured": round(points_captured, 2),
                     "pct_captured": round(pct_captured, 2),
                     "fast_sma": round(sma_fast, 4),
@@ -223,7 +252,9 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 if active_rows else 0.0
             )
 
-        entered_count = len(active_rows)
+        entered_count  = len(active_rows)
+        total_real_pnl = round(sum(s.get("real_pnl", 0) for s in signals_output), 2)
+        total_invested = round(sum(s.get("invested_amount", 0) for s in active_rows), 2)
 
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
@@ -245,6 +276,11 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 "portfolio_pnl_pct": round(avg_portfolio_pnl_pct, 2),
                 "portfolio_stop_pct": PORTFOLIO_SL_PCT,
                 "portfolio_stopped": portfolio_stopped,
+                "total_real_pnl": total_real_pnl,
+                "total_invested": total_invested,
+                "capital_per_stock": CAPITAL_PER_STOCK,
+                "leverage": INTRADAY_LEVERAGE,
+                "max_stocks": MAX_STOCKS_PER_STRATEGY,
                 "updated_at_ist": now.isoformat(),
             },
         )

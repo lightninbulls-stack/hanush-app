@@ -39,10 +39,17 @@ INSTRUMENT_FILE_CANDIDATES = [
 ]
 
 # ── Risk parameters ───────────────────────────────────────────────────────────
-STOCK_TARGET_PCT    = 1.0     # +1.0% per stock target
-STOCK_SL_PCT        = 1.5     # -1.5% per stock stop loss
-PORTFOLIO_SL_PCT    = 2.5     # -2.5% portfolio-level circuit breaker
-MAX_STOCK_PRICE     = 5000.0  # skip stocks at or above this price
+STOCK_TARGET_PCT        = 1.0       # +1.0% per stock target
+STOCK_SL_PCT            = 1.5       # -1.5% per stock stop loss
+PORTFOLIO_SL_PCT        = 2.5       # -2.5% portfolio-level circuit breaker
+MAX_STOCK_PRICE         = 5000.0    # skip stocks at or above this price
+
+# ── Capital & leverage ────────────────────────────────────────────────────────
+CAPITAL_PER_STOCK       = 10_000    # ₹10,000 margin allocated per stock
+INTRADAY_LEVERAGE       = 5         # 5x intraday margin from broker
+MAX_STOCKS_PER_STRATEGY = 10        # max concurrent positions
+# Effective buying power per stock = CAPITAL_PER_STOCK × INTRADAY_LEVERAGE = ₹50,000
+# Total capital deployed           = CAPITAL_PER_STOCK × MAX_STOCKS        = ₹1,00,000
 
 UPSIDE_CONFIG = {
     "strategy_name": "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL",

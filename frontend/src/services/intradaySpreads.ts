@@ -43,6 +43,10 @@ export type StockSignalRow = {
   pct_captured?: number | null;
   pnl_points?: number | null;
   pnl_pct?: number | null;
+  qty?: number | null;
+  buying_power?: number | null;
+  invested_amount?: number | null;
+  real_pnl?: number | null;
 };
 
 export type IntradaySpread = {
@@ -72,6 +76,11 @@ export type IntradaySpread = {
   portfolio_pnl_pct?: number | null;
   portfolio_stop_pct?: number | null;
   portfolio_stopped?: boolean;
+  total_real_pnl?: number | null;
+  total_invested?: number | null;
+  capital_per_stock?: number | null;
+  leverage?: number | null;
+  max_stocks?: number | null;
 };
 
 export type IntradaySpreadMap = Record<string, IntradaySpread>;

@@ -87,10 +87,15 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
     return rows.sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [spread]);
 
-  const enteredCount = spread?.entered_count ?? signals.length;
-  const totalCount = spread?.total_count ?? signals.length;
+  const enteredCount     = spread?.entered_count ?? signals.length;
+  const totalCount       = spread?.total_count ?? signals.length;
   const portfolioStopped = spread?.portfolio_stopped ?? false;
   const portfolioStopPct = spread?.portfolio_stop_pct ?? 2.5;
+  const capitalPerStock  = spread?.capital_per_stock ?? 10000;
+  const leverage         = spread?.leverage ?? 5;
+  const maxStocks        = spread?.max_stocks ?? 10;
+  const totalInvested    = spread?.total_invested ?? 0;
+  const totalRealPnl     = spread?.total_real_pnl ?? 0;
 
   // Portfolio-level PnL: from backend or computed from entered signals
   const portfolioPnl = useMemo(() => {
@@ -313,15 +318,10 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             <thead>
               <tr>
                 {[
-                  "Symbol",
-                  "Status",
-                  "Entry Time",
-                  "Entry Price",
-                  "Current LTP",
-                  "P&L Points",
-                  "P&L %",
-                  "Target",
-                  "Stop Loss",
+                  "Symbol", "Status", "Entry Time", "Entry Price",
+                  "Current LTP", "Qty", "Invested ₹",
+                  "P&L Pts", "P&L %", "Real P&L ₹",
+                  "Target", "Stop Loss",
                 ].map((h) => (
                   <th key={h}>{h}</th>
                 ))}
@@ -330,109 +330,120 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             <tbody>
               {signals.map((row) => {
                 const status = row.signal_status;
-                const isEntered = status === "ENTERED";
-                const isTargetHit = status === "TARGET_HIT";
-                const isSlHit = status === "STOP_LOSS_HIT";
+                const isEntered      = status === "ENTERED";
+                const isTargetHit    = status === "TARGET_HIT";
+                const isSlHit        = status === "STOP_LOSS_HIT";
                 const isPortfolioStop = status === "PORTFOLIO_STOP_HIT";
                 const entryPrice = row.entry_price ?? row.avg_price;
-                const pnlPts = row.pnl_points;
-                const pnlPct = row.pnl_pct;
+                const pnlPts  = row.pnl_points;
+                const pnlPct  = row.pnl_pct;
+                const realPnl = row.real_pnl;
 
                 const statusBg = isEntered
-                  ? "rgba(34,197,94,0.12)"
-                  : isTargetHit
-                  ? "rgba(250,204,21,0.12)"
-                  : isSlHit || isPortfolioStop
-                  ? "rgba(239,68,68,0.12)"
-                  : "rgba(255,255,255,0.06)";
-                const statusColor = isEntered
-                  ? "#4ade80"
-                  : isTargetHit
-                  ? "#fbbf24"
-                  : isSlHit || isPortfolioStop
-                  ? "#f87171"
-                  : "rgba(255,255,255,0.45)";
-                const statusBorder = isEntered
-                  ? "1px solid rgba(34,197,94,0.25)"
-                  : isTargetHit
-                  ? "1px solid rgba(250,204,21,0.3)"
-                  : isSlHit || isPortfolioStop
-                  ? "1px solid rgba(239,68,68,0.3)"
-                  : "1px solid rgba(255,255,255,0.08)";
+                  ? "rgba(34,197,94,0.12)" : isTargetHit
+                  ? "rgba(250,204,21,0.12)" : (isSlHit || isPortfolioStop)
+                  ? "rgba(239,68,68,0.12)"  : "rgba(255,255,255,0.06)";
+                const statusClr = isEntered
+                  ? "#4ade80" : isTargetHit
+                  ? "#fbbf24" : (isSlHit || isPortfolioStop)
+                  ? "#f87171" : "rgba(255,255,255,0.45)";
+                const statusBdr = isEntered
+                  ? "1px solid rgba(34,197,94,0.25)" : isTargetHit
+                  ? "1px solid rgba(250,204,21,0.3)"  : (isSlHit || isPortfolioStop)
+                  ? "1px solid rgba(239,68,68,0.3)"   : "1px solid rgba(255,255,255,0.08)";
 
                 return (
                   <tr key={row.instrument_token}>
-                    <td
-                      style={{
-                        color: isEntered ? "#f7f0df" : "rgba(255,255,255,0.55)",
-                        fontWeight: isEntered ? 600 : 400,
-                        fontFamily: "var(--font-serif)",
-                        fontSize: 14,
-                      }}
-                    >
+                    <td style={{ color: isEntered ? "#f7f0df" : "rgba(255,255,255,0.55)", fontWeight: isEntered ? 600 : 400, fontFamily: "var(--font-serif)", fontSize: 14 }}>
                       {row.symbol}
                     </td>
                     <td>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "3px 9px",
-                          borderRadius: 6,
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: 0.5,
-                          background: statusBg,
-                          color: statusColor,
-                          border: statusBorder,
-                        }}
-                      >
+                      <span style={{ display:"inline-block", padding:"3px 9px", borderRadius:6, fontFamily:"var(--font-mono)", fontSize:10, fontWeight:700, letterSpacing:0.5, background:statusBg, color:statusClr, border:statusBdr }}>
                         {status}
                       </span>
                     </td>
-                    <td style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>
-                      {row.entry_time || "--"}
-                    </td>
+                    <td style={{ color:"rgba(255,255,255,0.45)", fontSize:11 }}>{row.entry_time || "--"}</td>
                     <td>{formatPrice(entryPrice)}</td>
-                    <td
-                      style={{
-                        color: "#f7f0df",
-                        fontWeight: 600,
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 13,
-                      }}
-                    >
+                    <td style={{ color:"#f7f0df", fontWeight:600, fontFamily:"var(--font-mono)", fontSize:13 }}>
                       {formatPrice(row.current_ltp)}
                     </td>
-                    {/* Stock-level P&L */}
-                    <td
-                      style={{
-                        color: pnlColor(pnlPts),
-                        fontWeight: 700,
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 13,
-                      }}
-                    >
+                    {/* Qty */}
+                    <td style={{ color:"#e2e8f0", fontFamily:"var(--font-mono)", fontSize:12 }}>
+                      {row.qty ?? "--"}
+                    </td>
+                    {/* Invested ₹ */}
+                    <td style={{ color:"#94a3b8", fontFamily:"var(--font-mono)", fontSize:12 }}>
+                      {row.invested_amount != null ? `₹${row.invested_amount.toLocaleString("en-IN")}` : "--"}
+                    </td>
+                    {/* P&L pts */}
+                    <td style={{ color:pnlColor(pnlPts), fontWeight:700, fontFamily:"var(--font-mono)", fontSize:13 }}>
                       {formatPnlPoints(pnlPts)}
                     </td>
-                    <td
-                      style={{
-                        color: pnlColor(pnlPct),
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 12,
-                      }}
-                    >
+                    {/* P&L % */}
+                    <td style={{ color:pnlColor(pnlPct), fontFamily:"var(--font-mono)", fontSize:12 }}>
                       {formatPnlPct(pnlPct)}
                     </td>
-                    <td>{formatPrice(row.target_price)}</td>
-                    <td>{formatPrice(row.stop_loss_price)}</td>
+                    {/* Real P&L ₹ */}
+                    <td style={{ color:pnlColor(realPnl), fontWeight:700, fontFamily:"var(--font-mono)", fontSize:13 }}>
+                      {realPnl != null ? `₹${realPnl > 0 ? "+" : ""}${realPnl.toLocaleString("en-IN")}` : "--"}
+                    </td>
+                    <td style={{ color:"#4ade80", fontFamily:"var(--font-mono)", fontSize:12 }}>{formatPrice(row.target_price)}</td>
+                    <td style={{ color:"#f87171", fontFamily:"var(--font-mono)", fontSize:12 }}>{formatPrice(row.stop_loss_price)}</td>
                   </tr>
                 );
               })}
             </tbody>
+
+            {/* Portfolio totals footer */}
+            {signals.some(s => s.signal_status === "ENTERED") && (
+              <tfoot>
+                <tr style={{ borderTop:"1px solid rgba(255,255,255,0.1)" }}>
+                  <td colSpan={6} style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.35)", paddingTop:10 }}>
+                    PORTFOLIO TOTAL
+                  </td>
+                  <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"#94a3b8", paddingTop:10 }}>
+                    ₹{totalInvested.toLocaleString("en-IN")}
+                  </td>
+                  <td colSpan={2} />
+                  <td style={{ fontFamily:"var(--font-mono)", fontWeight:700, fontSize:13, color:pnlColor(totalRealPnl), paddingTop:10 }}>
+                    ₹{totalRealPnl > 0 ? "+" : ""}{totalRealPnl.toLocaleString("en-IN")}
+                  </td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
+
+      {/* ── How it works explanation ── */}
+      <div style={{ marginTop:28, padding:"18px 20px", borderRadius:14, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
+        <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"rgba(255,255,255,0.3)", letterSpacing:1.5, marginBottom:12 }}>
+          HOW THIS WORKS
+        </div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:24 }}>
+          {[
+            { label:"Capital per stock", value:`₹${capitalPerStock.toLocaleString("en-IN")}`, note:"Your margin allocation per trade" },
+            { label:"Intraday leverage", value:`${leverage}×`, note:"Broker provides 5× intraday margin" },
+            { label:"Buying power / stock", value:`₹${(capitalPerStock * leverage).toLocaleString("en-IN")}`, note:"₹10,000 × 5 = ₹50,000 to deploy" },
+            { label:"Max stocks", value:`${maxStocks} stocks`, note:"Cap to control risk concentration" },
+            { label:"Total capital deployed", value:`₹${(capitalPerStock * maxStocks).toLocaleString("en-IN")}`, note:"10 × ₹10,000 margin = ₹1,00,000" },
+            { label:"Qty formula", value:"⌊₹50,000 ÷ price⌋", note:"Whole shares only, no fractions" },
+          ].map(item => (
+            <div key={item.label} style={{ minWidth:160 }}>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:1, marginBottom:3 }}>{item.label.toUpperCase()}</div>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"#f7f0df", marginBottom:2 }}>{item.value}</div>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"rgba(255,255,255,0.35)" }}>{item.note}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop:16, padding:"10px 14px", borderRadius:8, background:"rgba(250,204,21,0.04)", border:"1px solid rgba(250,204,21,0.12)", fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.45)", lineHeight:1.7 }}>
+          <strong style={{ color:"rgba(250,204,21,0.7)" }}>Example — </strong>
+          Stock at ₹4,000 · Buying power ₹50,000 → Qty = ⌊50,000 ÷ 4,000⌋ = <strong style={{ color:"#f7f0df" }}>12 shares</strong> · Invested = ₹48,000 &nbsp;|&nbsp;
+          Target +1% → exit at ₹4,040 · Real P&L = (₹4,040 − ₹4,000) × 12 = <strong style={{ color:"#4ade80" }}>+₹480</strong> &nbsp;|&nbsp;
+          Stop −1.5% → exit at ₹3,940 · Real P&L = −₹60 × 12 = <strong style={{ color:"#f87171" }}>−₹720</strong>
+        </div>
+      </div>
     </div>
   );
 };
