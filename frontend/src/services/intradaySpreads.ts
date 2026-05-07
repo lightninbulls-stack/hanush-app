@@ -69,6 +69,9 @@ export type IntradaySpread = {
   stop_loss_hit_count?: number;
   total_count?: number;
   signals?: StockSignalRow[];
+  portfolio_pnl_pct?: number | null;
+  portfolio_stop_pct?: number | null;
+  portfolio_stopped?: boolean;
 };
 
 export type IntradaySpreadMap = Record<string, IntradaySpread>;

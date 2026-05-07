@@ -89,15 +89,24 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
 
   const enteredCount = spread?.entered_count ?? signals.length;
   const totalCount = spread?.total_count ?? signals.length;
+  const portfolioStopped = spread?.portfolio_stopped ?? false;
+  const portfolioStopPct = spread?.portfolio_stop_pct ?? 2.5;
 
-  // Portfolio-level PnL: sum of all entered signal pnl_points
+  // Portfolio-level PnL: from backend or computed from entered signals
   const portfolioPnl = useMemo(() => {
-    const entered = signals.filter((s) => s.signal_status === "ENTERED");
-    if (entered.length === 0) return null;
-    const totalPoints = entered.reduce((sum, s) => sum + (s.pnl_points ?? 0), 0);
-    const avgPct = entered.reduce((sum, s) => sum + (s.pnl_pct ?? 0), 0) / entered.length;
-    return { totalPoints, avgPct, count: entered.length };
-  }, [signals]);
+    const active = signals.filter((s) => s.signal_status === "ENTERED");
+    if (spread?.portfolio_pnl_pct !== undefined && spread?.portfolio_pnl_pct !== null) {
+      return {
+        avgPct: spread.portfolio_pnl_pct,
+        totalPoints: active.reduce((sum, s) => sum + (s.pnl_points ?? 0), 0),
+        count: active.length,
+      };
+    }
+    if (active.length === 0) return null;
+    const totalPoints = active.reduce((sum, s) => sum + (s.pnl_points ?? 0), 0);
+    const avgPct = active.reduce((sum, s) => sum + (s.pnl_pct ?? 0), 0) / active.length;
+    return { totalPoints, avgPct, count: active.length };
+  }, [signals, spread]);
 
   const statusColor =
     spread?.status === "RUNNING"
@@ -231,48 +240,61 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             style={{
               padding: "10px 14px",
               borderRadius: 12,
-              background:
-                portfolioPnl.totalPoints > 0
-                  ? "rgba(34,197,94,0.08)"
-                  : portfolioPnl.totalPoints < 0
-                  ? "rgba(248,113,113,0.08)"
-                  : "rgba(255,255,255,0.04)",
-              border:
-                portfolioPnl.totalPoints > 0
-                  ? "1px solid rgba(34,197,94,0.25)"
-                  : portfolioPnl.totalPoints < 0
-                  ? "1px solid rgba(248,113,113,0.25)"
-                  : "1px solid rgba(250,204,21,0.14)",
+              background: portfolioStopped
+                ? "rgba(239,68,68,0.10)"
+                : portfolioPnl.avgPct > 0
+                ? "rgba(34,197,94,0.08)"
+                : portfolioPnl.avgPct < 0
+                ? "rgba(248,113,113,0.08)"
+                : "rgba(255,255,255,0.04)",
+              border: portfolioStopped
+                ? "1px solid rgba(239,68,68,0.45)"
+                : portfolioPnl.avgPct > 0
+                ? "1px solid rgba(34,197,94,0.25)"
+                : portfolioPnl.avgPct < 0
+                ? "1px solid rgba(248,113,113,0.25)"
+                : "1px solid rgba(250,204,21,0.14)",
               fontFamily: "var(--font-mono)",
-              minWidth: 160,
+              minWidth: 190,
             }}
           >
-            <span
-              style={{
-                color: "rgba(255,255,255,0.35)",
-                display: "block",
-                fontSize: 9,
-                letterSpacing: 1.5,
-                marginBottom: 4,
-              }}
-            >
-              PORTFOLIO P&amp;L ({portfolioPnl.count} stocks)
+            <span style={{ color: "rgba(255,255,255,0.35)", display: "block", fontSize: 9, letterSpacing: 1.5, marginBottom: 4 }}>
+              PORTFOLIO P&amp;L · SL AT -{portfolioStopPct}%
             </span>
-            <strong
-              style={{
-                color: pnlColor(portfolioPnl.totalPoints),
-                fontSize: 15,
-                display: "block",
-              }}
-            >
+            <strong style={{ color: pnlColor(portfolioPnl.avgPct), fontSize: 15, display: "block" }}>
               {formatPnlPoints(portfolioPnl.totalPoints)} pts
             </strong>
             <span style={{ color: pnlColor(portfolioPnl.avgPct), fontSize: 11 }}>
               avg {formatPnlPct(portfolioPnl.avgPct)}
+              {portfolioStopped && <span style={{ color: "#ef4444", marginLeft: 6 }}>● STOPPED</span>}
             </span>
           </div>
         )}
       </div>
+
+      {/* ── Portfolio stop banner ── */}
+      {portfolioStopped && (
+        <div style={{
+          marginBottom: 18,
+          padding: "12px 16px",
+          borderRadius: 10,
+          background: "rgba(239,68,68,0.08)",
+          border: "1px solid rgba(239,68,68,0.35)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}>
+          <span style={{ fontSize: 16 }}>🛑</span>
+          <div>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 12, color: "#ef4444", letterSpacing: 0.5 }}>
+              PORTFOLIO STOP LOSS HIT — -{portfolioStopPct}%
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+              All active positions closed. No new entries will be taken today.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Table ── */}
       {loading ? (
@@ -307,10 +329,36 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
             </thead>
             <tbody>
               {signals.map((row) => {
-                const isEntered = row.signal_status === "ENTERED";
+                const status = row.signal_status;
+                const isEntered = status === "ENTERED";
+                const isTargetHit = status === "TARGET_HIT";
+                const isSlHit = status === "STOP_LOSS_HIT";
+                const isPortfolioStop = status === "PORTFOLIO_STOP_HIT";
                 const entryPrice = row.entry_price ?? row.avg_price;
                 const pnlPts = row.pnl_points;
                 const pnlPct = row.pnl_pct;
+
+                const statusBg = isEntered
+                  ? "rgba(34,197,94,0.12)"
+                  : isTargetHit
+                  ? "rgba(250,204,21,0.12)"
+                  : isSlHit || isPortfolioStop
+                  ? "rgba(239,68,68,0.12)"
+                  : "rgba(255,255,255,0.06)";
+                const statusColor = isEntered
+                  ? "#4ade80"
+                  : isTargetHit
+                  ? "#fbbf24"
+                  : isSlHit || isPortfolioStop
+                  ? "#f87171"
+                  : "rgba(255,255,255,0.45)";
+                const statusBorder = isEntered
+                  ? "1px solid rgba(34,197,94,0.25)"
+                  : isTargetHit
+                  ? "1px solid rgba(250,204,21,0.3)"
+                  : isSlHit || isPortfolioStop
+                  ? "1px solid rgba(239,68,68,0.3)"
+                  : "1px solid rgba(255,255,255,0.08)";
 
                 return (
                   <tr key={row.instrument_token}>
@@ -334,16 +382,12 @@ const IntradayStockSignalsPanel: React.FC<Props> = ({
                           fontSize: 10,
                           fontWeight: 700,
                           letterSpacing: 0.5,
-                          background: isEntered
-                            ? "rgba(34,197,94,0.12)"
-                            : "rgba(255,255,255,0.06)",
-                          color: isEntered ? "#4ade80" : "rgba(255,255,255,0.45)",
-                          border: isEntered
-                            ? "1px solid rgba(34,197,94,0.25)"
-                            : "1px solid rgba(255,255,255,0.08)",
+                          background: statusBg,
+                          color: statusColor,
+                          border: statusBorder,
                         }}
                       >
-                        {row.signal_status}
+                        {status}
                       </span>
                     </td>
                     <td style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>

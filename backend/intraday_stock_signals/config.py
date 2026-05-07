@@ -38,6 +38,11 @@ INSTRUMENT_FILE_CANDIDATES = [
     "data/inst_zerodha_nfo.csv",
 ]
 
+# ── Risk parameters ───────────────────────────────────────────────────────────
+STOCK_TARGET_PCT    = 1.0   # +1.0% per stock target
+STOCK_SL_PCT        = 1.5   # -1.5% per stock stop loss
+PORTFOLIO_SL_PCT    = 2.5   # -2.5% portfolio-level circuit breaker
+
 UPSIDE_CONFIG = {
     "strategy_name": "LIGHTNIN_BULL_UPSIDE_INTRADAY_SIGNAL",
     "side": "UPSIDE",
