@@ -987,7 +987,7 @@ const Auth: React.FC = () => {
               <div className="api-code-box api-code-box-sm">
                 <span className="api-code-comment">### Get all upside BUY signals</span>{"\n"}
                 <span className="api-code-key">curl</span>{" "}
-                <span className="api-code-val">https://lightninbull.com/api/signals/live?strategy=upside</span>{" \\\n"}
+                <span className="api-code-val">https://api.lightninbull.com/api/signals/live?strategy=upside</span>{" \\\n"}
                 {"  "}<span className="api-code-key">-H</span>{" "}
                 <span className="api-code-punct">"</span>
                 <span className="api-code-key">X-LB-API-Key</span>
@@ -1070,7 +1070,7 @@ const Auth: React.FC = () => {
               <p className="api-endpoint-desc">Returns your current API key. Auto-generates one if you don't have one yet. Requires your LightninBull JWT token (from login).</p>
               <div className="api-code-box api-code-box-sm">
                 <span className="api-code-key">curl</span>{" "}
-                <span className="api-code-val">https://lightninbull.com/auth/me/api-key</span>{" \\\n"}
+                <span className="api-code-val">https://api.lightninbull.com/auth/me/api-key</span>{" \\\n"}
                 {"  "}<span className="api-code-key">-H</span>{" "}
                 <span className="api-code-punct">"Authorization: Bearer &lt;your_jwt_token&gt;"</span>{"\n\n"}
                 <span className="api-code-comment">{"# Response"}</span>{"\n"}
@@ -1088,7 +1088,7 @@ const Auth: React.FC = () => {
               <p className="api-endpoint-desc">Generates a new API key. Your old key stops working immediately.</p>
               <div className="api-code-box api-code-box-sm">
                 <span className="api-code-key">curl</span>{" -X POST "}
-                <span className="api-code-val">https://lightninbull.com/auth/me/regenerate-api-key</span>{" \\\n"}
+                <span className="api-code-val">https://api.lightninbull.com/auth/me/regenerate-api-key</span>{" \\\n"}
                 {"  "}<span className="api-code-key">-H</span>{" "}
                 <span className="api-code-punct">"Authorization: Bearer &lt;your_jwt_token&gt;"</span>{"\n\n"}
                 <span className="api-code-comment">{"# Response"}</span>{"\n"}
@@ -1107,7 +1107,7 @@ const Auth: React.FC = () => {
 {`import requests, time
 
 API_KEY = "lb_live_xxxxxxxx"
-BASE    = "https://lightninbull.com"
+BASE    = "https://api.lightninbull.com"
 HEADERS = {"X-LB-API-Key": API_KEY}
 
 while True:
@@ -1141,7 +1141,7 @@ while True:
                 <div className="api-example-lang">JavaScript / Node</div>
                 <div className="api-code-box api-code-box-sm">
 {`const API_KEY = "lb_live_xxxxxxxx";
-const BASE    = "https://lightninbull.com";
+const BASE    = "https://api.lightninbull.com";
 
 async function fetchSignals(strategy = "all") {
   const res = await fetch(
