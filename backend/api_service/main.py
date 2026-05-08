@@ -224,10 +224,23 @@ async def startup_event() -> None:
     threading.Timer(10.0, delayed_start_bear_put).start()
     threading.Timer(20.0, delayed_start_bull_call_sensex).start()
     threading.Timer(30.0, delayed_start_bear_put_sensex).start()
-    threading.Timer(40.0, delayed_start_upside_stock_signal).start()
-    threading.Timer(50.0, delayed_start_downside_stock_signal).start()
+    threading.Timer(5.0,  delayed_start_upside_stock_signal).start()   # fast start — strategy self-regulates market hours
+    threading.Timer(10.0, delayed_start_downside_stock_signal).start() # fast start
 
-    logger.info("⏳ Delayed startup scheduling completed, including intraday stock signal websockets.")
+    # Watchdog: checks every 5 min and auto-restarts dead stock-signal threads
+    def _watchdog() -> None:
+        import time as _time
+        while True:
+            _time.sleep(300)
+            if not is_upside_stock_signal_strategy_running():
+                logger.warning("⚠️ Upside stock signal thread dead — restarting.")
+                start_upside_stock_signal_strategy()
+            if not is_downside_stock_signal_strategy_running():
+                logger.warning("⚠️ Downside stock signal thread dead — restarting.")
+                start_downside_stock_signal_strategy()
+
+    threading.Thread(target=_watchdog, daemon=True, name="stock-signal-watchdog").start()
+    logger.info("⏳ Startup scheduling complete. Watchdog active.")
 
 
 app.add_middleware(

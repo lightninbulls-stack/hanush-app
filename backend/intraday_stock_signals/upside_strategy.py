@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from kiteconnect import KiteConnect
 
@@ -11,7 +11,7 @@ from .config import (
     MAX_STOCK_PRICE, CAPITAL_PER_STOCK, INTRADAY_LEVERAGE, MAX_STOCKS_PER_STRATEGY,
 )
 from .data_loader import build_signal_universe
-from .ema_engine import update_sma, is_bullish
+from .ema_engine import update_sma, is_bullish, reset_sma_for_symbols, get_tick_count
 from .publisher import publish_strategy_state
 from .utils import load_creds, setup_logger
 
@@ -36,7 +36,7 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
         now = datetime.now(IST)
 
         if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
-            logger.info("US RUN STOP: Market closed — stopping upside strategy")
+            logger.info("US RUN STOP: Market closed — session complete.")
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 ui_state="STOPPED",
@@ -52,7 +52,7 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     "updated_at_ist": now.isoformat(),
                 },
             )
-            break
+            return  # returns to outer daily-restart loop in main()
 
         # ── Batch LTP fetch ────────────────────────────────────────────────
         all_quote_keys = [f"NSE:{str(r['symbol']).strip().upper()}" for _, r in universe_df.iterrows()]
@@ -284,7 +284,18 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
             },
         )
 
-        time.sleep(1)
+        time.sleep(0.5)  # 0.5s + ~0.2s API latency = ~1.4x faster tick rate vs 1s sleep
+
+
+def _next_market_open_ist(now: datetime) -> datetime:
+    """Return the next 9:14 AM IST on a weekday from now."""
+    candidate = now.replace(hour=9, minute=14, second=0, microsecond=0)
+    if now >= candidate:
+        candidate += timedelta(days=1)
+    # Skip weekends
+    while candidate.weekday() >= 5:
+        candidate += timedelta(days=1)
+    return candidate
 
 
 def main() -> None:
@@ -292,77 +303,103 @@ def main() -> None:
         "lightnin_bull_upside_intraday_signal",
         UPSIDE_CONFIG["log_file_name"],
     )
-    logger.info("US MAIN 1: LIGHTNIN BULL UPSIDE main() started | ENGINE=SMA")
+    logger.info("US MAIN: LIGHTNIN BULL UPSIDE thread started — daily restart loop active.")
 
-    publish_strategy_state(
-        strategy_name=STRATEGY_NAME,
-        ui_state="BOOTING",
-        message="Upside stock signal process started.",
-        progress_text="Initializing",
-        is_loading=True,
-        extra={
-            "signals": [],
-            "entered_count": 0,
-            "total_count": 0,
-            "engine": "SMA",
-            "fast_sma_span": FAST_SMA_SPAN,
-            "slow_sma_span": SLOW_SMA_SPAN,
-            "portfolio_stopped": False,
-            "updated_at_ist": datetime.now(IST).isoformat(),
-        },
-    )
+    # Outer loop: this thread NEVER exits. It sleeps between sessions and
+    # restarts each trading day automatically.
+    while True:
+        now = datetime.now(IST)
 
-    try:
-        logger.info("US MAIN 2: loading credentials")
-        cred = load_creds()
-        kite = KiteConnect(api_key=cred["z_api_key"])
-        kite.set_access_token(cred["z_access_token"])
-        logger.info("US MAIN 4: Kite authenticated")
+        # ── Weekend check ────────────────────────────────────────────────────
+        if now.weekday() >= 5:
+            next_open = _next_market_open_ist(now)
+            wait = min((next_open - now).total_seconds(), 3600)
+            logger.info("US: Weekend. Next open %s IST. Sleeping %ds.", next_open.strftime("%a %d-%b %H:%M"), int(wait))
+            time.sleep(max(wait, 60))
+            continue
 
-        universe_df = build_signal_universe(regime_file_path=UPSIDE_CONFIG["regime_file_path"])
-        if universe_df.empty:
-            raise ValueError("US MAIN FAIL: universe_df is empty")
+        market_open  = now.replace(hour=9,  minute=14, second=0, microsecond=0)
+        market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
 
-        logger.info("US MAIN 6: Upside universe loaded: %s stocks", len(universe_df))
+        # ── Pre-market: wait in short chunks until 9:14 AM ───────────────────
+        if now < market_open:
+            wait = min((market_open - now).total_seconds(), 60)
+            logger.info("US: Pre-market. Opens at 9:15 IST. Sleeping %ds.", int(wait))
+            time.sleep(max(wait, 5))
+            continue
 
+        # ── Post-market: sleep until next session ────────────────────────────
+        if now >= market_close:
+            next_open = _next_market_open_ist(now)
+            wait = min((next_open - now).total_seconds(), 3600)
+            logger.info("US: Market closed. Next session %s IST. Sleeping %ds.", next_open.strftime("%a %d-%b %H:%M"), int(wait))
+            time.sleep(max(wait, 60))
+            continue
+
+        # ── Market is open: run today's trading session ───────────────────────
+        logger.info("US SESSION: Starting upside session for %s.", now.strftime("%Y-%m-%d"))
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
-            ui_state="RUNNING",
-            message="Upside stock signal universe loaded.",
-            progress_text=f"Tracking {len(universe_df)} stocks",
-            is_loading=False,
+            ui_state="BOOTING",
+            message="Upside stock signal process started.",
+            progress_text="Initializing",
+            is_loading=True,
             extra={
-                "signals": [],
-                "entered_count": 0,
-                "total_count": int(len(universe_df)),
-                "engine": "SMA",
-                "fast_sma_span": FAST_SMA_SPAN,
-                "slow_sma_span": SLOW_SMA_SPAN,
-                "portfolio_stopped": False,
-                "updated_at_ist": datetime.now(IST).isoformat(),
+                "signals": [], "entered_count": 0, "total_count": 0,
+                "engine": "SMA", "fast_sma_span": FAST_SMA_SPAN,
+                "slow_sma_span": SLOW_SMA_SPAN, "portfolio_stopped": False,
+                "updated_at_ist": now.isoformat(),
             },
         )
 
-        run_upside_strategy(kite=kite, universe_df=universe_df, logger=logger)
+        try:
+            cred = load_creds()
+            kite = KiteConnect(api_key=cred["z_api_key"])
+            kite.set_access_token(cred["z_access_token"])
+            logger.info("US SESSION: Kite authenticated.")
 
-    except Exception as exc:
-        error_msg = f"Upside strategy failed: {exc}"
-        logger.exception("US MAIN ERROR: %s", error_msg)
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            ui_state="ERROR",
-            message=error_msg,
-            progress_text="Check Render logs",
-            is_loading=False,
-            extra={
-                "signals": [],
-                "entered_count": 0,
-                "total_count": 0,
-                "error": str(exc),
-                "portfolio_stopped": False,
-                "updated_at_ist": datetime.now(IST).isoformat(),
-            },
-        )
+            universe_df = build_signal_universe(regime_file_path=UPSIDE_CONFIG["regime_file_path"])
+            if universe_df.empty:
+                raise ValueError("universe_df is empty — check regime file.")
+
+            # Clear stale SMA state from any previous session so warmup is clean
+            symbols = [str(r["symbol"]).strip().upper() for _, r in universe_df.iterrows()]
+            reset_sma_for_symbols(symbols)
+            logger.info("US SESSION: SMA state cleared for %d symbols. Warmup begins (fast=%d ticks ~%.0fm, slow=%d ticks ~%.0fm).",
+                        len(symbols), FAST_SMA_SPAN, FAST_SMA_SPAN / 70, SLOW_SMA_SPAN, SLOW_SMA_SPAN / 70)
+
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                ui_state="RUNNING",
+                message="Upside stock signal universe loaded.",
+                progress_text=f"Tracking {len(universe_df)} stocks",
+                is_loading=False,
+                extra={
+                    "signals": [], "entered_count": 0, "total_count": int(len(universe_df)),
+                    "engine": "SMA", "fast_sma_span": FAST_SMA_SPAN,
+                    "slow_sma_span": SLOW_SMA_SPAN, "portfolio_stopped": False,
+                    "updated_at_ist": now.isoformat(),
+                },
+            )
+
+            run_upside_strategy(kite=kite, universe_df=universe_df, logger=logger)
+            logger.info("US SESSION: Trading session ended normally.")
+
+        except Exception as exc:
+            logger.exception("US SESSION ERROR: %s", exc)
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                ui_state="ERROR",
+                message=f"Upside strategy session error: {exc}",
+                progress_text="Retrying in 30s — check Render logs",
+                is_loading=False,
+                extra={
+                    "signals": [], "entered_count": 0, "total_count": 0,
+                    "error": str(exc), "portfolio_stopped": False,
+                    "updated_at_ist": datetime.now(IST).isoformat(),
+                },
+            )
+            time.sleep(30)  # brief pause before outer loop retries
 
 
 if __name__ == "__main__":

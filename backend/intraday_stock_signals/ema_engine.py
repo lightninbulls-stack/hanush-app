@@ -136,6 +136,12 @@ def get_tick_count(symbol: str) -> int:
     return len(state.prices) if state else 0
 
 
+def reset_sma_for_symbols(symbols: list) -> None:
+    """Clear SMA state for the given symbols. Call at the start of each trading session."""
+    for sym in symbols:
+        sma_store.pop(str(sym).strip().upper(), None)
+
+
 # -------------------------------------------------------
 # 🔹 BACKWARD-COMPATIBILITY ALIAS
 # -------------------------------------------------------
