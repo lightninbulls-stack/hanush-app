@@ -1109,150 +1109,170 @@ class EMACrossover1Min:
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main():
-    publish_strategy_state(
-        strategy_name=STRATEGY_NAME,
-        index_name=INDEX_NAME,
-        spread_type=SPREAD_TYPE,
-        ui_state="BOOTING",
-        message="Strategy process started.",
-        progress_text="Initializing",
-        is_loading=True,
+def _next_market_open_ist(ref: datetime) -> datetime:
+    candidate = (ref + timedelta(days=1)).replace(
+        hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0
     )
+    while candidate.weekday() >= 5:
+        candidate += timedelta(days=1)
+    return candidate
 
-    log_and_print("MAIN 1: entered main()")
 
-    # Weekday check
-    if not is_weekday_ist(current_ist()):
+def main():
+    log_and_print("MAIN 1: entered main() — daily restart loop active")
+
+    while True:
+        now = current_ist()
+
+        # Weekend: sleep up to 1 hour at a time until next weekday
+        if not is_weekday_ist(now):
+            next_open = _next_market_open_ist(now)
+            sleep_secs = min((next_open - now).total_seconds(), 3600)
+            log_and_print(f"WAITING | Weekend. Sleeping {sleep_secs:.0f}s until next weekday market open.")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING",
+                message="Strategy inactive on weekends. Waiting for market open.",
+                is_loading=False,
+            )
+            time.sleep(sleep_secs)
+            continue
+
+        # Before market open: sleep in short bursts until 9:15 AM IST
+        if is_before_market_open_ist(now):
+            market_open, _ = get_market_open_close_ist(now)
+            sleep_secs = min((market_open - now).total_seconds(), 60)
+            log_and_print(f"WAITING | Market not open yet. Sleeping {sleep_secs:.0f}s.")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING",
+                message="Waiting for market to open at 9:15 AM IST.",
+                progress_text="Pre-market",
+                is_loading=True,
+            )
+            time.sleep(sleep_secs)
+            continue
+
+        # After market close (called late / session already done): sleep until next day
+        if is_after_market_close_ist(now):
+            next_open = _next_market_open_ist(now)
+            sleep_secs = min((next_open - now).total_seconds(), 3600)
+            log_and_print(f"STOPPED | Market closed. Sleeping {sleep_secs:.0f}s until next open.")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="STOPPED",
+                message="Market closed. Strategy will restart tomorrow at 9:15 AM IST.",
+                progress_text="Outside market hours",
+                is_loading=False,
+            )
+            time.sleep(sleep_secs)
+            continue
+
+        # ── Market is open — run today's session ─────────────────────────────
+        log_and_print("MAIN 2: inside market hours — starting trading session")
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             index_name=INDEX_NAME,
             spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy is inactive outside working days.",
-            is_loading=False,
-        )
-        log_and_print("STOPPED | Not a weekday. Exiting.")
-        return
-
-    now = current_ist()
-
-    # Before market open
-    if is_before_market_open_ist(now):
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy not started. Market is not open yet.",
-            progress_text="Outside market hours",
-            is_loading=False,
-        )
-        log_and_print("STOPPED | Market not open yet. Exiting to save Render runtime.")
-        return
-
-    # After market close
-    if is_after_market_close_ist(now):
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="STOPPED",
-            message="Strategy stopped. Market is already closed.",
-            progress_text="Outside market hours",
-            is_loading=False,
-        )
-        log_and_print("STOPPED | Market already closed. Exiting to save Render runtime.")
-        return
-
-    log_and_print("MAIN 2: inside market hours — proceeding")
-
-    done_event = threading.Event()
-    try:
-        cred = load_creds()
-        log_and_print(f"MAIN 3: creds loaded | expiry={cred['i_expiry_date_sensex']}")
-
-        kite = KiteConnect(api_key=cred["z_api_key"])
-        kite.set_access_token(cred["z_access_token"])
-        log_and_print("MAIN 4: kite initialized")
-
-        paper_book = PaperOrderBook()
-        log_and_print("MAIN 5: paper book created")
-
-        sensex_ema = EMACrossover1Min(
-            kite=kite,
-            cred=cred,
-            done_event=done_event,
-            instrument_token=SENSEX_SPOT_TOKEN,
-            preload_days=PRELOAD_DAYS,
+            ui_state="BOOTING",
+            message="Strategy process started.",
+            progress_text="Initializing",
+            is_loading=True,
         )
 
-        alpha_bull = AlphaBullCallSensex(
-            kite=kite,
-            cred=cred,
-            paper_book=paper_book,
-            done_event=done_event,
-        )
+        done_event = threading.Event()
+        try:
+            cred = load_creds()
+            log_and_print(f"MAIN 3: creds loaded | expiry={cred['i_expiry_date_sensex']}")
 
-        log_and_print("MAIN 6: starting EMA crossover stream")
-        sensex_ema.start(alpha_bull)
+            kite = KiteConnect(api_key=cred["z_api_key"])
+            kite.set_access_token(cred["z_access_token"])
+            log_and_print("MAIN 4: kite initialized")
 
-        # Block until strategy finishes (SL / Target / Market close / Error / WS drop).
-        #
-        # IMPORTANT PRODUCTION SAFETY:
-        # We do not use plain done_event.wait() forever because websocket ticks can stop.
-        # If no tick arrives after market close, on_ticks will not run and the process
-        # can remain alive on Render unnecessarily. This loop wakes every 2 seconds
-        # and force-closes the paper spread after market close.
-        log_and_print("MAIN 7: waiting for strategy completion...")
+            paper_book = PaperOrderBook()
+            log_and_print("MAIN 5: paper book created")
 
-        while not done_event.is_set():
-            if is_after_market_close_ist():
-                log_and_print("MAIN MARKET CLOSE WATCHDOG | Force closing bull call strategy and exiting.")
+            sensex_ema = EMACrossover1Min(
+                kite=kite,
+                cred=cred,
+                done_event=done_event,
+                instrument_token=SENSEX_SPOT_TOKEN,
+                preload_days=PRELOAD_DAYS,
+            )
 
-                try:
-                    if alpha_bull.mtm_tracker is not None and alpha_bull.mtm_tracker.is_running:
-                        alpha_bull.mtm_tracker.force_close_positions()
-                    else:
-                        paper_book.close_all_positions()
-                        final_payload = build_spread_payload(
-                            paper_book=paper_book,
-                            index_name=INDEX_NAME,
-                            spread_type=SPREAD_TYPE,
-                            strategy_name=STRATEGY_NAME,
-                            stop_loss_amount=STOP_LOSS_AMOUNT,
-                            target_amount=TARGET_AMOUNT,
+            alpha_bull = AlphaBullCallSensex(
+                kite=kite,
+                cred=cred,
+                paper_book=paper_book,
+                done_event=done_event,
+            )
+
+            log_and_print("MAIN 6: starting EMA crossover stream")
+            sensex_ema.start(alpha_bull)
+
+            # Block until strategy finishes (SL / Target / Market close / Error / WS drop).
+            log_and_print("MAIN 7: waiting for strategy completion...")
+
+            while not done_event.is_set():
+                if is_after_market_close_ist():
+                    log_and_print("MAIN MARKET CLOSE WATCHDOG | Force closing bull call strategy.")
+
+                    try:
+                        if alpha_bull.mtm_tracker is not None and alpha_bull.mtm_tracker.is_running:
+                            alpha_bull.mtm_tracker.force_close_positions()
+                        else:
+                            paper_book.close_all_positions()
+                            final_payload = build_spread_payload(
+                                paper_book=paper_book,
+                                index_name=INDEX_NAME,
+                                spread_type=SPREAD_TYPE,
+                                strategy_name=STRATEGY_NAME,
+                                stop_loss_amount=STOP_LOSS_AMOUNT,
+                                target_amount=TARGET_AMOUNT,
+                            )
+                            publish_spread_update(final_payload)
+
+                        sensex_ema._stop_sensex_stream()
+
+                    except Exception as close_exc:
+                        log_and_print(
+                            f"MAIN MARKET CLOSE WATCHDOG failed to publish final state: {close_exc}",
+                            "error",
                         )
-                        publish_spread_update(final_payload)
 
-                    sensex_ema._stop_sensex_stream()
+                    done_event.set()
+                    break
 
-                except Exception as close_exc:
-                    log_and_print(
-                        f"MAIN MARKET CLOSE WATCHDOG failed to publish final state: {close_exc}",
-                        "error",
-                    )
+                done_event.wait(timeout=2.0)
 
-                done_event.set()
-                break
+            log_and_print("MAIN 8: strategy session complete.")
 
-            done_event.wait(timeout=2.0)
+        except Exception as e:
+            log_and_print(f"An error occurred in main execution: {e}", "error")
+            log_and_print(traceback.format_exc(), "error")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="ERROR",
+                message=f"Strategy failed: {str(e)}",
+                progress_text="Check logs",
+                is_loading=False,
+            )
+            done_event.set()
 
-        log_and_print("MAIN 8: strategy complete — exiting cleanly.")
-
-    except Exception as e:
-        log_and_print(f"An error occurred in main execution: {e}", "error")
-        log_and_print(traceback.format_exc(), "error")
-        publish_strategy_state(
-            strategy_name=STRATEGY_NAME,
-            index_name=INDEX_NAME,
-            spread_type=SPREAD_TYPE,
-            ui_state="ERROR",
-            message=f"Strategy failed: {str(e)}",
-            progress_text="Check logs",
-            is_loading=False,
-        )
-        done_event.set()
+        # Session ended — sleep until next morning's market open
+        now = current_ist()
+        next_open = _next_market_open_ist(now)
+        sleep_secs = min((next_open - now).total_seconds(), 3600)
+        log_and_print(f"MAIN 9: session done — sleeping {sleep_secs:.0f}s until next market open.")
+        time.sleep(sleep_secs)
 
 
 if __name__ == "__main__":

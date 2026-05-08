@@ -227,11 +227,23 @@ async def startup_event() -> None:
     threading.Timer(5.0,  delayed_start_upside_stock_signal).start()   # fast start — strategy self-regulates market hours
     threading.Timer(10.0, delayed_start_downside_stock_signal).start() # fast start
 
-    # Watchdog: checks every 5 min and auto-restarts dead stock-signal threads
+    # Watchdog: checks every 5 min and auto-restarts any dead strategy threads
     def _watchdog() -> None:
         import time as _time
         while True:
             _time.sleep(300)
+            if not is_strategy_running():
+                logger.warning("⚠️ Bull Call NIFTY thread dead — restarting.")
+                start_bull_call_strategy()
+            if not is_bull_call_sensex_strategy_running():
+                logger.warning("⚠️ Bull Call SENSEX thread dead — restarting.")
+                start_bull_call_sensex_strategy()
+            if not is_bear_put_strategy_running():
+                logger.warning("⚠️ Bear Put NIFTY thread dead — restarting.")
+                start_bear_put_strategy()
+            if not is_bear_put_sensex_strategy_running():
+                logger.warning("⚠️ Bear Put SENSEX thread dead — restarting.")
+                start_bear_put_sensex_strategy()
             if not is_upside_stock_signal_strategy_running():
                 logger.warning("⚠️ Upside stock signal thread dead — restarting.")
                 start_upside_stock_signal_strategy()
@@ -239,8 +251,8 @@ async def startup_event() -> None:
                 logger.warning("⚠️ Downside stock signal thread dead — restarting.")
                 start_downside_stock_signal_strategy()
 
-    threading.Thread(target=_watchdog, daemon=True, name="stock-signal-watchdog").start()
-    logger.info("⏳ Startup scheduling complete. Watchdog active.")
+    threading.Thread(target=_watchdog, daemon=True, name="strategy-watchdog").start()
+    logger.info("⏳ Startup scheduling complete. Watchdog active for all 6 strategy threads.")
 
 
 app.add_middleware(
