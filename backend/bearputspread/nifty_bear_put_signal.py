@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta, date
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import pytz
 from kiteconnect import KiteConnect, KiteTicker
@@ -955,9 +956,53 @@ class EMACrossover1Min:
         except Exception:
             pass
 
+    _VALID_WINDOWS = [(9 * 60 + 25, 15 * 60 + 0)]
+
+    def _is_valid_window(self, candle_ts) -> bool:
+        m = candle_ts.hour * 60 + candle_ts.minute
+        return any(s <= m < e for s, e in self._VALID_WINDOWS)
+
+    def _supertrend_direction(self, period: int = 10, multiplier: float = 3.0) -> int:
+        five = (
+            self.onemin_bars[["open", "high", "low", "close"]]
+            .resample("5min", label="left", closed="left")
+            .agg({"open": "first", "high": "max", "low": "min", "close": "last"})
+            .dropna()
+        )
+        if len(five) < period + 1:
+            return 0
+        h = five["high"].values
+        l = five["low"].values
+        c = five["close"].values
+        n = len(c)
+        tr = np.empty(n)
+        tr[0] = h[0] - l[0]
+        for i in range(1, n):
+            tr[i] = max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+        atr = np.empty(n)
+        atr[period - 1] = tr[:period].mean()
+        for i in range(period, n):
+            atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
+        hl2 = (h + l) / 2.0
+        b_ub = hl2 + multiplier * atr
+        b_lb = hl2 - multiplier * atr
+        f_ub = b_ub.copy()
+        f_lb = b_lb.copy()
+        direction = np.ones(n, dtype=int)
+        for i in range(period, n):
+            f_ub[i] = b_ub[i] if b_ub[i] < f_ub[i - 1] or c[i - 1] > f_ub[i - 1] else f_ub[i - 1]
+            f_lb[i] = b_lb[i] if b_lb[i] > f_lb[i - 1] or c[i - 1] < f_lb[i - 1] else f_lb[i - 1]
+            if c[i] > f_ub[i - 1]:
+                direction[i] = 1
+            elif c[i] < f_lb[i - 1]:
+                direction[i] = -1
+            else:
+                direction[i] = direction[i - 1]
+        return int(direction[-1])
+
     def _update_ema_crossover(self, rider: AlphaBearPut) -> None:
-        self.onemin_bars["EMA5"] = self.onemin_bars["close"].ewm(span=5, adjust=False).mean()
-        self.onemin_bars["EMA55"] = self.onemin_bars["close"].ewm(span=55, adjust=False).mean()
+        self.onemin_bars["EMA9"]  = self.onemin_bars["close"].ewm(span=9,  adjust=False).mean()
+        self.onemin_bars["EMA21"] = self.onemin_bars["close"].ewm(span=21, adjust=False).mean()
 
         if len(self.onemin_bars) < 2:
             publish_strategy_state(
@@ -972,50 +1017,21 @@ class EMACrossover1Min:
             return
 
         latest = self.onemin_bars.iloc[-1]
-        prev = self.onemin_bars.iloc[-2]
+        prev   = self.onemin_bars.iloc[-2]
+        candle_ts = self.onemin_bars.index[-1]
 
         if "signal" not in self.onemin_bars.columns:
             self.onemin_bars["signal"] = 0
-
-        log_and_print(
-            f"EMA UPDATE | Time={self.onemin_bars.index[-1].strftime('%H:%M:%S')} | "
-            f"Close={latest['close']:.2f} | EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f}"
-        )
-
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # ── BEARISH SIGNAL CHECK ─────────────────────────────────────────────
-        # Case 1 — Intraday crossover: EMA5 transitions from >= EMA55 → < EMA55.
-        crossover_condition = bool(
-            prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]
-        )
-        # Case 2 — Opening alignment: first check after 2 live candles confirms
-        # EMA5 is already below EMA55 (catches gap-down opens that never cross over).
-        opening_condition = False
-        if not self.opening_checked:
-            self.opening_checked = True
-            if latest["EMA5"] < latest["EMA55"]:
-                opening_condition = True
-                log_and_print(
-                    f"✅ OPENING ALIGNMENT | EMA5 already below EMA55 at session start | "
-                    f"EMA5={latest['EMA5']:.2f} EMA55={latest['EMA55']:.2f}"
-                )
-        signal_condition = crossover_condition or opening_condition
-        # ─────────────────────────────────────────────────────────────────────
-
         log_and_print(
-            f"CHECKING SIGNAL | PrevEMA5={prev['EMA5']:.2f} | PrevEMA55={prev['EMA55']:.2f} | "
-            f"EMA5={latest['EMA5']:.2f} | EMA55={latest['EMA55']:.2f} | "
-            f"Crossover={signal_condition} | LiveCandles={self.live_completed_candles}"
+            f"EMA UPDATE | Time={candle_ts.strftime('%H:%M:%S')} | "
+            f"Close={latest['close']:.2f} | EMA9={latest['EMA9']:.2f} | EMA21={latest['EMA21']:.2f}"
         )
 
-        # LIVE CANDLE GATE:
-        # Block any signal until at least 2 fully live candles have completed.
-        # This prevents false entries from a history/live boundary crossover.
+        # ── LIVE CANDLE GATE ─────────────────────────────────────────────────
         if self.live_completed_candles < 2:
-            log_and_print(
-                f"WAITING LIVE CONFIRMATION | live_completed_candles={self.live_completed_candles} < 2"
-            )
+            log_and_print(f"WAITING LIVE CONFIRMATION | live_candles={self.live_completed_candles} < 2")
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
@@ -1027,11 +1043,52 @@ class EMACrossover1Min:
             )
             return
 
+        # ── SESSION TIME GATE ────────────────────────────────────────────────
+        if not self._is_valid_window(candle_ts):
+            log_and_print(f"TIME GATE | {candle_ts.strftime('%H:%M')} outside valid window — skipping")
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                index_name=INDEX_NAME,
+                spread_type=SPREAD_TYPE,
+                ui_state="WAITING_SIGNAL",
+                message="Outside valid trading window. Waiting...",
+                progress_text="Time gate active",
+                is_loading=True,
+            )
+            return
+
+        # ── 5-MIN SUPERTREND GATE ────────────────────────────────────────────
+        st_dir = self._supertrend_direction()
+        st_bearish = st_dir == -1
+        log_and_print(f"SUPERTREND(10,3) | 5-min direction={st_dir} | bearish={st_bearish}")
+
+        # ── BEARISH SIGNAL CHECK ─────────────────────────────────────────────
+        # Case 1: EMA9 crosses below EMA21 AND SuperTrend is bearish
+        crossover_condition = bool(
+            prev["EMA9"] >= prev["EMA21"] and latest["EMA9"] < latest["EMA21"] and st_bearish
+        )
+        # Case 2: Opening alignment — EMA9 already below EMA21 at first valid window
+        opening_condition = False
+        if not self.opening_checked:
+            self.opening_checked = True
+            if latest["EMA9"] < latest["EMA21"] and st_bearish:
+                opening_condition = True
+                log_and_print(
+                    f"✅ OPENING ALIGNMENT | EMA9 already below EMA21, SuperTrend bearish | "
+                    f"EMA9={latest['EMA9']:.2f} EMA21={latest['EMA21']:.2f}"
+                )
+        signal_condition = crossover_condition or opening_condition
+
+        log_and_print(
+            f"CHECKING SIGNAL | EMA9={latest['EMA9']:.2f} EMA21={latest['EMA21']:.2f} | "
+            f"ST_bearish={st_bearish} | crossover={crossover_condition} | signal={signal_condition}"
+        )
+
         if signal_condition and self.last_trade_signal != 1:
             log_and_print(
-                f"✅ EMA BEARISH CROSSOVER SIGNAL | EMA5 crossed below EMA55 | "
-                f"PrevEMA5={prev['EMA5']:.2f} PrevEMA55={prev['EMA55']:.2f} | "
-                f"CurrEMA5={latest['EMA5']:.2f} CurrEMA55={latest['EMA55']:.2f}"
+                f"✅ BEARISH ENTRY SIGNAL | EMA9×EMA21 + SuperTrend bearish | "
+                f"EMA9={latest['EMA9']:.2f} EMA21={latest['EMA21']:.2f} | "
+                f"live_candles={self.live_completed_candles}"
             )
             self.last_trade_signal = 1
             self._stop_nifty_stream()
@@ -1057,7 +1114,6 @@ class EMACrossover1Min:
             threading.Thread(target=_launch_rider, daemon=True).start()
 
         else:
-            # No crossover yet — publish waiting state with live EMA values
             publish_strategy_state(
                 strategy_name=STRATEGY_NAME,
                 index_name=INDEX_NAME,
