@@ -1,0 +1,115 @@
+name: Daily Zerodha Token Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 2 * * 1-5'   # 8:00 AM IST = 2:30 AM UTC, Mon-Fri
+
+concurrency:
+  group: daily-token-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: user_profile
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install selenium pyotp kiteconnect
+
+      - name: Get Zerodha access token
+        id: get_token
+        env:
+          HEADLESS: "1"
+        run: |
+          RAW=$(python backend/scripts/zerodha_token_refresh.py 2>/dev/null | grep "^ACCESS_TOKEN:")
+          TOKEN="${RAW#ACCESS_TOKEN:}"
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR: No access token obtained from script"
+            exit 1
+          fi
+          echo "access_token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "Token obtained (length ${#TOKEN})"
+
+      - name: Fetch current Render env vars
+        id: fetch_env
+        run: |
+          curl -sf -X GET \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Accept: application/json" \
+            -o /tmp/current_env.json
+          echo "Fetched current env vars"
+
+      - name: Patch Z_ACCESS_TOKEN and push back
+        run: |
+          python3 << 'PYEOF'
+          import json, sys
+
+          with open('/tmp/current_env.json') as f:
+              raw = json.load(f)
+
+          # Render returns [{cursor, envVar: {key, value}}, ...]
+          new_token = "${{ steps.get_token.outputs.access_token }}"
+
+          payload = []
+          found = False
+          for item in raw:
+              ev = item.get("envVar", item)   # handle both response shapes
+              key = ev["key"]
+              val = new_token if key == "Z_ACCESS_TOKEN" else ev["value"]
+              if key == "Z_ACCESS_TOKEN":
+                  found = True
+              payload.append({"key": key, "value": val})
+
+          if not found:
+              payload.append({"key": "Z_ACCESS_TOKEN", "value": new_token})
+
+          with open('/tmp/updated_env.json', 'w') as f:
+              json.dump(payload, f)
+
+          print(f"Payload ready: {len(payload)} env vars, Z_ACCESS_TOKEN updated={found}")
+          PYEOF
+
+          HTTP_STATUS=$(curl -s -o /tmp/put_response.json -w "%{http_code}" \
+            -X PUT \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/env-vars" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/updated_env.json)
+
+          echo "Render env-var PUT status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "ERROR: Render API returned $HTTP_STATUS"
+            cat /tmp/put_response.json
+            exit 1
+          fi
+          echo "Z_ACCESS_TOKEN updated on Render successfully"
+
+      - name: Trigger Render redeploy
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/deploy_response.json -w "%{http_code}" \
+            -X POST \
+            "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "do_not_clear"}')
+
+          echo "Render deploy trigger status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "ERROR: Render deploy API returned $HTTP_STATUS"
+            cat /tmp/deploy_response.json
+            exit 1
+          fi
+          echo "Render redeploy triggered — service will be live before 9:15 AM IST"
