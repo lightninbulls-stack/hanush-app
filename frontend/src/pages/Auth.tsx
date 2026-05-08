@@ -928,8 +928,8 @@ const Auth: React.FC = () => {
           <div className="api-how-row">
             {[
               { step:"01", title:"Get your API key", desc:"Log in → Profile / Settings → copy your unique API key. One key per account." },
-              { step:"02", title:"Poll /api/signals/live", desc:"Call our endpoint every few seconds. Pass your key in the X-LB-API-Key header." },
-              { step:"03", title:"Place the trade", desc:"Parse the response. Use the symbol, action (BUY / SHORT), qty_suggested, and price levels to place orders on your broker." },
+              { step:"02", title:"Connect via WebSocket", desc:"Open a persistent WebSocket to /api/signals/ws. The server pushes signals the instant they fire — no polling needed." },
+              { step:"03", title:"Place the trade", desc:"Parse the message. Use the symbol, action (BUY / SHORT), qty_suggested, and price levels to place orders on your broker." },
             ].map(s => (
               <div className="api-how-card" key={s.step}>
                 <span className="api-how-step">{s.step}</span>
@@ -1095,14 +1095,205 @@ const Auth: React.FC = () => {
                 {`{ "api_key": "lb_live_newkey...", "message": "New API key generated." }`}
               </div>
             </div>
+
+            {/* WS /api/signals/ws */}
+            <div className="api-endpoint-card api-endpoint-ws" style={{marginTop:20}}>
+              <div className="api-endpoint-top">
+                <span className="api-method api-method-ws">WS</span>
+                <span className="api-path">/api/signals/ws</span>
+                <span className="api-endpoint-tag api-endpoint-tag-ws">⚡ Real-time push</span>
+              </div>
+              <p className="api-endpoint-desc">
+                WebSocket endpoint — the server <strong style={{color:"#facc15"}}>pushes a snapshot the instant signals change</strong>.
+                No polling. One persistent connection. Sub-second latency.
+              </p>
+
+              {/* Connection params */}
+              <div className="api-param-table">
+                <div className="api-param-row api-param-head">
+                  <span>Query Parameter</span><span>Type</span><span>Required</span><span>Description</span>
+                </div>
+                <div className="api-param-row">
+                  <span><code className="api-inline-code">api_key</code></span>
+                  <span>string</span>
+                  <span>✅ Yes</span>
+                  <span>Your <code className="api-inline-code">lb_live_</code> API key</span>
+                </div>
+                <div className="api-param-row">
+                  <span><code className="api-inline-code">strategy</code></span>
+                  <span>string</span>
+                  <span>No</span>
+                  <span><code className="api-inline-code">upside</code> · <code className="api-inline-code">downside</code> · <code className="api-inline-code">all</code> (default: all)</span>
+                </div>
+              </div>
+
+              <div className="api-code-label">Connect URL</div>
+              <div className="api-code-box api-code-box-sm">
+                <span className="api-code-val">wss://api.lightninbull.com/api/signals/ws?api_key=lb_live_xxx&strategy=all</span>
+              </div>
+
+              <div className="api-code-label">Message types you receive</div>
+              <div className="api-code-box api-code-box-sm">
+{`// 1. Snapshot — sent immediately on connect, then on every signal change
+{
+  "type": "snapshot",
+  "status": "ok",
+  "data": {
+    "upside": {
+      "strategy": "upside",
+      "action": "BUY",
+      "ui_state": "RUNNING",
+      "portfolio_stopped": false,
+      "portfolio_pnl_pct": 0.19,
+      "total_real_pnl": 635.2,
+      "updated_at_ist": "2026-05-08T10:45:00+05:30",
+      "signals": [
+        {
+          "symbol": "INFY",
+          "action": "BUY",
+          "signal_status": "ENTERED",
+          "entry_time": "10:15:30",
+          "entry_price": 1172.00,
+          "current_ltp": 1174.50,
+          "target_price": 1183.72,
+          "stop_loss_price": 1154.42,
+          "qty_suggested": 42,
+          "pnl_points": 2.50,
+          "pnl_pct": 0.21,
+          "real_pnl": 105.00
+        }
+      ]
+    },
+    "downside": { "strategy": "downside", "action": "SHORT", "signals": [] }
+  }
+}
+
+// 2. Heartbeat — sent every 30 seconds when nothing changes (keep-alive)
+{ "type": "heartbeat" }`}
+              </div>
+
+              <div className="api-code-label">WebSocket close codes</div>
+              <div className="api-param-table">
+                <div className="api-param-row api-param-head">
+                  <span>Code</span><span>Reason</span><span>Fix</span>
+                </div>
+                {[
+                  ["4000","Invalid strategy value","Use upside, downside, or all"],
+                  ["4001","Invalid or expired API key","Check your api_key param or renew subscription"],
+                ].map(([c,r,f]) => (
+                  <div className="api-param-row" key={c}>
+                    <span><code className="api-inline-code">{c}</code></span>
+                    <span>{r}</span>
+                    <span>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Code examples */}
           <div className="api-block">
             <div className="api-block-label">CODE EXAMPLES</div>
+
+            {/* WebSocket examples — recommended */}
+            <div className="api-examples-section-label">
+              <span className="api-examples-badge">⚡ RECOMMENDED — WebSocket (real-time push)</span>
+              <span className="api-examples-badge-note">pip install websockets &nbsp;·&nbsp; one connection, instant updates</span>
+            </div>
             <div className="api-examples-grid">
               <div className="api-example-card">
-                <div className="api-example-lang">Python</div>
+                <div className="api-example-lang">Python · WebSocket</div>
+                <div className="api-code-box api-code-box-sm">
+{`import asyncio, json
+from datetime import datetime
+import pytz, websockets
+
+IST    = pytz.timezone("Asia/Kolkata")
+API_KEY = "lb_live_xxxxxxxx"
+WS_URL  = (
+  "wss://api.lightninbull.com/api/signals/ws"
+  f"?api_key={API_KEY}&strategy=all"
+)
+
+def handle(data):
+    for side in ("upside", "downside"):
+        sec = data.get(side)
+        if not sec: continue
+        if sec["portfolio_stopped"]:
+            print("🛑 Portfolio stopped")
+            continue
+        for sig in sec["signals"]:
+            print(sig["symbol"], sig["action"],
+                  "qty:", sig["qty_suggested"],
+                  "pnl: ₹", sig["real_pnl"])
+            # place_order(sig)
+
+async def run():
+    async with websockets.connect(WS_URL) as ws:
+        print("Connected — waiting for signals...")
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg.get("type") == "snapshot":
+                handle(msg["data"])
+            elif msg.get("type") == "heartbeat":
+                print("♡ heartbeat")
+
+asyncio.run(run())`}
+                </div>
+              </div>
+
+              <div className="api-example-card">
+                <div className="api-example-lang">JavaScript / Node · WebSocket</div>
+                <div className="api-code-box api-code-box-sm">
+{`// npm install ws
+const WebSocket = require("ws");
+
+const API_KEY = "lb_live_xxxxxxxx";
+const WS_URL  =
+  \`wss://api.lightninbull.com/api/signals/ws\` +
+  \`?api_key=\${API_KEY}&strategy=all\`;
+
+const ws = new WebSocket(WS_URL);
+
+ws.on("open",  () => console.log("Connected!"));
+ws.on("error", err => console.error("WS error:", err));
+
+ws.on("message", raw => {
+  const msg = JSON.parse(raw);
+  if (msg.type === "heartbeat") return;
+
+  for (const side of ["upside", "downside"]) {
+    const sec = msg.data?.[side];
+    if (!sec) continue;
+    if (sec.portfolio_stopped) {
+      console.log("🛑 Portfolio stopped");
+      continue;
+    }
+    sec.signals.forEach(sig => {
+      console.log(
+        sig.symbol, sig.action,
+        "qty:", sig.qty_suggested,
+        "pnl: ₹", sig.real_pnl
+      );
+      // placeOrder(sig);
+    });
+  }
+});
+
+ws.on("close", (code, reason) => {
+  console.log(\`Closed \${code}: \${reason}\`);
+});`}
+                </div>
+              </div>
+            </div>
+
+            {/* REST fallback examples */}
+            <div className="api-examples-section-label" style={{marginTop:32}}>
+              <span className="api-examples-badge api-examples-badge-rest">REST — Poll every 1–5s (fallback)</span>
+            </div>
+            <div className="api-examples-grid">
+              <div className="api-example-card">
+                <div className="api-example-lang">Python · REST polling</div>
                 <div className="api-code-box api-code-box-sm">
 {`import requests, time
 
@@ -1123,22 +1314,17 @@ while True:
         continue
 
     for sig in data["signals"]:
-        print(
-            sig["symbol"],
-            sig["action"],          # BUY
-            "qty:", sig["qty_suggested"],
-            "entry:", sig["entry_price"],
-            "target:", sig["target_price"],
-            "sl:", sig["stop_loss_price"],
-        )
-        # place_order(sig)  ← your broker call here
+        print(sig["symbol"], sig["action"],
+              "qty:", sig["qty_suggested"],
+              "entry:", sig["entry_price"])
+        # place_order(sig)
 
     time.sleep(2)  # poll every 2s`}
                 </div>
               </div>
 
               <div className="api-example-card">
-                <div className="api-example-lang">JavaScript / Node</div>
+                <div className="api-example-lang">JavaScript / Node · REST polling</div>
                 <div className="api-code-box api-code-box-sm">
 {`const API_KEY = "lb_live_xxxxxxxx";
 const BASE    = "https://api.lightninbull.com";
@@ -1148,8 +1334,7 @@ async function fetchSignals(strategy = "all") {
     \`\${BASE}/api/signals/live?strategy=\${strategy}\`,
     { headers: { "X-LB-API-Key": API_KEY } }
   );
-  const json = await res.json();
-  return json.data;
+  return (await res.json()).data;
 }
 
 setInterval(async () => {
@@ -1159,11 +1344,9 @@ setInterval(async () => {
   if (portfolio_stopped) return;
 
   signals.forEach(sig => {
-    console.log(
-      sig.symbol, sig.action,
+    console.log(sig.symbol, sig.action,
       "qty:", sig.qty_suggested,
-      "real_pnl: ₹", sig.real_pnl
-    );
+      "pnl: ₹", sig.real_pnl);
     // placeOrder(sig);
   });
 }, 2000);`}
@@ -1175,14 +1358,32 @@ setInterval(async () => {
           {/* Error codes */}
           <div className="api-block">
             <div className="api-block-label">ERROR CODES</div>
+            <p className="api-block-note" style={{marginBottom:12}}>REST endpoint errors (HTTP status codes):</p>
             <div className="api-param-table">
               <div className="api-param-row api-param-head">
                 <span>HTTP Status</span><span>Meaning</span><span>Fix</span>
               </div>
               {[
                 ["401 Unauthorized","Missing or invalid API key","Check your X-LB-API-Key header"],
+                ["403 Forbidden","Subscription expired","Renew your premium plan at lightninbull.com"],
                 ["400 Bad Request","Unknown strategy value","Use upside, downside, or all"],
                 ["500 Internal Server Error","Backend error","Retry in a few seconds"],
+              ].map(([s,m,f]) => (
+                <div className="api-param-row" key={s}>
+                  <span><code className="api-inline-code">{s}</code></span>
+                  <span>{m}</span>
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+            <p className="api-block-note" style={{marginTop:20, marginBottom:12}}>WebSocket close codes:</p>
+            <div className="api-param-table">
+              <div className="api-param-row api-param-head">
+                <span>Close Code</span><span>Meaning</span><span>Fix</span>
+              </div>
+              {[
+                ["4000","Invalid strategy value","Use upside, downside, or all in query param"],
+                ["4001","Invalid or expired API key","Check api_key param or renew subscription"],
               ].map(([s,m,f]) => (
                 <div className="api-param-row" key={s}>
                   <span><code className="api-inline-code">{s}</code></span>
@@ -1196,10 +1397,10 @@ setInterval(async () => {
           {/* Notes */}
           <div className="api-notes-row">
             {[
-              { icon:"⚡", title:"Real-time", desc:"Signals update every ~1 second. Poll every 1–5 seconds for best results." },
-              { icon:"🛑", title:"Portfolio stop", desc:"When portfolio_stopped is true, stop placing new entries. All active positions will close." },
+              { icon:"⚡", title:"WebSocket = instant", desc:"Use /api/signals/ws for sub-second delivery. The server pushes a snapshot the moment any signal changes — no polling needed." },
+              { icon:"🛑", title:"Portfolio stop", desc:"When portfolio_stopped is true, stop placing new entries. The circuit breaker resets at the next market open." },
               { icon:"📐", title:"Qty is a suggestion", desc:"qty_suggested = ⌊₹50,000 ÷ entry_price⌋. Scale it to your own capital as needed." },
-              { icon:"⏱️", title:"Market hours only", desc:"Signals run from 9:15 AM to 3:30 PM IST on NSE trading days only." },
+              { icon:"⏱️", title:"Market hours only", desc:"Signals run from 9:15 AM to 3:30 PM IST on NSE trading days. WebSocket sends a heartbeat every 30s outside market hours." },
             ].map(n => (
               <div className="api-note-card" key={n.title}>
                 <span className="api-note-icon">{n.icon}</span>
@@ -1968,8 +2169,11 @@ setInterval(async () => {
         .api-method { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 4px 10px; border-radius: 5px; }
         .api-method-get { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
         .api-method-post { background: rgba(250,204,21,0.10); color: #facc15; border: 1px solid rgba(250,204,21,0.25); }
+        .api-method-ws { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.35); }
         .api-path { font-family: 'DM Mono', monospace; font-size: 13px; color: #f7f0df; letter-spacing: 0.3px; }
         .api-endpoint-tag { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.25); text-transform: uppercase; }
+        .api-endpoint-tag-ws { color: #facc15; }
+        .api-endpoint-ws { border-color: rgba(99,102,241,0.2) !important; background: rgba(99,102,241,0.03) !important; }
         .api-endpoint-desc { font-family: 'DM Mono', monospace; font-size: 11.5px; color: rgba(255,255,255,0.42); line-height: 1.8; margin: 0 0 14px; }
 
         .api-param-table { border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
@@ -1978,6 +2182,10 @@ setInterval(async () => {
         .api-param-row-3 { grid-template-columns: 1.3fr 0.8fr 2.5fr; }
         .api-param-head { background: rgba(255,255,255,0.03); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.25); }
 
+        .api-examples-section-label { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+        .api-examples-badge { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #facc15; background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.2); border-radius: 5px; padding: 5px 12px; }
+        .api-examples-badge-rest { color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); }
+        .api-examples-badge-note { font-family: 'DM Mono', monospace; font-size: 10px; color: rgba(255,255,255,0.3); }
         .api-examples-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .api-example-card { background: #0a0b0e; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; overflow: hidden; }
         .api-example-lang { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #facc15; padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(250,204,21,0.04); }
