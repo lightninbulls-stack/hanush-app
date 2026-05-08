@@ -1,27 +1,28 @@
-name: Update low vol 9:05pm
+name: Update Low Vol 9:05pm
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '35 15 * * 1-5'
+    - cron: '35 15 * * 1-5'   # 9:05 PM IST = 3:35 PM UTC, Mon-Fri
 
 permissions:
   contents: write
 
 concurrency:
-  group: low-vol-user-profile
+  group: data-update-user-profile
   cancel-in-progress: false
 
 jobs:
   update-low-vol:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           ref: user_profile
-          fetch-depth: 0   # 🔥 IMPORTANT
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,22 +37,12 @@ jobs:
       - name: Update low vol CSV
         run: python backend/low_vol/update_low_vol_sheet.py
 
-      - name: Commit updated low vol CSV
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add backend/data/low_vol_latest.csv
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Automated low vol update"
-          fi
-
-      - name: Sync with latest branch
-        run: |
-          git pull --rebase origin user_profile   # 🔥 CORE FIX
-
-      - name: Push changes
-        run: git push origin HEAD:user_profile
+          git diff --cached --quiet && echo "No changes." && exit 0
+          git commit -m "Automated low vol update"
+          git pull --rebase origin user_profile
+          git push origin HEAD:user_profile

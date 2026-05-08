@@ -1,27 +1,33 @@
-name: Update Momentum Excel Daily
+name: Update Momentum Daily 9pm
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 15 * * *"   # 9:00 PM IST
+    - cron: '30 15 * * 1-5'   # 9:00 PM IST = 3:30 PM UTC, Mon-Fri
 
 permissions:
   contents: write
 
+concurrency:
+  group: data-update-user-profile
+  cancel-in-progress: false
+
 jobs:
   update-momentum:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           ref: user_profile
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
@@ -29,10 +35,12 @@ jobs:
       - name: Run momentum update
         run: python backend/momentum/update_momentum_sheet.py
 
-      - name: Commit momentum outputs
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/data/
-          git diff --cached --quiet || git commit -m "Daily momentum update"
-          git push origin user_profile
+          git diff --cached --quiet && echo "No changes." && exit 0
+          git commit -m "Daily momentum update"
+          git pull --rebase origin user_profile
+          git push origin HEAD:user_profile
