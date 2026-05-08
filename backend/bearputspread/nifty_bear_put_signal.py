@@ -864,6 +864,9 @@ class EMACrossover1Min:
         # Historical candles are used only to warm EMA values.
         # We block trades until at least 2 completed live candles exist.
         self.live_completed_candles: int = 0
+        # One-time opening alignment check: if EMA5 is already below EMA55
+        # after the first 2 live candles, fire immediately (catches gap-down opens).
+        self.opening_checked: bool = False
         # Record the last timestamp from historical data exactly once.
         # Live candles are filtered using this fixed cutoff — NOT using
         # onemin_bars.index.max() which grows with every appended live candle
@@ -981,13 +984,23 @@ class EMACrossover1Min:
 
         self.onemin_bars.iloc[-1, self.onemin_bars.columns.get_loc("signal")] = 0
 
-        # ── BEARISH CROSSOVER CHECK ──────────────────────────────────────────
-        # Fires ONLY when EMA5 transitions from >= EMA55  →  < EMA55.
-        # This is the mirror of the bull call crossover.
-        # Prevents false entry when EMA5 is already below EMA55 at startup.
-        signal_condition = bool(
+        # ── BEARISH SIGNAL CHECK ─────────────────────────────────────────────
+        # Case 1 — Intraday crossover: EMA5 transitions from >= EMA55 → < EMA55.
+        crossover_condition = bool(
             prev["EMA5"] >= prev["EMA55"] and latest["EMA5"] < latest["EMA55"]
         )
+        # Case 2 — Opening alignment: first check after 2 live candles confirms
+        # EMA5 is already below EMA55 (catches gap-down opens that never cross over).
+        opening_condition = False
+        if not self.opening_checked:
+            self.opening_checked = True
+            if latest["EMA5"] < latest["EMA55"]:
+                opening_condition = True
+                log_and_print(
+                    f"✅ OPENING ALIGNMENT | EMA5 already below EMA55 at session start | "
+                    f"EMA5={latest['EMA5']:.2f} EMA55={latest['EMA55']:.2f}"
+                )
+        signal_condition = crossover_condition or opening_condition
         # ─────────────────────────────────────────────────────────────────────
 
         log_and_print(

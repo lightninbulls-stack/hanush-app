@@ -839,6 +839,9 @@ class EMACrossover1Min:
         # Signal is blocked until at least 2 live candles have completed,
         # preventing a false crossover built on 1 historical + 1 live candle.
         self.live_completed_candles: int = 0
+        # One-time opening alignment check: if EMA5 is already above EMA55
+        # after the first 2 live candles, fire immediately (catches gap-up opens).
+        self.opening_checked: bool = False
         # Record the last timestamp from historical data exactly once.
         # Live candles are filtered using this fixed cutoff — NOT using
         # onemin_bars.index.max() which grows with every appended live candle
@@ -973,12 +976,23 @@ class EMACrossover1Min:
             return
         # ─────────────────────────────────────────────────────────────────────
 
-        # ── BULLISH CROSSOVER CHECK ──────────────────────────────────────────
-        # Fires ONLY when EMA5 transitions from <= EMA55  →  > EMA55.
-        # Prevents false entry when EMA5 is already above EMA55 at startup.
-        signal_condition = bool(
+        # ── BULLISH SIGNAL CHECK ─────────────────────────────────────────────
+        # Case 1 — Intraday crossover: EMA5 transitions from <= EMA55 → > EMA55.
+        crossover_condition = bool(
             prev["EMA5"] <= prev["EMA55"] and latest["EMA5"] > latest["EMA55"]
         )
+        # Case 2 — Opening alignment: first check after 2 live candles confirms
+        # EMA5 is already above EMA55 (catches gap-up opens that never cross over).
+        opening_condition = False
+        if not self.opening_checked:
+            self.opening_checked = True
+            if latest["EMA5"] > latest["EMA55"]:
+                opening_condition = True
+                log_and_print(
+                    f"✅ OPENING ALIGNMENT | EMA5 already above EMA55 at session start | "
+                    f"EMA5={latest['EMA5']:.2f} EMA55={latest['EMA55']:.2f}"
+                )
+        signal_condition = crossover_condition or opening_condition
         # ─────────────────────────────────────────────────────────────────────
 
         log_and_print(
