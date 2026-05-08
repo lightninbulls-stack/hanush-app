@@ -1181,9 +1181,18 @@ def _next_market_open_ist(ref: datetime) -> datetime:
 
 def main():
     log_and_print("MAIN 1: entered main() — daily restart loop active")
+    session_date = None  # tracks the calendar date of the last completed session
 
     while True:
         now = current_ist()
+
+        # One session per day only — if we already ran today, sleep until next morning
+        if session_date == now.date():
+            next_open = _next_market_open_ist(now)
+            sleep_secs = min((next_open - now).total_seconds(), 3600)
+            log_and_print(f"SESSION ALREADY RAN TODAY ({session_date}) — sleeping {sleep_secs:.0f}s until next open.")
+            time.sleep(sleep_secs)
+            continue
 
         # Weekend: sleep up to 1 hour at a time until next weekday
         if not is_weekday_ist(now):
@@ -1328,11 +1337,14 @@ def main():
             )
             done_event.set()
 
+        # Mark today's session as done — prevents same-day re-entry
+        session_date = current_ist().date()
+
         # Session ended — sleep until next morning's market open
         now = current_ist()
         next_open = _next_market_open_ist(now)
         sleep_secs = min((next_open - now).total_seconds(), 3600)
-        log_and_print(f"MAIN 9: session done — sleeping {sleep_secs:.0f}s until next market open.")
+        log_and_print(f"MAIN 9: session done for {session_date} — sleeping {sleep_secs:.0f}s until next market open.")
         time.sleep(sleep_secs)
 
 
