@@ -12,6 +12,11 @@ class IntradaySpreadState:
     def update(self, strategy_name: str, payload: dict) -> None:
         with self._lock:
             self._state[strategy_name] = payload
+        try:
+            from shared.signal_broadcaster import broadcaster
+            broadcaster.notify()
+        except Exception:
+            pass
 
     def get_all(self) -> dict:
         with self._lock:

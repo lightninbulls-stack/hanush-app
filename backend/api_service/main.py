@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import logging
 import os
@@ -189,8 +190,13 @@ def is_downside_stock_signal_strategy_running() -> bool:
 
 
 @app.on_event("startup")
-def startup_event() -> None:
+async def startup_event() -> None:
     logger.info("✅ FastAPI startup triggered.")
+
+    # Give the broadcaster a reference to the running asyncio loop so
+    # background signal threads can safely push notifications to async WS clients.
+    from shared.signal_broadcaster import broadcaster
+    broadcaster.set_loop(asyncio.get_event_loop())
 
     bull_started = start_bull_call_strategy()
     logger.info("✅ Bull Call strategy launched from startup." if bull_started else "⚠️ Bull Call strategy was already running.")
