@@ -482,10 +482,10 @@ const Auth: React.FC = () => {
 
   const resetMessages = () => { setErrorMessage(""); setSuccessMessage(""); };
 
-  // Auto-scroll to login form when page opens via referral link
+  // On mobile, auto-scroll to login form on every page load
   useEffect(() => {
-    const hasRef = new URLSearchParams(window.location.search).get("ref");
-    if (hasRef) {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
       setTimeout(() => {
         authCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 600);
