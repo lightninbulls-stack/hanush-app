@@ -48,6 +48,7 @@ export interface RegisterPayload {
   email: string;
   phone: string;
   password: string;
+  referral_code?: string;
 }
 
 export interface ResetPasswordPayload {
@@ -448,6 +449,7 @@ export async function registerUser(
       email: payload.email.trim(),
       phone: payload.phone.trim(),
       password: payload.password,
+      referral_code: payload.referral_code || undefined,
     }),
   });
 

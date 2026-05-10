@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from api_service.auth_routes import get_current_user
 from db import SessionLocal
+from models.partner import ChannelPartner, PartnerCommission
 from models.payment import Payment, PaymentStatus
 from models.user import User
 
@@ -151,6 +152,42 @@ def get_subscription_response(user_id: int, db: Session) -> dict:
     }
 
 
+def _maybe_create_commission(db: Session, *, payment: Payment, user_id: int) -> None:
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not user.referred_by_id:
+            return
+
+        already = (
+            db.query(PartnerCommission)
+            .filter(PartnerCommission.payment_id == payment.id)
+            .first()
+        )
+        if already:
+            return
+
+        partner = db.query(ChannelPartner).filter(ChannelPartner.id == user.referred_by_id).first()
+        if not partner or not partner.is_active:
+            return
+
+        commission_amt = round(payment.amount * partner.commission_pct / 100, 2)
+        commission = PartnerCommission(
+            partner_id=partner.id,
+            user_id=user_id,
+            payment_id=payment.id,
+            order_amount=payment.amount,
+            commission_amt=commission_amt,
+        )
+        db.add(commission)
+        db.commit()
+        logger.info(
+            "commission: partner=%s user=%s payment=%s amt=%.2f",
+            partner.id, user_id, payment.id, commission_amt,
+        )
+    except Exception as exc:
+        logger.error("commission creation failed: %s", exc)
+
+
 def record_payment_paid(
     db: Session,
     *,
@@ -179,6 +216,7 @@ def record_payment_paid(
         existing.updated_at = now
         db.commit()
         db.refresh(existing)
+        _maybe_create_commission(db, payment=existing, user_id=user_id)
         logger.info("record_payment_paid: updated order %s to PAID", order_id)
         return existing
 
@@ -198,6 +236,7 @@ def record_payment_paid(
     db.add(payment)
     db.commit()
     db.refresh(payment)
+    _maybe_create_commission(db, payment=payment, user_id=user_id)
     logger.info("record_payment_paid: created PAID record for order %s user %s", order_id, user_id)
     return payment
 

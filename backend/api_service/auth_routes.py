@@ -21,6 +21,7 @@ from auth import (
 )
 from db import SessionLocal
 from models.user import User
+from models.partner import ChannelPartner
 
 router = APIRouter(tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -42,6 +43,7 @@ class RegisterRequest(BaseModel):
     email: str
     phone: str
     password: str
+    referral_code: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -230,11 +232,27 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
             detail="Phone number already registered",
         )
 
+    # Resolve referral code → partner
+    referred_by_id = None
+    referred_by_code = None
+    raw_code = (body.referral_code or "").strip().upper()
+    if raw_code:
+        partner = (
+            db.query(ChannelPartner)
+            .filter(ChannelPartner.referral_code == raw_code, ChannelPartner.is_active == True)
+            .first()
+        )
+        if partner:
+            referred_by_id = partner.id
+            referred_by_code = raw_code
+
     new_user = User(
         name=name,
         email=email,
         phone=phone,
         hashed_password=hash_password(body.password),
+        referred_by_code=referred_by_code,
+        referred_by_id=referred_by_id,
     )
     db.add(new_user)
     db.commit()

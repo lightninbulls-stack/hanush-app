@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from models.payment import Payment
 from api_service import auth_routes, intraday_spreads_routes, portfolio_routes
 from api_service import cashfree_routes, admin_payment_routes
-from api_service import tts_routes, signal_routes
+from api_service import tts_routes, signal_routes, partner_routes
 
 from bullcallspread.sensex_bull_call_signal import main as bull_call_sensex_main
 from bullcallspread.nifty_bull_call_signal import main as bull_call_main
@@ -42,14 +42,16 @@ logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
-# Safe migration: add api_key column if it doesn't exist yet
+# Safe migrations: add columns that may not exist in older deployments
 try:
     from sqlalchemy import text
     with engine.connect() as _conn:
         _conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key VARCHAR UNIQUE"))
+        _conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_code VARCHAR"))
+        _conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_id INTEGER"))
         _conn.commit()
 except Exception as _e:
-    logger.warning("api_key column migration skipped: %s", _e)
+    logger.warning("user column migration skipped: %s", _e)
 
 app = FastAPI(title="Trading Bible API")
 data_service = DataService()
@@ -271,6 +273,7 @@ app.include_router(cashfree_routes.router, prefix="/cashfree")
 app.include_router(admin_payment_routes.router, prefix="/admin")
 app.include_router(tts_routes.router)
 app.include_router(signal_routes.router)
+app.include_router(partner_routes.router)
 
 
 def get_db():

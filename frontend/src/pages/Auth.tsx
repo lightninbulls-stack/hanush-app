@@ -518,7 +518,9 @@ const Auth: React.FC = () => {
     }
     setLoading(true);
     try {
-      await registerUser({ name: signUpForm.name, email: signUpForm.email, phone: signUpForm.phone, password: signUpForm.password });
+      const refCode = localStorage.getItem("lb_ref_code") || undefined;
+      await registerUser({ name: signUpForm.name, email: signUpForm.email, phone: signUpForm.phone, password: signUpForm.password, referral_code: refCode });
+      localStorage.removeItem("lb_ref_code");
       const loginResult = await loginUser(signUpForm.phone, signUpForm.password);
       saveAuthToken(loginResult.access_token);
       setSuccessMessage("Account created successfully. Redirecting...");

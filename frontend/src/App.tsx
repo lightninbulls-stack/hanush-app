@@ -1,5 +1,5 @@
-import React, { Suspense, lazy } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import React, { Suspense, lazy, useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import "./App.css";
 
 import Auth from "./pages/Auth";
@@ -7,6 +7,15 @@ import Auth from "./pages/Auth";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const FactorPage = lazy(() => import("./pages/FactorPage"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+
+const ReferralCapture: React.FC = () => {
+  const { search } = useLocation();
+  useEffect(() => {
+    const code = new URLSearchParams(search).get("ref");
+    if (code) localStorage.setItem("lb_ref_code", code.toUpperCase());
+  }, [search]);
+  return null;
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -23,6 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <ReferralCapture />
       <Suspense
         fallback={
           <div

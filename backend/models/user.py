@@ -12,3 +12,5 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     api_key = Column(String, unique=True, index=True, nullable=True)
+    referred_by_code = Column(String, nullable=True, index=True)
+    referred_by_id = Column(Integer, nullable=True, index=True)
