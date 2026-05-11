@@ -105,13 +105,14 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 if sma_fast is None or sma_slow is None:
                     continue
 
-                # ── Entry: only if portfolio circuit breaker not triggered
-                #          and under max stock cap ──────────────────────────
+                # ── Entry: only if portfolio circuit breaker not triggered,
+                #          stock never entered before, and total slots not full ─
                 if (
                     not portfolio_stopped
                     and is_bullish(symbol)
                     and symbol not in active_signals
-                    and len(active_signals) < MAX_STOCKS_PER_STRATEGY
+                    and symbol not in exited_signals
+                    and (len(active_signals) + len(exited_signals)) < MAX_STOCKS_PER_STRATEGY
                 ):
                     buying_power = CAPITAL_PER_STOCK * INTRADAY_LEVERAGE
                     qty = int(buying_power // ltp)
