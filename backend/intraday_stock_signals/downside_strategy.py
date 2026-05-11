@@ -7,7 +7,7 @@ from kiteconnect import KiteConnect
 
 from .config import (
     DOWNSIDE_CONFIG, IST,
-    STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT,
+    STOCK_TARGET_PCT, STOCK_SL_PCT, PORTFOLIO_SL_PCT, PORTFOLIO_TARGET_PCT,
     MAX_STOCK_PRICE, CAPITAL_PER_STOCK, INTRADAY_LEVERAGE, MAX_STOCKS_PER_STRATEGY,
 )
 from .data_loader import build_signal_universe
@@ -246,6 +246,21 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     exited_signals[sym] = s
                     if sym in active_signals:
                         del active_signals[sym]
+
+            elif avg_portfolio_pnl_pct >= PORTFOLIO_TARGET_PCT:
+                portfolio_stopped = True
+                logger.info(
+                    "DS PORTFOLIO TARGET HIT | avg_pnl_pct=%.2f%% | threshold=+%.1f%%",
+                    avg_portfolio_pnl_pct, PORTFOLIO_TARGET_PCT,
+                )
+                for s in active_rows:
+                    sym = s["symbol"]
+                    s["signal_status"] = "PORTFOLIO_TARGET_HIT"
+                    s["exit_reason"] = "PORTFOLIO_TARGET_HIT"
+                    s["exit_time"] = now.strftime("%H:%M:%S")
+                    exited_signals[sym] = s
+                    if sym in active_signals:
+                        del active_signals[sym]
         else:
             avg_portfolio_pnl_pct = (
                 sum(s.get("pnl_pct", 0) for s in active_rows) / len(active_rows)
@@ -256,14 +271,17 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
         total_real_pnl = round(sum(s.get("real_pnl", 0) for s in signals_output), 2)
         total_invested = round(sum(s.get("invested_amount", 0) for s in active_rows), 2)
 
+        portfolio_message = "Live downside stock signal running on SMA crossover."
+        if portfolio_stopped:
+            if avg_portfolio_pnl_pct >= PORTFOLIO_TARGET_PCT:
+                portfolio_message = f"Portfolio target hit at +{PORTFOLIO_TARGET_PCT}%. No new entries for today."
+            else:
+                portfolio_message = f"Portfolio stop hit at -{PORTFOLIO_SL_PCT}%. No new entries for today."
+
         publish_strategy_state(
             strategy_name=STRATEGY_NAME,
             ui_state="PORTFOLIO_STOPPED" if portfolio_stopped else "RUNNING",
-            message=(
-                f"Portfolio stop hit at -{PORTFOLIO_SL_PCT}%. No new entries for today."
-                if portfolio_stopped
-                else "Live downside stock signal running on SMA crossover."
-            ),
+            message=portfolio_message,
             progress_text=f"{entered_count} active | {len(exited_signals)} exited | {len(universe_df)} total",
             is_loading=False,
             extra={
