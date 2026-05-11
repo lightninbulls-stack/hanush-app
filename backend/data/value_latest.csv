@@ -1,12 +1,12 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-08,1,PFC,Financial Services,100,2.89,13.24,19.63,14.41,31.28,High Vol,Value Factor
-2026-05-08,2,RECLTD,Financial Services,93,1.44,9.12,-1.02,-4.12,30.69,High Vol,Value Factor
-2026-05-08,3,HINDZINC,Metals & Mining,86,6.57,17.88,4.1,33.28,43.7,Very High Vol,Value Factor
-2026-05-08,4,INDIGO,Services,79,5.29,5.95,-3.51,-19.6,38.47,Very High Vol,Value Factor
-2026-05-08,5,NATIONALUM,Metals & Mining,71,0.66,-2.38,8.72,71.67,45.29,Very High Vol,Value Factor
-2026-05-08,6,IEX,Financial Services,64,7.13,5.63,9.38,-3.55,37.3,Very High Vol,Value Factor
-2026-05-08,7,TCS,Information Technology,57,-3.21,-5.72,-24.46,-21.7,24.8,Medium Vol,Value Factor
-2026-05-08,8,INDUSTOWER,Telecommunication,50,-1.38,-4.45,-6.37,11.19,27.19,High Vol,Value Factor
-2026-05-08,9,INFY,Information Technology,43,-0.22,-11.96,-27.63,-20.45,28.05,High Vol,Value Factor
-2026-05-08,11,OFSS,Information Technology,29,-3.92,29.94,20.83,9.75,33.13,High Vol,Value Factor
-2026-05-08,13,SUZLON,Capital Goods,14,-1.1,32.3,16.98,-7.3,34.41,High Vol,Value Factor
+2026-05-11,1,PFC,Financial Services,100,0.06,7.39,14.24,11.18,31.55,High Vol,Value Factor
+2026-05-11,2,RECLTD,Financial Services,93,-0.55,2.6,-5.62,-7.29,30.79,High Vol,Value Factor
+2026-05-11,3,HINDZINC,Metals & Mining,86,3.89,12.47,0.14,30.89,43.73,Very High Vol,Value Factor
+2026-05-11,4,INDIGO,Services,79,0.87,-6.85,-13.08,-24.51,39.0,Very High Vol,Value Factor
+2026-05-11,5,NATIONALUM,Metals & Mining,71,-3.62,-1.77,5.99,64.69,45.4,Very High Vol,Value Factor
+2026-05-11,6,IEX,Financial Services,64,2.95,0.98,3.52,-6.64,37.46,Very High Vol,Value Factor
+2026-05-11,7,TCS,Information Technology,57,-1.58,-6.5,-25.81,-20.68,24.74,Medium Vol,Value Factor
+2026-05-11,8,INDUSTOWER,Telecommunication,50,2.6,-6.87,-6.36,7.29,26.26,High Vol,Value Factor
+2026-05-11,9,INFY,Information Technology,43,0.74,-12.57,-28.93,-20.77,28.05,High Vol,Value Factor
+2026-05-11,11,OFSS,Information Technology,29,-5.04,28.68,18.05,9.9,33.12,High Vol,Value Factor
+2026-05-11,13,SUZLON,Capital Goods,14,-3.02,20.51,8.42,-10.03,34.67,High Vol,Value Factor
