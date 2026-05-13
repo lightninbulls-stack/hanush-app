@@ -229,15 +229,19 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 logger.exception("DS STOCK ERROR | symbol=%s | error=%s", symbol, exc)
 
         # ── Portfolio-level circuit breaker check ──────────────────────────
+        # Uses total real ₹ P&L across ALL positions (active + exited)
+        # divided by total actual capital — so individual SL hits are counted.
         active_rows = [s for s in signals_output if s.get("signal_status") == "ENTERED"]
-        if not portfolio_stopped and active_rows:
-            avg_portfolio_pnl_pct = sum(s.get("pnl_pct", 0) for s in active_rows) / len(active_rows)
+        total_actual_capital = CAPITAL_PER_STOCK * MAX_STOCKS_PER_STRATEGY  # ₹1,00,000
+        total_real_pnl_all = sum(s.get("real_pnl", 0) for s in signals_output)
+        portfolio_pnl_pct = round((total_real_pnl_all / total_actual_capital) * 100, 2) if total_actual_capital else 0.0
 
-            if avg_portfolio_pnl_pct <= -PORTFOLIO_SL_PCT:
+        if not portfolio_stopped and signals_output:
+            if portfolio_pnl_pct <= -PORTFOLIO_SL_PCT:
                 portfolio_stopped = True
                 logger.warning(
-                    "DS PORTFOLIO STOP HIT | avg_pnl_pct=%.2f%% | threshold=-%.1f%%",
-                    avg_portfolio_pnl_pct, PORTFOLIO_SL_PCT,
+                    "DS PORTFOLIO STOP HIT | portfolio_pnl_pct=%.2f%% | threshold=-%.1f%% | total_pnl=%.2f",
+                    portfolio_pnl_pct, PORTFOLIO_SL_PCT, total_real_pnl_all,
                 )
                 for s in active_rows:
                     sym = s["symbol"]
@@ -248,11 +252,11 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     if sym in active_signals:
                         del active_signals[sym]
 
-            elif avg_portfolio_pnl_pct >= PORTFOLIO_TARGET_PCT:
+            elif portfolio_pnl_pct >= PORTFOLIO_TARGET_PCT:
                 portfolio_stopped = True
                 logger.info(
-                    "DS PORTFOLIO TARGET HIT | avg_pnl_pct=%.2f%% | threshold=+%.1f%%",
-                    avg_portfolio_pnl_pct, PORTFOLIO_TARGET_PCT,
+                    "DS PORTFOLIO TARGET HIT | portfolio_pnl_pct=%.2f%% | threshold=+%.1f%% | total_pnl=%.2f",
+                    portfolio_pnl_pct, PORTFOLIO_TARGET_PCT, total_real_pnl_all,
                 )
                 for s in active_rows:
                     sym = s["symbol"]
@@ -262,11 +266,8 @@ def run_downside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                     exited_signals[sym] = s
                     if sym in active_signals:
                         del active_signals[sym]
-        else:
-            avg_portfolio_pnl_pct = (
-                sum(s.get("pnl_pct", 0) for s in active_rows) / len(active_rows)
-                if active_rows else 0.0
-            )
+
+        avg_portfolio_pnl_pct = portfolio_pnl_pct
 
         entered_count  = len(active_rows)
         total_real_pnl = round(sum(s.get("real_pnl", 0) for s in signals_output), 2)
