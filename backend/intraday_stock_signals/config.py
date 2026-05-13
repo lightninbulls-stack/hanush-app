@@ -21,7 +21,7 @@ SLOW_EMA_SPAN = 1500
 MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
 MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
+MARKET_CLOSE_MINUTE = 15
 
 UPSIDE_LOG_FILE_NAME = "lightnin_bull_upside_intraday_signal.log"
 DOWNSIDE_LOG_FILE_NAME = "lightnin_bear_downside_intraday_signal.log"

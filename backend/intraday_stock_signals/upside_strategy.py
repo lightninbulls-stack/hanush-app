@@ -35,25 +35,6 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
     while True:
         now = datetime.now(IST)
 
-        if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
-            logger.info("US RUN STOP: Market closed — session complete.")
-            publish_strategy_state(
-                strategy_name=STRATEGY_NAME,
-                ui_state="STOPPED",
-                message="Market closed. Upside stock signal stopped.",
-                progress_text="Stopped after 3:30 PM IST",
-                is_loading=False,
-                extra={
-                    "signals": list(exited_signals.values()),
-                    "entered_count": 0,
-                    "total_count": int(len(universe_df)),
-                    "engine": "SMA",
-                    "portfolio_stopped": portfolio_stopped,
-                    "updated_at_ist": now.isoformat(),
-                },
-            )
-            return  # returns to outer daily-restart loop in main()
-
         # ── Batch LTP fetch ────────────────────────────────────────────────
         all_quote_keys = [f"NSE:{str(r['symbol']).strip().upper()}" for _, r in universe_df.iterrows()]
         try:
@@ -303,6 +284,71 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
             },
         )
 
+        # ── 3:15 PM close — force-exit remaining positions, lock final P&L ──
+        if now.hour > 15 or (now.hour == 15 and now.minute >= 15):
+            logger.info("US RUN STOP: 3:15 PM reached — closing all remaining positions.")
+            for sym in list(active_signals.keys()):
+                quote_key = f"NSE:{sym}"
+                ltp = float(all_ltp_data[quote_key]["last_price"]) if quote_key in all_ltp_data else float(active_signals[sym]["entry_price"])
+                entry_price  = float(active_signals[sym]["entry_price"])
+                qty          = int(active_signals[sym].get("qty", 0))
+                buying_power = float(active_signals[sym].get("buying_power", 0))
+                invested_amt = float(active_signals[sym].get("invested_amount", qty * entry_price))
+                target_price = float(active_signals[sym].get("target_price", 0))
+                sl_price     = float(active_signals[sym].get("stop_loss_price", 0))
+                pnl_points   = ltp - entry_price
+                pnl_pct      = (pnl_points / entry_price * 100) if entry_price else 0.0
+                real_pnl     = round(pnl_points * qty, 2)
+                exited_signals[sym] = {
+                    "symbol": sym,
+                    "signal_status": "MARKET_CLOSE_EXIT",
+                    "paper_trade": True,
+                    "side": "UPSIDE",
+                    "entry_time": active_signals[sym]["entry_time_ist"],
+                    "entry_price": round(entry_price, 2),
+                    "avg_price": round(entry_price, 2),
+                    "current_ltp": round(ltp, 2),
+                    "exit_price": round(ltp, 2),
+                    "exit_time": now.strftime("%H:%M:%S"),
+                    "exit_reason": "MARKET_CLOSE_EXIT",
+                    "target_price": round(target_price, 2),
+                    "stop_loss_price": round(sl_price, 2),
+                    "qty": qty,
+                    "buying_power": round(buying_power, 2),
+                    "invested_amount": round(invested_amt, 2),
+                    "pnl_points": round(pnl_points, 2),
+                    "pnl_pct": round(pnl_pct, 2),
+                    "real_pnl": real_pnl,
+                }
+                logger.info("US CLOSE EXIT | %s @ %.2f | pnl=%.2f (%.2f%%)", sym, ltp, real_pnl, pnl_pct)
+            active_signals.clear()
+
+            final_real_pnl = round(sum(s.get("real_pnl", 0) for s in exited_signals.values()), 2)
+            final_portfolio_pct = round((final_real_pnl / (CAPITAL_PER_STOCK * MAX_STOCKS_PER_STRATEGY)) * 100, 2)
+            publish_strategy_state(
+                strategy_name=STRATEGY_NAME,
+                ui_state="STOPPED",
+                message=f"Market closed at 3:15 PM. Day's P&L: ₹{final_real_pnl:+.2f} ({final_portfolio_pct:+.2f}%)",
+                progress_text=f"Session complete | {len(exited_signals)} positions | ₹{final_real_pnl:+.2f}",
+                is_loading=False,
+                extra={
+                    "signals": list(exited_signals.values()),
+                    "entered_count": 0,
+                    "total_count": int(len(universe_df)),
+                    "engine": "SMA",
+                    "portfolio_stopped": portfolio_stopped,
+                    "portfolio_pnl_pct": final_portfolio_pct,
+                    "portfolio_stop_pct": PORTFOLIO_SL_PCT,
+                    "total_real_pnl": final_real_pnl,
+                    "capital_per_stock": CAPITAL_PER_STOCK,
+                    "leverage": INTRADAY_LEVERAGE,
+                    "max_stocks": MAX_STOCKS_PER_STRATEGY,
+                    "updated_at_ist": now.isoformat(),
+                },
+            )
+            logger.info("US RUN STOP: Final state published. total_pnl=%.2f portfolio_pct=%.2f%%", final_real_pnl, final_portfolio_pct)
+            return
+
         time.sleep(0.5)  # 0.5s + ~0.2s API latency = ~1.4x faster tick rate vs 1s sleep
 
 
@@ -338,7 +384,7 @@ def main() -> None:
             continue
 
         market_open  = now.replace(hour=9,  minute=14, second=0, microsecond=0)
-        market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+        market_close = now.replace(hour=15, minute=15, second=0, microsecond=0)
 
         # ── Pre-market: wait in short chunks until 9:14 AM ───────────────────
         if now < market_open:
