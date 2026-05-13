@@ -40,9 +40,9 @@ INSTRUMENT_FILE_CANDIDATES = [
 ]
 
 # ── Risk parameters ───────────────────────────────────────────────────────────
-STOCK_TARGET_PCT        = 1.0       # +1.0% per stock target
-STOCK_SL_PCT            = 1.5       # -1.5% per stock stop loss
-PORTFOLIO_SL_PCT        = 2.5       # -2.5% portfolio-level stop loss
+STOCK_TARGET_PCT        = 1.5       # +1.5% per stock target
+STOCK_SL_PCT            = 1.0       # -1.0% per stock stop loss
+PORTFOLIO_SL_PCT        = 1.5       # -1.5% portfolio-level stop loss
 PORTFOLIO_TARGET_PCT    = 2.5       # +2.5% portfolio-level target — stop all entries
 MAX_STOCK_PRICE         = 5000.0    # skip stocks at or above this price
 
