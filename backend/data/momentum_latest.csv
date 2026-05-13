@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-31,1,MCX,Financial Services,100,8.76,18.79,24.13,69.26,39.71,Very High Vol,—
-2026-05-31,2,NATIONALUM,Metals & Mining,95,-4.73,-4.44,5.11,68.92,45.24,Very High Vol,—
-2026-05-31,3,POWERINDIA,Capital Goods,89,-5.81,18.12,69.43,57.72,43.72,Very High Vol,—
-2026-05-31,4,BHEL,Capital Goods,78,4.48,41.32,43.66,46.59,40.13,Very High Vol,—
-2026-05-31,5,BSE,Financial Services,76,3.37,18.25,32.99,54.29,41.74,Very High Vol,—
-2026-05-31,6,HINDZINC,Metals & Mining,75,5.01,14.93,0.41,35.61,43.73,Very High Vol,—
-2026-05-31,7,SAIL,Metals & Mining,73,-5.99,7.8,11.95,27.44,34.39,High Vol,—
-2026-05-31,8,BANDHANBNK,Financial Services,73,-5.02,18.16,24.62,25.56,41.39,Very High Vol,—
-2026-05-31,9,HINDALCO,Metals & Mining,72,-1.26,5.66,7.92,25.26,31.01,High Vol,—
-2026-05-31,10,TATASTEEL,Metals & Mining,69,0.32,3.31,8.5,18.24,29.67,High Vol,—
-2026-05-31,11,ADANIGREEN,Power,68,-1.76,25.22,37.04,20.4,45.97,Very High Vol,—
-2026-05-31,12,CGPOWER,Capital Goods,67,0.82,15.7,24.51,11.52,36.12,Very High Vol,—
-2026-05-31,13,COALINDIA,Oil Gas & Consumable Fuels,66,-2.02,1.97,6.47,22.65,27.15,High Vol,—
-2026-05-31,14,LAURUSLABS,Healthcare,66,8.93,17.01,29.35,28.97,30.97,High Vol,—
-2026-05-31,15,ABB,Capital Goods,65,-13.64,-4.32,9.97,20.68,34.03,High Vol,—
-2026-05-31,16,TORNTPOWER,Power,64,-7.9,10.48,13.51,22.49,33.51,High Vol,—
-2026-05-31,17,PFC,Financial Services,64,-3.55,2.96,6.3,11.23,31.54,High Vol,—
-2026-05-31,18,ONGC,Oil Gas & Consumable Fuels,64,1.57,2.04,10.32,16.7,27.7,High Vol,—
-2026-05-31,19,POLYCAB,Capital Goods,64,8.21,18.59,18.24,19.33,34.34,High Vol,—
-2026-05-31,20,KEI,Capital Goods,63,-0.42,13.14,12.97,25.24,34.85,High Vol,—
+2026-05-31,1,MCX,Financial Services,100,7.77,20.03,32.93,73.19,39.69,Very High Vol,—
+2026-05-31,2,NATIONALUM,Metals & Mining,98,0.42,-2.1,12.2,77.05,45.4,Very High Vol,—
+2026-05-31,3,SAIL,Metals & Mining,90,8.21,21.26,27.01,45.97,39.75,Very High Vol,—
+2026-05-31,4,POWERINDIA,Capital Goods,85,-4.9,11.68,65.35,57.1,43.75,Very High Vol,—
+2026-05-31,5,BHEL,Capital Goods,80,4.64,41.85,50.19,55.3,40.08,Very High Vol,—
+2026-05-31,6,HINDZINC,Metals & Mining,79,5.12,18.15,9.22,42.79,43.97,Very High Vol,—
+2026-05-31,7,BSE,Financial Services,75,0.95,18.52,34.46,58.37,41.65,Very High Vol,—
+2026-05-31,8,HINDALCO,Metals & Mining,74,2.61,8.16,14.71,36.11,30.31,High Vol,—
+2026-05-31,9,TATASTEEL,Metals & Mining,72,1.93,6.3,11.05,23.89,30.01,High Vol,—
+2026-05-31,10,ADANIGREEN,Power,72,1.01,25.92,41.31,28.87,46.22,Very High Vol,—
+2026-05-31,11,BANDHANBNK,Financial Services,71,-6.7,15.95,23.5,27.43,41.28,Very High Vol,—
+2026-05-31,12,IDEA,Telecommunication,70,13.54,38.7,14.15,38.4,49.18,Very High Vol,—
+2026-05-31,13,CGPOWER,Capital Goods,67,2.19,15.86,26.8,15.61,36.06,Very High Vol,—
+2026-05-31,14,LAURUSLABS,Healthcare,65,8.74,16.58,32.84,30.69,30.97,High Vol,—
+2026-05-31,15,NMDC,Metals & Mining,65,2.16,7.1,7.7,24.6,31.74,High Vol,—
+2026-05-31,16,PFC,Financial Services,64,-3.86,2.55,7.47,15.51,31.35,High Vol,—
+2026-05-31,17,COALINDIA,Oil Gas & Consumable Fuels,64,-1.69,6.48,7.04,23.88,27.09,High Vol,—
+2026-05-31,18,OIL,Oil Gas & Consumable Fuels,64,12.63,7.6,1.73,17.1,34.53,High Vol,—
+2026-05-31,19,ONGC,Oil Gas & Consumable Fuels,63,5.82,3.72,10.38,18.15,27.71,High Vol,—
+2026-05-31,20,ABB,Capital Goods,63,-12.22,-8.08,9.27,20.6,34.03,High Vol,—
