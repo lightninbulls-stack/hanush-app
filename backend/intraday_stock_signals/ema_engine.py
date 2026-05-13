@@ -130,6 +130,44 @@ def is_bearish(symbol: str) -> bool:
     return state.bearish_crossover() if state else False
 
 
+def is_bullish_confirmed(symbol: str, min_separation_pct: float = 0.15) -> bool:
+    """Bullish crossover AND fast SMA is at least min_separation_pct% above slow SMA."""
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
+    if not state or state.fast_sma is None or state.slow_sma is None or state.slow_sma == 0:
+        return False
+    separation = (state.fast_sma - state.slow_sma) / state.slow_sma * 100
+    return state.bullish_crossover() and separation >= min_separation_pct
+
+
+def is_bearish_confirmed(symbol: str, min_separation_pct: float = 0.15) -> bool:
+    """Bearish crossover AND fast SMA is at least min_separation_pct% below slow SMA."""
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
+    if not state or state.fast_sma is None or state.slow_sma is None or state.slow_sma == 0:
+        return False
+    separation = (state.slow_sma - state.fast_sma) / state.slow_sma * 100
+    return state.bearish_crossover() and separation >= min_separation_pct
+
+
+def is_index_bullish(symbol: str = "NIFTY_INDEX") -> bool:
+    """True when index fast SMA is currently above slow SMA — market in uptrend."""
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
+    if not state or state.fast_sma is None or state.slow_sma is None:
+        return False
+    return state.fast_sma > state.slow_sma
+
+
+def is_index_bearish(symbol: str = "NIFTY_INDEX") -> bool:
+    """True when index fast SMA is currently below slow SMA — market in downtrend."""
+    clean_symbol = str(symbol).strip().upper()
+    state = sma_store.get(clean_symbol)
+    if not state or state.fast_sma is None or state.slow_sma is None:
+        return False
+    return state.fast_sma < state.slow_sma
+
+
 def get_tick_count(symbol: str) -> int:
     clean_symbol = str(symbol).strip().upper()
     state = sma_store.get(clean_symbol)

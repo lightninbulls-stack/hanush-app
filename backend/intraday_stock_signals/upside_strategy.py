@@ -11,7 +11,7 @@ from .config import (
     MAX_STOCK_PRICE, CAPITAL_PER_STOCK, INTRADAY_LEVERAGE, MAX_STOCKS_PER_STRATEGY,
 )
 from .data_loader import build_signal_universe
-from .ema_engine import update_sma, is_bullish, reset_sma_for_symbols, get_tick_count
+from .ema_engine import update_sma, is_bullish, is_bullish_confirmed, is_index_bullish, reset_sma_for_symbols, get_tick_count
 from .publisher import publish_strategy_state
 from .utils import load_creds, setup_logger
 
@@ -35,14 +35,22 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
     while True:
         now = datetime.now(IST)
 
-        # ── Batch LTP fetch ────────────────────────────────────────────────
+        # ── Batch LTP fetch (includes Nifty 50 for index trend filter) ───────
+        NIFTY_KEY = "NSE:NIFTY 50"
         all_quote_keys = [f"NSE:{str(r['symbol']).strip().upper()}" for _, r in universe_df.iterrows()]
+        if NIFTY_KEY not in all_quote_keys:
+            all_quote_keys.append(NIFTY_KEY)
         try:
             all_ltp_data = kite.ltp(all_quote_keys)
         except Exception as exc:
             logger.error("US BATCH LTP FAIL: %s", exc)
             time.sleep(1)
             continue
+
+        # ── Update Nifty 50 SMA for index trend filter ─────────────────────
+        if NIFTY_KEY in all_ltp_data:
+            nifty_ltp = float(all_ltp_data[NIFTY_KEY]["last_price"])
+            update_sma("NIFTY_INDEX", nifty_ltp, FAST_SMA_SPAN, SLOW_SMA_SPAN)
 
         signals_output = []
 
@@ -86,11 +94,12 @@ def run_upside_strategy(kite: KiteConnect, universe_df, logger) -> None:
                 if sma_fast is None or sma_slow is None:
                     continue
 
-                # ── Entry: only if portfolio circuit breaker not triggered,
-                #          stock never entered before, and total slots not full ─
+                # ── Entry: Nifty uptrend + confirmed crossover (0.15% separation)
+                #          + portfolio not stopped + slot available ─────────────
                 if (
                     not portfolio_stopped
-                    and is_bullish(symbol)
+                    and is_index_bullish()
+                    and is_bullish_confirmed(symbol)
                     and symbol not in active_signals
                     and symbol not in exited_signals
                     and (len(active_signals) + len(exited_signals)) < MAX_STOCKS_PER_STRATEGY
@@ -429,7 +438,7 @@ def main() -> None:
 
             # Clear stale SMA state from any previous session so warmup is clean
             symbols = [str(r["symbol"]).strip().upper() for _, r in universe_df.iterrows()]
-            reset_sma_for_symbols(symbols)
+            reset_sma_for_symbols(symbols + ["NIFTY_INDEX"])
             logger.info("US SESSION: SMA state cleared for %d symbols. Warmup begins (fast=%d ticks ~%.0fm, slow=%d ticks ~%.0fm).",
                         len(symbols), FAST_SMA_SPAN, FAST_SMA_SPAN / 70, SLOW_SMA_SPAN, SLOW_SMA_SPAN / 70)
 
