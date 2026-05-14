@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-12,1,ICICIGI,Financial Services,100,0.33,0.8,-3.84,-12.61,19.09,Medium Vol,—
-2026-05-12,2,APOLLOHOSP,Healthcare,99,3.22,7.23,12.74,2.71,19.55,Medium Vol,—
-2026-05-12,3,CIPLA,Healthcare,99,-3.1,5.55,-2.59,-14.04,19.57,Medium Vol,—
-2026-05-12,4,MARICO,Fast Moving Consumer Goods,99,2.82,11.06,13.17,15.71,19.66,Medium Vol,—
-2026-05-12,5,NESTLEIND,Fast Moving Consumer Goods,99,-0.62,19.52,12.69,16.09,19.98,Medium Vol,—
-2026-05-12,6,BHARTIARTL,Telecommunication,99,-2.73,-5.52,-13.28,-16.87,19.99,Medium Vol,—
-2026-05-12,7,LUPIN,Healthcare,99,-4.18,-2.17,2.29,12.44,20.29,Medium Vol,—
-2026-05-12,8,NTPC,Power,98,-1.49,3.71,6.93,18.78,20.48,Medium Vol,—
-2026-05-12,9,BRITANNIA,Fast Moving Consumer Goods,97,-8.58,-2.58,-9.27,-9.48,21.19,Medium Vol,—
-2026-05-12,10,POWERGRID,Power,97,-4.12,2.75,5.84,9.77,21.37,Medium Vol,—
-2026-05-12,11,KOTAKBANK,Financial Services,97,1.25,1.1,-8.82,-10.33,21.5,Medium Vol,—
-2026-05-12,12,DIVISLAB,Healthcare,97,-0.11,11.62,9.74,-2.36,21.57,Medium Vol,—
-2026-05-12,13,ICICIBANK,Financial Services,97,-0.88,-3.2,-11.94,-7.23,21.68,Medium Vol,—
-2026-05-12,14,ZYDUSLIFE,Healthcare,97,2.02,3.15,2.81,-4.22,21.9,Medium Vol,—
-2026-05-12,15,TORNTPHARM,Healthcare,96,2.5,7.02,8.91,22.57,21.95,Medium Vol,—
-2026-05-12,16,SBILIFE,Financial Services,96,0.7,-3.68,-10.18,-6.98,21.96,Medium Vol,—
-2026-05-12,17,SUNPHARMA,Healthcare,96,1.37,7.49,8.29,9.21,22.12,Medium Vol,—
-2026-05-12,18,HINDUNILVR,Fast Moving Consumer Goods,96,-2.81,6.04,-4.6,-7.51,22.28,Medium Vol,—
-2026-05-12,19,SHREECEM,Construction Materials,96,0.06,3.63,-9.1,-9.93,22.6,Medium Vol,—
-2026-05-12,20,PATANJALI,Fast Moving Consumer Goods,96,-3.53,-4.06,-13.59,-23.37,22.63,Medium Vol,—
+2026-05-14,1,ICICIGI,Financial Services,100,-0.07,3.74,-0.68,-8.48,19.29,Medium Vol,—
+2026-05-14,2,APOLLOHOSP,Healthcare,100,3.6,8.02,13.51,6.24,19.47,Medium Vol,—
+2026-05-14,3,MARICO,Fast Moving Consumer Goods,100,0.34,10.88,10.93,17.34,19.63,Medium Vol,—
+2026-05-14,4,NESTLEIND,Fast Moving Consumer Goods,99,-1.11,19.04,11.99,15.59,20.01,Medium Vol,—
+2026-05-14,5,LUPIN,Healthcare,99,-8.21,-2.46,3.89,14.52,20.29,Medium Vol,—
+2026-05-14,6,NTPC,Power,99,-1.01,2.6,8.56,21.53,20.5,Medium Vol,—
+2026-05-14,7,BHARTIARTL,Telecommunication,98,3.12,0.67,-7.6,-5.88,20.62,Medium Vol,—
+2026-05-14,8,BRITANNIA,Fast Moving Consumer Goods,98,-7.59,-3.87,-9.11,-12.75,20.7,Medium Vol,—
+2026-05-14,9,POWERGRID,Power,98,-3.84,0.47,3.07,10.94,20.98,Medium Vol,—
+2026-05-14,10,DIVISLAB,Healthcare,97,3.27,14.03,14.89,3.98,21.4,Medium Vol,—
+2026-05-14,11,ICICIBANK,Financial Services,97,-2.58,-7.78,-11.39,-7.22,21.52,Medium Vol,—
+2026-05-14,12,KOTAKBANK,Financial Services,97,1.0,3.04,-9.27,-8.25,21.6,Medium Vol,—
+2026-05-14,13,SBILIFE,Financial Services,97,-0.29,-2.49,-6.51,-6.61,21.98,Medium Vol,—
+2026-05-14,14,HINDUNILVR,Fast Moving Consumer Goods,96,-1.03,5.71,-7.24,-6.85,22.27,Medium Vol,—
+2026-05-14,15,TORNTPHARM,Healthcare,96,0.94,5.33,11.8,23.01,22.36,Medium Vol,—
+2026-05-14,16,SUNPHARMA,Healthcare,96,1.57,12.77,9.92,10.16,22.36,Medium Vol,—
+2026-05-14,17,RELIANCE,Oil Gas & Consumable Fuels,96,-5.18,3.55,-6.13,-7.86,22.59,Medium Vol,—
+2026-05-14,18,SHREECEM,Construction Materials,96,-2.23,2.98,-8.43,-8.58,22.61,Medium Vol,—
+2026-05-14,19,PATANJALI,Fast Moving Consumer Goods,96,-2.26,-2.21,-14.14,-22.28,22.7,Medium Vol,—
+2026-05-14,20,ZYDUSLIFE,Healthcare,96,5.47,7.51,11.66,5.04,22.73,Medium Vol,—
