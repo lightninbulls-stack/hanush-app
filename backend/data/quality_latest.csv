@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-15,1,BSE,Financial Services,100,2.39,17.99,34.02,52.39,39.98,Very High Vol,Quality Factor
-2026-05-15,2,ADANIENT,Metals & Mining,93,8.38,26.66,20.71,18.17,40.44,Very High Vol,Quality Factor
-2026-05-15,3,SUZLON,Capital Goods,86,-2.06,9.59,11.72,-6.25,34.84,High Vol,Quality Factor
-2026-05-15,5,DIXON,Consumer Durables,71,1.63,-0.81,-6.62,-26.15,45.45,Very High Vol,Quality Factor
-2026-05-15,9,MCX,Financial Services,43,9.46,18.94,39.27,77.9,40.01,Very High Vol,Quality Factor
-2026-05-15,10,TRENT,Consumer Services,36,-3.32,3.09,-1.68,-4.26,34.33,High Vol,Quality Factor
-2026-05-15,11,LUPIN,Healthcare,29,-4.34,-2.68,3.61,14.37,20.28,Medium Vol,Quality Factor
-2026-05-15,12,INOXWIND,Capital Goods,21,-7.79,2.27,-13.99,-36.99,41.25,Very High Vol,Quality Factor
-2026-05-15,13,MAXHEALTH,Healthcare,14,3.71,6.07,3.97,-4.36,23.71,Medium Vol,Quality Factor
-2026-05-15,14,KFINTECH,Financial Services,7,-11.8,-13.33,-18.82,-25.28,33.66,High Vol,Quality Factor
+2026-05-18,1,BSE,Financial Services,100,5.17,19.55,29.82,55.84,40.15,Very High Vol,Quality Factor
+2026-05-18,2,ADANIENT,Metals & Mining,93,7.58,22.06,20.71,17.22,40.46,Very High Vol,Quality Factor
+2026-05-18,3,SUZLON,Capital Goods,86,-0.09,5.97,11.66,-7.9,34.86,High Vol,Quality Factor
+2026-05-18,5,DIXON,Consumer Durables,71,0.07,-4.49,-7.14,-28.58,45.44,Very High Vol,Quality Factor
+2026-05-18,9,MCX,Financial Services,43,5.03,16.99,35.52,76.32,40.07,Very High Vol,Quality Factor
+2026-05-18,10,TRENT,Consumer Services,36,-3.56,-1.25,-3.63,-6.57,34.4,High Vol,Quality Factor
+2026-05-18,11,LUPIN,Healthcare,29,-0.16,-3.21,2.19,13.99,20.31,Medium Vol,Quality Factor
+2026-05-18,12,INOXWIND,Capital Goods,21,-5.09,-0.68,-14.81,-37.57,41.25,Very High Vol,Quality Factor
+2026-05-18,13,MAXHEALTH,Healthcare,14,1.98,6.85,3.63,-3.36,23.74,Medium Vol,Quality Factor
+2026-05-18,14,KFINTECH,Financial Services,7,-8.7,-14.92,-20.45,-25.66,33.62,High Vol,Quality Factor
