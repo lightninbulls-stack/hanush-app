@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-05-22,1,BSE,Financial Services,100,4.83,19.85,49.53,49.14,39.55,Very High Vol,Quality Factor
-2026-05-22,2,ADANIENT,Metals & Mining,93,0.05,20.19,24.38,10.37,39.9,Very High Vol,Quality Factor
-2026-05-22,3,SUZLON,Capital Goods,86,-0.17,-1.5,16.32,-6.85,34.87,High Vol,Quality Factor
-2026-05-22,5,DIXON,Consumer Durables,71,6.77,4.04,-0.25,-25.06,46.03,Very High Vol,Quality Factor
-2026-05-22,9,MCX,Financial Services,43,-3.57,17.49,39.76,68.59,40.54,Very High Vol,Quality Factor
-2026-05-22,10,TRENT,Consumer Services,36,4.76,-3.11,1.58,-2.45,34.63,High Vol,Quality Factor
-2026-05-22,11,LUPIN,Healthcare,29,0.25,-1.13,2.71,11.19,19.98,Medium Vol,Quality Factor
-2026-05-22,12,INOXWIND,Capital Goods,21,-1.28,-9.8,-6.8,-35.45,41.28,Very High Vol,Quality Factor
-2026-05-22,13,MAXHEALTH,Healthcare,14,-2.56,1.78,-4.89,-8.77,25.29,High Vol,Quality Factor
-2026-05-22,14,KFINTECH,Financial Services,7,1.16,-17.41,-18.31,-24.89,33.7,High Vol,Quality Factor
+2026-05-25,1,BSE,Financial Services,100,4.14,23.92,56.48,51.41,39.64,Very High Vol,Quality Factor
+2026-05-25,2,ADANIENT,Metals & Mining,93,5.94,23.9,27.05,16.94,40.43,Very High Vol,Quality Factor
+2026-05-25,3,SUZLON,Capital Goods,86,1.39,0.48,17.52,-5.11,34.82,High Vol,Quality Factor
+2026-05-25,5,DIXON,Consumer Durables,71,9.68,8.81,1.61,-24.67,46.05,Very High Vol,Quality Factor
+2026-05-25,9,MCX,Financial Services,43,-1.03,18.72,45.14,71.44,40.55,Very High Vol,Quality Factor
+2026-05-25,10,TRENT,Consumer Services,36,6.64,1.14,3.07,-1.69,34.62,High Vol,Quality Factor
+2026-05-25,11,LUPIN,Healthcare,29,1.55,-2.31,1.77,11.71,19.98,Medium Vol,Quality Factor
+2026-05-25,12,INOXWIND,Capital Goods,21,2.42,-4.67,-2.84,-31.14,41.26,Very High Vol,Quality Factor
+2026-05-25,13,MAXHEALTH,Healthcare,14,-5.45,-0.59,-7.0,-10.37,25.46,High Vol,Quality Factor
+2026-05-25,14,KFINTECH,Financial Services,7,1.98,-15.53,-18.73,-23.84,33.78,High Vol,Quality Factor
