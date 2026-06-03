@@ -1,1 +1,3 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
+2026-06-03,1,SBIN,Financial Services,100,0.2,-9.17,-19.14,-1.37,28.44,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-03,2,INDIANB,Financial Services,0,1.72,2.11,-13.8,-4.38,37.16,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
