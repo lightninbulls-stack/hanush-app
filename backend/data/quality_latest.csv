@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-03,1,BSE,Financial Services,100,-9.93,6.87,43.04,37.39,40.43,Very High Vol,Quality Factor
-2026-06-03,2,ADANIENT,Metals & Mining,93,-1.47,17.7,31.09,26.38,40.75,Very High Vol,Quality Factor
-2026-06-03,3,SUZLON,Capital Goods,86,-0.33,-1.02,25.98,-2.12,36.1,Very High Vol,Quality Factor
-2026-06-03,5,DIXON,Consumer Durables,71,-3.82,-1.59,8.08,-24.27,45.92,Very High Vol,Quality Factor
-2026-06-03,9,MCX,Financial Services,43,-14.32,-2.72,15.69,37.78,41.98,Very High Vol,Quality Factor
-2026-06-03,10,TRENT,Consumer Services,36,0.42,2.38,8.56,-0.81,34.67,High Vol,Quality Factor
-2026-06-03,11,LUPIN,Healthcare,29,-0.21,-3.73,-1.35,9.15,19.58,Medium Vol,Quality Factor
-2026-06-03,12,INOXWIND,Capital Goods,21,-13.73,-19.7,-12.78,-39.3,43.52,Very High Vol,Quality Factor
-2026-06-03,13,MAXHEALTH,Healthcare,14,-2.86,-4.55,-11.26,-16.95,25.26,High Vol,Quality Factor
-2026-06-03,14,KFINTECH,Financial Services,7,0.04,-3.08,-16.19,-21.78,33.95,High Vol,Quality Factor
+2026-06-04,1,BSE,Financial Services,100,-5.06,8.24,44.0,37.7,40.45,Very High Vol,Quality Factor
+2026-06-04,2,ADANIENT,Metals & Mining,93,-0.01,20.75,34.13,31.83,40.6,Very High Vol,Quality Factor
+2026-06-04,3,SUZLON,Capital Goods,86,-3.32,1.4,28.54,1.26,36.2,Very High Vol,Quality Factor
+2026-06-04,5,DIXON,Consumer Durables,71,-2.28,2.09,13.56,-21.55,46.03,Very High Vol,Quality Factor
+2026-06-04,9,MCX,Financial Services,43,-8.39,-0.31,17.67,38.78,42.04,Very High Vol,Quality Factor
+2026-06-04,10,TRENT,Consumer Services,36,-33.21,-31.38,-26.41,-33.48,58.56,Very High Vol,Quality Factor
+2026-06-04,11,LUPIN,Healthcare,29,-1.17,-3.99,-3.16,8.61,19.6,Medium Vol,Quality Factor
+2026-06-04,12,INOXWIND,Capital Goods,21,-10.47,-17.89,-9.19,-36.02,43.77,Very High Vol,Quality Factor
+2026-06-04,13,MAXHEALTH,Healthcare,14,-2.74,-3.42,-12.95,-16.84,25.26,High Vol,Quality Factor
+2026-06-04,14,KFINTECH,Financial Services,7,0.61,-4.8,-12.66,-19.91,34.08,High Vol,Quality Factor
