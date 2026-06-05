@@ -1,4 +1,4 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-04,1,SBIN,Financial Services,100,1.18,-7.61,-19.04,0.66,28.42,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-06-04,2,INDIANB,Financial Services,54,0.47,-1.35,-15.56,-3.31,37.06,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-06-04,3,VOLTAS,Consumer Durables,0,1.96,-6.5,-16.7,-7.98,35.31,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-05,1,SBIN,Financial Services,100,1.38,-10.79,-18.64,-0.13,28.41,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-05,2,INDIANB,Financial Services,54,1.09,-2.86,-14.99,-3.24,37.06,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-05,3,VOLTAS,Consumer Durables,0,4.22,-5.89,-16.84,-5.67,35.27,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
