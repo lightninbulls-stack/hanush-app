@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-04,1,SAMMAANCAP,Financial Services,100,5.65,26.82,19.16,17.77,35.91,Very High Vol,EMA Ensemble Upside
-2026-06-04,2,IDEA,Telecommunication,100,5.29,38.24,37.6,47.68,47.71,Very High Vol,EMA Ensemble Upside
-2026-06-04,3,EXIDEIND,Automobile and Auto Components,100,2.35,11.7,18.7,9.52,32.75,High Vol,EMA Ensemble Upside
-2026-06-04,4,ADANIENT,Metals & Mining,100,-0.01,20.75,34.13,31.83,40.6,Very High Vol,EMA Ensemble Upside
-2026-06-04,5,MOTHERSON,Automobile and Auto Components,100,1.33,20.02,6.65,24.27,39.32,Very High Vol,EMA Ensemble Upside
-2026-06-04,6,LAURUSLABS,Healthcare,100,3.29,22.6,30.61,42.26,30.98,High Vol,EMA Ensemble Upside
-2026-06-04,7,NBCC,Construction,100,5.03,12.01,10.65,-11.36,39.46,Very High Vol,EMA Ensemble Upside
-2026-06-04,8,CGPOWER,Capital Goods,100,0.33,13.42,29.05,38.08,37.79,Very High Vol,EMA Ensemble Upside
-2026-06-04,9,ZYDUSLIFE,Healthcare,100,-0.11,18.89,15.57,15.72,23.92,Medium Vol,EMA Ensemble Upside
-2026-06-04,10,COFORGE,Information Technology,100,3.46,22.9,19.67,-24.8,42.42,Very High Vol,EMA Ensemble Upside
-2026-06-04,11,PREMIERENE,Capital Goods,100,3.04,3.35,48.61,8.95,38.03,Very High Vol,EMA Ensemble Upside
-2026-06-04,12,OFSS,Information Technology,100,-1.96,4.03,47.28,23.89,34.99,High Vol,EMA Ensemble Upside
-2026-06-04,13,POLYCAB,Capital Goods,100,0.55,16.56,14.24,29.93,34.83,High Vol,EMA Ensemble Upside
-2026-06-04,14,CUMMINSIND,Capital Goods,100,-3.98,10.03,16.62,30.07,33.42,High Vol,EMA Ensemble Upside
-2026-06-04,15,JSWENERGY,Power,100,-1.99,5.0,18.33,20.91,34.52,High Vol,EMA Ensemble Upside
-2026-06-04,16,NMDC,Metals & Mining,100,2.62,6.61,14.7,27.61,33.64,High Vol,EMA Ensemble Upside
-2026-06-04,17,POWERINDIA,Capital Goods,100,-2.73,6.63,43.79,67.56,45.36,Very High Vol,EMA Ensemble Upside
-2026-06-04,18,ADANIGREEN,Power,100,-4.47,6.9,47.35,38.04,46.64,Very High Vol,EMA Ensemble Upside
-2026-06-04,19,BANDHANBNK,Financial Services,100,-0.19,-0.48,10.39,37.29,41.51,Very High Vol,EMA Ensemble Upside
-2026-06-04,20,ABB,Capital Goods,100,-0.87,-2.35,16.68,36.55,35.23,Very High Vol,EMA Ensemble Upside
+2026-06-10,1,SAMMAANCAP,Financial Services,100,-2.19,19.97,19.84,13.39,36.65,Very High Vol,EMA Ensemble Upside
+2026-06-10,2,ADANIGREEN,Power,100,3.89,6.87,67.66,46.45,48.05,Very High Vol,EMA Ensemble Upside
+2026-06-10,3,ADANIENT,Metals & Mining,100,0.19,17.23,40.3,33.85,40.78,Very High Vol,EMA Ensemble Upside
+2026-06-10,4,FEDERALBNK,Financial Services,100,3.34,6.38,7.39,20.46,28.56,High Vol,EMA Ensemble Upside
+2026-06-10,5,NBCC,Construction,100,0.74,7.63,18.6,-9.02,39.83,Very High Vol,EMA Ensemble Upside
+2026-06-10,6,ZYDUSLIFE,Healthcare,100,2.02,14.77,20.08,17.47,23.96,Medium Vol,EMA Ensemble Upside
+2026-06-10,7,EXIDEIND,Automobile and Auto Components,100,-3.16,9.54,20.87,3.68,33.12,High Vol,EMA Ensemble Upside
+2026-06-10,8,LAURUSLABS,Healthcare,100,-0.62,9.39,32.49,36.32,31.41,High Vol,EMA Ensemble Upside
+2026-06-10,9,RBLBANK,Financial Services,100,2.51,5.76,15.11,17.3,32.9,High Vol,EMA Ensemble Upside
+2026-06-10,10,MOTHERSON,Automobile and Auto Components,100,-2.34,9.14,12.56,22.0,39.71,Very High Vol,EMA Ensemble Upside
+2026-06-10,11,PREMIERENE,Capital Goods,100,-2.12,6.19,48.02,9.76,38.07,Very High Vol,EMA Ensemble Upside
+2026-06-10,12,CGPOWER,Capital Goods,100,0.16,5.83,29.53,36.72,38.08,Very High Vol,EMA Ensemble Upside
+2026-06-10,13,IDFCFIRSTB,Financial Services,100,1.69,5.45,3.68,-9.42,36.89,Very High Vol,EMA Ensemble Upside
+2026-06-10,14,APOLLOHOSP,Healthcare,100,2.39,5.03,9.18,18.16,20.18,Medium Vol,EMA Ensemble Upside
+2026-06-10,15,FORTIS,Healthcare,100,6.32,1.52,7.39,10.1,27.17,High Vol,EMA Ensemble Upside
+2026-06-10,16,POLYCAB,Capital Goods,100,-0.5,5.05,11.2,31.78,34.9,High Vol,EMA Ensemble Upside
+2026-06-10,17,GMRAIRPORT,Services,100,2.17,2.87,3.0,-4.21,35.93,Very High Vol,EMA Ensemble Upside
+2026-06-10,18,ASIANPAINT,Consumer Durables,100,1.98,5.81,18.68,-8.07,26.87,High Vol,EMA Ensemble Upside
+2026-06-10,19,ADANIPORTS,Services,100,0.96,3.05,21.47,21.6,33.34,High Vol,EMA Ensemble Upside
+2026-06-10,20,GAIL,Oil Gas & Consumable Fuels,100,2.53,3.38,7.2,-1.33,28.46,High Vol,EMA Ensemble Upside

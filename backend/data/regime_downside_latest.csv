@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-04,1,LICI,Financial Services,100,-51.97,-50.12,-54.22,-55.72,76.5,Very High Vol,EMA Ensemble Downside
-2026-06-04,2,TRENT,Consumer Services,100,-33.21,-31.38,-26.41,-33.48,58.56,Very High Vol,EMA Ensemble Downside
-2026-06-04,3,VEDL,Metals & Mining,100,-7.67,7.77,-55.59,-36.91,100.83,Very High Vol,EMA Ensemble Downside
-2026-06-04,4,RVNL,Construction,100,-6.28,-21.3,-25.71,-27.14,41.03,Very High Vol,EMA Ensemble Downside
-2026-06-04,5,INOXWIND,Capital Goods,100,-10.47,-17.89,-9.19,-36.02,43.77,Very High Vol,EMA Ensemble Downside
-2026-06-04,6,KAYNES,Capital Goods,100,-1.21,-23.5,-18.53,-42.76,63.89,Very High Vol,EMA Ensemble Downside
-2026-06-04,7,CONCOR,Services,100,-3.8,-12.3,-9.1,-11.61,27.73,High Vol,EMA Ensemble Downside
-2026-06-04,8,ICICIPRULI,Financial Services,100,-8.76,-11.21,-29.27,-23.69,26.79,High Vol,EMA Ensemble Downside
-2026-06-04,9,MCX,Financial Services,100,-8.39,-0.31,17.67,38.78,42.04,Very High Vol,EMA Ensemble Downside
-2026-06-04,10,ASHOKLEY,Capital Goods,100,-11.72,-9.87,-31.84,-9.58,39.93,Very High Vol,EMA Ensemble Downside
-2026-06-04,11,BDL,Capital Goods,100,-5.41,-13.28,-4.76,-19.39,43.83,Very High Vol,EMA Ensemble Downside
-2026-06-04,12,PIIND,Chemicals,100,-4.91,-10.18,-13.61,-21.11,29.18,High Vol,EMA Ensemble Downside
-2026-06-04,13,ITC,Fast Moving Consumer Goods,100,-3.99,-10.0,-11.94,-30.67,24.37,Medium Vol,EMA Ensemble Downside
-2026-06-04,14,ONGC,Oil Gas & Consumable Fuels,100,-2.37,-7.73,-4.48,9.65,28.94,High Vol,EMA Ensemble Downside
-2026-06-04,15,DABUR,Fast Moving Consumer Goods,100,-4.67,-7.8,-19.03,-18.2,25.08,High Vol,EMA Ensemble Downside
-2026-06-04,16,TORNTPOWER,Power,100,-0.03,-16.99,-7.99,9.68,35.97,Very High Vol,EMA Ensemble Downside
-2026-06-04,17,HINDUNILVR,Fast Moving Consumer Goods,100,-5.41,-10.66,-12.75,-15.19,22.89,Medium Vol,EMA Ensemble Downside
-2026-06-04,18,BRITANNIA,Fast Moving Consumer Goods,100,-4.6,-12.76,-17.06,-12.64,20.56,Medium Vol,EMA Ensemble Downside
-2026-06-04,19,SBICARD,Financial Services,100,-5.72,-8.7,-23.97,-33.04,26.87,High Vol,EMA Ensemble Downside
-2026-06-04,20,HDFCAMC,Financial Services,100,-7.12,-10.1,-8.38,-5.86,35.44,Very High Vol,EMA Ensemble Downside
+2026-06-10,1,LICI,Financial Services,100,-1.72,-50.4,-52.46,-54.39,76.59,Very High Vol,EMA Ensemble Downside
+2026-06-10,2,TRENT,Consumer Services,100,-35.3,-34.12,-27.33,-34.23,58.72,Very High Vol,EMA Ensemble Downside
+2026-06-10,3,VEDL,Metals & Mining,100,-8.81,0.3,-57.92,-43.83,101.08,Very High Vol,EMA Ensemble Downside
+2026-06-10,4,RVNL,Construction,100,-4.54,-22.76,-18.29,-26.79,41.43,Very High Vol,EMA Ensemble Downside
+2026-06-10,5,MUTHOOTFIN,Financial Services,100,-9.93,-15.69,-12.33,-22.97,40.87,Very High Vol,EMA Ensemble Downside
+2026-06-10,6,HINDZINC,Metals & Mining,100,-10.32,-12.96,-8.08,8.55,45.03,Very High Vol,EMA Ensemble Downside
+2026-06-10,7,KAYNES,Capital Goods,100,-4.4,-29.59,-19.44,-42.1,63.96,Very High Vol,EMA Ensemble Downside
+2026-06-10,8,INOXWIND,Capital Goods,100,-0.34,-17.13,-4.16,-36.42,44.24,Very High Vol,EMA Ensemble Downside
+2026-06-10,9,MCX,Financial Services,100,-3.17,-13.93,7.45,35.32,42.24,Very High Vol,EMA Ensemble Downside
+2026-06-10,10,WIPRO,Information Technology,100,-12.33,-9.02,-8.56,-29.75,29.08,High Vol,EMA Ensemble Downside
+2026-06-10,11,ASHOKLEY,Capital Goods,100,-2.95,-12.37,-30.29,-13.01,40.16,Very High Vol,EMA Ensemble Downside
+2026-06-10,12,ONGC,Oil Gas & Consumable Fuels,100,-5.92,-10.36,-8.85,4.95,29.31,High Vol,EMA Ensemble Downside
+2026-06-10,13,ICICIPRULI,Financial Services,100,-2.33,-17.64,-25.76,-23.8,27.0,High Vol,EMA Ensemble Downside
+2026-06-10,14,CROMPTON,Consumer Durables,100,-6.6,-12.25,1.82,-0.47,33.48,High Vol,EMA Ensemble Downside
+2026-06-10,15,CONCOR,Services,100,-1.42,-15.94,-7.18,-12.04,27.93,High Vol,EMA Ensemble Downside
+2026-06-10,16,NATIONALUM,Metals & Mining,100,-13.9,-4.3,-5.0,41.14,45.76,Very High Vol,EMA Ensemble Downside
+2026-06-10,17,NTPC,Power,100,-4.13,-10.51,-6.98,8.89,22.1,Medium Vol,EMA Ensemble Downside
+2026-06-10,18,BDL,Capital Goods,100,-3.52,-15.52,-7.56,-20.18,43.78,Very High Vol,EMA Ensemble Downside
+2026-06-10,19,PATANJALI,Fast Moving Consumer Goods,100,-4.99,-7.6,-16.05,-24.42,24.2,Medium Vol,EMA Ensemble Downside
+2026-06-10,20,DALBHARAT,Construction Materials,100,-4.95,-7.58,-15.08,-17.42,32.28,High Vol,EMA Ensemble Downside
