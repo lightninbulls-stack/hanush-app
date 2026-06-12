@@ -1,3 +1,7 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-11,1,SBIN,Financial Services,100,2.19,2.68,-12.45,5.55,28.43,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-06-11,2,VOLTAS,Consumer Durables,0,-0.72,0.61,-13.6,-3.92,35.46,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,1,TITAN,Consumer Durables,100,-1.79,2.28,0.6,9.72,27.72,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,2,INDIANB,Financial Services,26,0.41,3.88,-5.94,4.52,36.99,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,3,ASHOKLEY,Capital Goods,16,4.93,-0.5,-18.45,-5.23,42.66,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,4,BRITANNIA,Fast Moving Consumer Goods,14,0.88,-3.2,-12.3,-13.35,20.56,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,5,SBIN,Financial Services,9,4.03,4.85,-7.41,4.7,28.31,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-06-12,6,VOLTAS,Consumer Durables,0,-0.99,2.11,-10.52,-3.13,35.47,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
