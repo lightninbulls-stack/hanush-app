@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-12,1,BSE,Financial Services,100,4.15,3.92,45.95,43.51,40.91,Very High Vol,Quality Factor
-2026-06-12,2,ADANIENT,Metals & Mining,93,-4.15,16.96,46.14,28.97,40.69,Very High Vol,Quality Factor
-2026-06-12,3,SUZLON,Capital Goods,86,-0.42,3.73,39.02,6.46,36.26,Very High Vol,Quality Factor
-2026-06-12,5,DIXON,Consumer Durables,71,1.0,3.79,17.77,-16.02,45.9,Very High Vol,Quality Factor
-2026-06-12,9,MCX,Financial Services,43,2.08,-10.96,10.71,37.92,42.31,Very High Vol,Quality Factor
-2026-06-12,10,TRENT,Consumer Services,36,-0.68,-32.54,-25.32,-34.13,58.79,Very High Vol,Quality Factor
-2026-06-12,11,LUPIN,Healthcare,29,1.13,3.51,-0.43,9.27,19.76,Medium Vol,Quality Factor
-2026-06-12,12,INOXWIND,Capital Goods,21,1.43,-9.48,7.7,-32.41,46.03,Very High Vol,Quality Factor
-2026-06-12,13,MAXHEALTH,Healthcare,14,3.6,-1.33,-2.79,-7.74,24.98,Medium Vol,Quality Factor
-2026-06-12,14,KFINTECH,Financial Services,7,-4.85,-0.91,-9.18,-22.48,34.54,High Vol,Quality Factor
+2026-06-15,1,BSE,Financial Services,100,5.34,2.19,44.24,47.42,40.96,Very High Vol,Quality Factor
+2026-06-15,2,ADANIENT,Metals & Mining,93,-0.93,8.46,47.38,32.77,40.55,Very High Vol,Quality Factor
+2026-06-15,3,SUZLON,Capital Goods,86,2.09,3.93,34.07,7.32,36.28,Very High Vol,Quality Factor
+2026-06-15,5,DIXON,Consumer Durables,71,4.96,7.69,9.62,-11.84,46.16,Very High Vol,Quality Factor
+2026-06-15,9,MCX,Financial Services,43,2.54,-13.28,12.31,42.18,42.26,Very High Vol,Quality Factor
+2026-06-15,10,TRENT,Consumer Services,36,6.5,-29.8,-21.91,-29.08,59.24,Very High Vol,Quality Factor
+2026-06-15,11,LUPIN,Healthcare,29,0.83,0.66,-2.75,9.77,19.7,Medium Vol,Quality Factor
+2026-06-15,12,INOXWIND,Capital Goods,21,6.34,-7.91,8.37,-27.8,45.77,Very High Vol,Quality Factor
+2026-06-15,13,MAXHEALTH,Healthcare,14,2.13,-1.97,-1.36,-4.68,24.99,Medium Vol,Quality Factor
+2026-06-15,14,KFINTECH,Financial Services,7,1.23,3.31,-10.28,-18.66,34.62,High Vol,Quality Factor
