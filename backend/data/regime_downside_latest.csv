@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-15,1,LICI,Financial Services,100,2.58,-49.6,-50.61,-52.69,76.66,Very High Vol,EMA Ensemble Downside
-2026-06-15,2,TRENT,Consumer Services,100,6.5,-29.8,-21.91,-29.08,59.24,Very High Vol,EMA Ensemble Downside
-2026-06-15,3,VEDL,Metals & Mining,100,-0.58,-10.74,-58.1,-40.83,101.12,Very High Vol,EMA Ensemble Downside
-2026-06-15,4,OIL,Oil Gas & Consumable Fuels,100,-13.26,-19.39,-11.34,3.28,38.14,Very High Vol,EMA Ensemble Downside
-2026-06-15,5,ONGC,Oil Gas & Consumable Fuels,100,-7.94,-19.03,-9.49,2.15,29.5,High Vol,EMA Ensemble Downside
-2026-06-15,6,WIPRO,Information Technology,100,-0.21,-3.67,-9.73,-30.61,29.1,High Vol,EMA Ensemble Downside
-2026-06-15,7,RVNL,Construction,100,5.03,-16.54,-15.48,-21.96,42.4,Very High Vol,EMA Ensemble Downside
-2026-06-15,8,HINDZINC,Metals & Mining,100,1.41,-15.75,-4.42,14.97,45.07,Very High Vol,EMA Ensemble Downside
-2026-06-15,9,KAYNES,Capital Goods,100,1.8,-7.62,-19.77,-19.04,58.46,Very High Vol,EMA Ensemble Downside
-2026-06-15,10,NTPC,Power,100,-3.95,-12.16,-7.74,8.95,22.18,Medium Vol,EMA Ensemble Downside
-2026-06-15,11,NATIONALUM,Metals & Mining,100,1.1,-8.19,-1.65,42.48,45.77,Very High Vol,EMA Ensemble Downside
-2026-06-15,12,HINDALCO,Metals & Mining,100,-4.57,-8.1,5.99,23.73,32.5,High Vol,EMA Ensemble Downside
-2026-06-15,13,TORNTPOWER,Power,100,-4.45,-4.66,-4.26,10.72,36.09,Very High Vol,EMA Ensemble Downside
-2026-06-15,14,SAIL,Metals & Mining,100,-0.69,-8.32,21.8,40.66,40.69,Very High Vol,EMA Ensemble Downside
-2026-06-15,15,TCS,Information Technology,100,0.49,-3.74,-13.97,-33.2,29.26,High Vol,EMA Ensemble Downside
-2026-06-15,16,ICICIPRULI,Financial Services,100,2.26,-10.25,-19.2,-21.11,27.53,High Vol,EMA Ensemble Downside
-2026-06-15,17,CROMPTON,Consumer Durables,100,3.56,-7.93,8.48,5.28,33.68,High Vol,EMA Ensemble Downside
-2026-06-15,18,TATASTEEL,Metals & Mining,100,-2.68,-10.79,1.17,20.68,30.48,High Vol,EMA Ensemble Downside
-2026-06-15,19,BDL,Capital Goods,100,1.91,-10.6,-12.62,-15.0,43.14,Very High Vol,EMA Ensemble Downside
-2026-06-15,20,HCLTECH,Information Technology,100,-2.78,-0.42,-17.79,-33.71,30.37,High Vol,EMA Ensemble Downside
+2026-06-22,1,OIL,Oil Gas & Consumable Fuels,100,1.28,-16.08,-10.81,4.71,38.15,Very High Vol,EMA Ensemble Downside
+2026-06-22,2,VEDL,Metals & Mining,100,1.11,-7.25,-56.27,-44.33,101.09,Very High Vol,EMA Ensemble Downside
+2026-06-22,3,INFY,Information Technology,100,-6.12,-9.8,-13.59,-33.69,32.61,High Vol,EMA Ensemble Downside
+2026-06-22,4,ONGC,Oil Gas & Consumable Fuels,100,0.74,-17.04,-7.29,4.29,29.62,High Vol,EMA Ensemble Downside
+2026-06-22,5,SAIL,Metals & Mining,100,-4.2,-11.03,13.89,32.15,40.98,Very High Vol,EMA Ensemble Downside
+2026-06-22,6,WIPRO,Information Technology,100,-0.66,-9.79,-5.82,-31.16,29.1,High Vol,EMA Ensemble Downside
+2026-06-22,7,NATIONALUM,Metals & Mining,100,-1.15,-7.0,-4.35,35.61,45.69,Very High Vol,EMA Ensemble Downside
+2026-06-22,8,HINDALCO,Metals & Mining,100,0.03,-7.74,8.28,19.62,32.63,High Vol,EMA Ensemble Downside
+2026-06-22,9,PPLPHARMA,Healthcare,100,-5.2,-9.98,13.99,-7.68,36.85,Very High Vol,EMA Ensemble Downside
+2026-06-22,10,TCS,Information Technology,100,-1.58,-8.57,-11.03,-34.13,29.76,High Vol,EMA Ensemble Downside
+2026-06-22,11,PATANJALI,Fast Moving Consumer Goods,100,-1.75,-9.71,-14.02,-21.05,22.45,Medium Vol,EMA Ensemble Downside
+2026-06-22,12,JINDALSTEL,Metals & Mining,100,-1.52,-5.41,-2.19,9.48,31.29,High Vol,EMA Ensemble Downside
+2026-06-22,13,UPL,Chemicals,100,-1.8,-3.74,-1.68,-20.92,37.88,Very High Vol,EMA Ensemble Downside
+2026-06-22,14,MCX,Financial Services,100,-0.87,-13.62,7.43,40.9,41.73,Very High Vol,EMA Ensemble Downside
+2026-06-22,15,TATASTEEL,Metals & Mining,100,0.86,-4.61,1.81,15.1,29.94,High Vol,EMA Ensemble Downside
+2026-06-22,16,COLPAL,Fast Moving Consumer Goods,100,-3.68,-8.45,2.54,-8.43,27.22,High Vol,EMA Ensemble Downside
+2026-06-22,17,PERSISTENT,Information Technology,100,-0.61,-3.16,7.31,-22.82,34.83,High Vol,EMA Ensemble Downside
+2026-06-22,18,TATAELXSI,Information Technology,100,1.16,-2.43,0.29,-18.48,36.27,Very High Vol,EMA Ensemble Downside
+2026-06-22,19,TATACONSUM,Fast Moving Consumer Goods,100,1.14,-6.86,3.24,-3.84,25.03,High Vol,EMA Ensemble Downside
+2026-06-22,20,DABUR,Fast Moving Consumer Goods,100,-1.61,-5.51,-6.71,-15.07,25.41,High Vol,EMA Ensemble Downside
