@@ -1,3 +1,6 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-30,1,LICI,Financial Services,100,-2.43,4.93,-43.11,-49.65,77.08,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-06-30,2,TRENT,Consumer Services,0,3.21,-22.29,-2.47,-21.97,60.18,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-01,1,LICI,Financial Services,100,-1.24,7.37,-44.35,-49.18,77.09,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-01,2,TRENT,Consumer Services,30,4.69,-20.85,-5.42,-21.46,60.18,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-01,3,HAVELLS,Consumer Durables,27,1.19,3.99,-6.28,-16.68,27.95,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-01,4,BRITANNIA,Fast Moving Consumer Goods,26,0.4,2.03,-6.82,-13.18,20.64,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-01,5,SBILIFE,Financial Services,0,0.26,-1.19,-3.29,-11.55,23.08,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
