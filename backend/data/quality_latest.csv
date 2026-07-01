@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-30,1,BSE,Financial Services,100,-4.14,-6.77,37.77,39.28,39.54,Very High Vol,Quality Factor
-2026-06-30,2,ADANIENT,Metals & Mining,93,-0.77,3.36,67.01,34.13,41.16,Very High Vol,Quality Factor
-2026-06-30,3,SUZLON,Capital Goods,86,-0.69,3.35,43.52,10.07,36.88,Very High Vol,Quality Factor
-2026-06-30,5,DIXON,Consumer Durables,71,-3.37,3.44,17.16,-7.2,44.3,Very High Vol,Quality Factor
-2026-06-30,9,MCX,Financial Services,43,-1.16,-3.97,17.29,31.1,41.52,Very High Vol,Quality Factor
-2026-06-30,10,TRENT,Consumer Services,36,3.21,-22.29,-2.47,-21.97,60.18,Very High Vol,Quality Factor
-2026-06-30,11,LUPIN,Healthcare,29,3.38,6.67,3.74,13.77,20.17,Medium Vol,Quality Factor
-2026-06-30,12,INOXWIND,Capital Goods,21,-2.98,-3.12,15.67,-28.8,45.66,Very High Vol,Quality Factor
-2026-06-30,13,MAXHEALTH,Healthcare,14,3.12,17.01,16.51,4.79,26.46,High Vol,Quality Factor
-2026-06-30,14,KFINTECH,Financial Services,7,-2.76,2.57,-2.92,-18.69,34.21,High Vol,Quality Factor
+2026-07-01,1,BSE,Financial Services,100,0.06,-3.01,36.46,44.08,39.54,Very High Vol,Quality Factor
+2026-07-01,2,ADANIENT,Metals & Mining,93,6.1,8.05,66.63,39.79,41.4,Very High Vol,Quality Factor
+2026-07-01,3,SUZLON,Capital Goods,86,0.1,8.2,38.04,8.82,36.91,Very High Vol,Quality Factor
+2026-07-01,5,DIXON,Consumer Durables,71,0.2,4.3,14.8,-6.83,44.3,Very High Vol,Quality Factor
+2026-07-01,9,MCX,Financial Services,43,4.63,2.47,20.16,36.78,41.93,Very High Vol,Quality Factor
+2026-07-01,10,TRENT,Consumer Services,36,4.69,-20.85,-5.42,-21.46,60.18,Very High Vol,Quality Factor
+2026-07-01,11,LUPIN,Healthcare,29,1.68,5.95,2.13,13.44,20.19,Medium Vol,Quality Factor
+2026-07-01,12,INOXWIND,Capital Goods,21,-0.89,7.17,9.68,-29.31,45.65,Very High Vol,Quality Factor
+2026-07-01,13,MAXHEALTH,Healthcare,14,5.74,21.47,15.35,6.02,26.49,High Vol,Quality Factor
+2026-07-01,14,KFINTECH,Financial Services,7,-0.8,4.27,-5.65,-19.98,34.09,High Vol,Quality Factor
