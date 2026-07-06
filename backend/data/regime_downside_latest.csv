@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-06-30,1,VEDL,Metals & Mining,100,-8.21,-20.38,-56.91,-52.06,101.78,Very High Vol,EMA Ensemble Downside
-2026-06-30,2,NATIONALUM,Metals & Mining,100,-10.15,-19.99,-4.24,16.98,47.31,Very High Vol,EMA Ensemble Downside
-2026-06-30,3,PERSISTENT,Information Technology,100,-10.99,-16.71,-11.95,-34.08,38.0,Very High Vol,EMA Ensemble Downside
-2026-06-30,4,INFY,Information Technology,100,-6.1,-13.83,-21.74,-40.79,32.97,High Vol,EMA Ensemble Downside
-2026-06-30,5,ASTRAL,Capital Goods,100,-14.26,-15.37,-16.23,-5.15,34.23,High Vol,EMA Ensemble Downside
-2026-06-30,6,ONGC,Oil Gas & Consumable Fuels,100,-4.3,-11.49,-12.37,0.31,29.95,High Vol,EMA Ensemble Downside
-2026-06-30,7,SUPREMEIND,Capital Goods,100,-11.98,-11.02,-15.89,-5.53,28.14,High Vol,EMA Ensemble Downside
-2026-06-30,8,HINDZINC,Metals & Mining,100,-6.99,-15.77,7.26,-12.09,44.1,Very High Vol,EMA Ensemble Downside
-2026-06-30,9,PIIND,Chemicals,100,-8.93,-7.92,-7.39,-21.79,31.6,High Vol,EMA Ensemble Downside
-2026-06-30,10,JINDALSTEL,Metals & Mining,100,-6.35,-12.19,-5.4,5.79,31.9,High Vol,EMA Ensemble Downside
-2026-06-30,11,HINDALCO,Metals & Mining,100,-5.68,-15.1,11.93,10.65,32.97,High Vol,EMA Ensemble Downside
-2026-06-30,12,WIPRO,Information Technology,100,-5.43,-16.58,-9.72,-37.51,29.11,High Vol,EMA Ensemble Downside
-2026-06-30,13,KPITTECH,Information Technology,100,-11.22,-13.01,0.98,-45.37,37.1,Very High Vol,EMA Ensemble Downside
-2026-06-30,14,UPL,Chemicals,100,-5.66,-11.41,-7.94,-26.44,37.87,Very High Vol,EMA Ensemble Downside
-2026-06-30,15,OIL,Oil Gas & Consumable Fuels,100,-1.33,-12.43,-12.76,2.7,38.42,Very High Vol,EMA Ensemble Downside
-2026-06-30,16,IRFC,Financial Services,100,-10.28,-7.16,-2.52,-22.62,36.19,Very High Vol,EMA Ensemble Downside
-2026-06-30,17,TATASTEEL,Metals & Mining,100,-5.48,-9.6,-1.43,11.13,30.2,High Vol,EMA Ensemble Downside
-2026-06-30,18,TCS,Information Technology,100,-4.53,-10.07,-15.31,-38.9,30.27,High Vol,EMA Ensemble Downside
-2026-06-30,19,SAIL,Metals & Mining,100,-0.78,-15.11,19.05,33.39,40.94,Very High Vol,EMA Ensemble Downside
-2026-06-30,20,TATAELXSI,Information Technology,100,-6.94,-10.63,-8.38,-29.84,34.73,High Vol,EMA Ensemble Downside
+2026-07-06,1,KPITTECH,Information Technology,100,-21.65,-27.81,-17.25,-53.04,43.83,Very High Vol,EMA Ensemble Downside
+2026-07-06,2,TATAELXSI,Information Technology,100,-8.08,-14.82,-11.35,-31.17,35.95,Very High Vol,EMA Ensemble Downside
+2026-07-06,3,VEDL,Metals & Mining,100,-0.9,-13.89,-58.36,-52.45,101.78,Very High Vol,EMA Ensemble Downside
+2026-07-06,4,ASTRAL,Capital Goods,100,1.54,-10.35,-11.55,1.24,34.29,High Vol,EMA Ensemble Downside
+2026-07-06,5,LICI,Financial Services,100,-0.5,7.64,-42.48,-49.05,77.09,Very High Vol,EMA Ensemble Downside
+2026-07-06,6,POWERINDIA,Capital Goods,100,-7.48,-11.4,29.1,75.97,46.29,Very High Vol,EMA Ensemble Downside
+2026-07-06,7,BANKBARODA,Financial Services,100,-8.38,-7.87,-0.83,-13.09,32.82,High Vol,EMA Ensemble Downside
+2026-07-06,8,SUPREMEIND,Capital Goods,100,1.25,-11.22,-11.6,-1.28,28.36,High Vol,EMA Ensemble Downside
+2026-07-06,9,NATIONALUM,Metals & Mining,100,1.05,-15.21,-12.12,16.67,47.37,Very High Vol,EMA Ensemble Downside
+2026-07-06,10,JINDALSTEL,Metals & Mining,100,-0.81,-11.5,-6.85,6.97,32.13,High Vol,EMA Ensemble Downside
+2026-07-06,11,SAIL,Metals & Mining,100,-3.42,-14.23,8.61,26.21,41.1,Very High Vol,EMA Ensemble Downside
+2026-07-06,12,INDUSTOWER,Telecommunication,100,-2.05,-10.2,-8.67,-8.45,26.51,High Vol,EMA Ensemble Downside
+2026-07-06,13,IRFC,Financial Services,100,-0.41,-6.06,-1.9,-28.58,31.84,High Vol,EMA Ensemble Downside
+2026-07-06,14,INFY,Information Technology,100,0.53,-13.24,-18.3,-36.63,34.09,High Vol,EMA Ensemble Downside
+2026-07-06,15,TATAPOWER,Power,100,-2.32,-8.09,-0.7,0.36,24.83,Medium Vol,EMA Ensemble Downside
+2026-07-06,16,INDIANB,Financial Services,100,-3.41,-6.01,-11.39,0.31,37.02,Very High Vol,EMA Ensemble Downside
+2026-07-06,17,WAAREEENER,Capital Goods,100,-0.34,-6.36,-6.89,-3.5,42.46,Very High Vol,EMA Ensemble Downside
+2026-07-06,18,HINDZINC,Metals & Mining,100,2.83,-10.52,3.03,-12.64,43.82,Very High Vol,EMA Ensemble Downside
+2026-07-06,19,HINDALCO,Metals & Mining,100,1.72,-12.9,8.38,13.34,33.28,High Vol,EMA Ensemble Downside
+2026-07-06,20,TORNTPOWER,Power,100,-4.28,-5.74,1.51,5.68,36.52,Very High Vol,EMA Ensemble Downside
