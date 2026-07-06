@@ -1,11 +1,11 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-03,1,BSE,Financial Services,100,-1.43,-3.77,42.22,44.08,39.58,Very High Vol,Quality Factor
-2026-07-03,2,ADANIENT,Metals & Mining,93,5.73,9.79,82.63,44.05,41.37,Very High Vol,Quality Factor
-2026-07-03,3,SUZLON,Capital Goods,86,-0.47,4.54,43.76,6.9,36.99,Very High Vol,Quality Factor
-2026-07-03,5,DIXON,Consumer Durables,71,3.69,10.95,28.77,1.04,44.4,Very High Vol,Quality Factor
-2026-07-03,9,MCX,Financial Services,43,-0.63,-0.69,17.77,27.31,42.28,Very High Vol,Quality Factor
-2026-07-03,10,TRENT,Consumer Services,36,3.87,-21.54,1.36,-22.05,60.1,Very High Vol,Quality Factor
-2026-07-03,11,LUPIN,Healthcare,29,5.65,9.5,7.01,17.21,20.65,Medium Vol,Quality Factor
-2026-07-03,12,INOXWIND,Capital Goods,21,-1.7,6.01,16.57,-30.4,45.74,Very High Vol,Quality Factor
-2026-07-03,13,MAXHEALTH,Healthcare,14,2.68,19.46,19.86,7.36,26.7,High Vol,Quality Factor
-2026-07-03,14,KFINTECH,Financial Services,7,0.67,5.1,0.4,-20.02,34.15,High Vol,Quality Factor
+2026-07-06,1,BSE,Financial Services,100,-1.48,-5.72,32.61,44.68,39.56,Very High Vol,Quality Factor
+2026-07-06,2,ADANIENT,Metals & Mining,93,8.24,7.86,74.04,45.54,41.32,Very High Vol,Quality Factor
+2026-07-06,3,SUZLON,Capital Goods,86,-3.04,-0.27,34.9,5.2,37.14,Very High Vol,Quality Factor
+2026-07-06,5,DIXON,Consumer Durables,71,12.7,15.81,29.74,12.2,45.07,Very High Vol,Quality Factor
+2026-07-06,9,MCX,Financial Services,43,-6.57,-5.89,10.26,24.49,42.53,Very High Vol,Quality Factor
+2026-07-06,10,TRENT,Consumer Services,36,2.62,17.84,-5.18,-20.88,60.08,Very High Vol,Quality Factor
+2026-07-06,11,LUPIN,Healthcare,29,3.42,10.75,9.53,19.67,20.54,Medium Vol,Quality Factor
+2026-07-06,12,INOXWIND,Capital Goods,21,-1.39,1.36,7.97,-30.25,45.73,Very High Vol,Quality Factor
+2026-07-06,13,MAXHEALTH,Healthcare,14,-1.51,17.21,18.1,6.43,26.8,High Vol,Quality Factor
+2026-07-06,14,KFINTECH,Financial Services,7,1.47,3.37,-2.31,-19.54,34.16,High Vol,Quality Factor
