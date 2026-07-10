@@ -1,9 +1,13 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-09,1,ONGC,Oil Gas & Consumable Fuels,100,3.26,-5.93,-15.0,2.4,30.03,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,2,LICI,Financial Services,98,1.47,8.55,-41.01,-48.59,77.23,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,3,NATIONALUM,Metals & Mining,83,5.19,-8.96,-15.12,11.09,47.03,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,4,TORNTPOWER,Power,75,1.48,-0.9,1.1,6.62,36.42,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,5,BRITANNIA,Fast Moving Consumer Goods,33,-0.23,4.97,-3.26,-10.78,21.26,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,6,OIL,Oil Gas & Consumable Fuels,32,0.68,-11.11,-12.21,-1.05,38.19,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,7,MUTHOOTFIN,Financial Services,11,3.65,2.22,-5.68,-20.36,42.76,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-09,8,JUBLFOOD,Consumer Services,0,-0.52,1.55,3.92,-22.38,36.4,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,1,ONGC,Oil Gas & Consumable Fuels,100,2.99,-2.76,-14.2,1.45,29.97,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,2,LICI,Financial Services,92,2.98,11.9,-44.18,-48.53,77.23,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,3,TORNTPOWER,Power,74,3.87,1.45,-2.0,1.43,35.61,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,4,NATIONALUM,Metals & Mining,73,2.09,-5.66,-11.32,7.43,46.56,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,5,TATASTEEL,Metals & Mining,68,0.73,-4.07,-6.36,4.54,30.01,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,6,TATACONSUM,Fast Moving Consumer Goods,45,-0.43,0.35,4.06,-5.02,26.19,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,7,BRITANNIA,Fast Moving Consumer Goods,33,-0.48,3.52,-4.32,-10.55,21.25,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,8,OIL,Oil Gas & Consumable Fuels,31,0.68,-0.56,-7.41,-0.91,38.2,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,9,MUTHOOTFIN,Financial Services,11,2.44,7.96,-10.67,-18.1,42.9,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,10,BLUESTARCO,Consumer Durables,9,4.98,5.08,2.63,-8.49,35.2,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,11,JSWSTEEL,Metals & Mining,1,1.24,-1.92,4.28,5.48,25.73,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-10,12,INDIANB,Financial Services,0,8.98,4.47,-8.97,1.08,38.92,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
