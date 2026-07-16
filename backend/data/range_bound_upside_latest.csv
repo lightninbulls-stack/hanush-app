@@ -1,11 +1,10 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-15,1,ONGC,Oil Gas & Consumable Fuels,100,0.07,1.45,-14.04,3.4,29.86,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,2,LICI,Financial Services,87,2.77,8.39,-45.28,-48.38,77.23,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,3,TORNTPOWER,Power,86,2.86,3.7,-2.21,3.17,35.8,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,4,TATAPOWER,Power,60,2.36,-5.74,-7.0,0.04,24.49,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,5,NATIONALUM,Metals & Mining,41,3.36,-5.45,-13.53,2.52,46.19,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,6,MCX,Financial Services,37,5.49,-0.1,4.59,25.49,43.02,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,7,NMDC,Metals & Mining,28,1.37,-4.05,-1.07,-1.47,33.1,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,8,VOLTAS,Consumer Durables,18,9.88,3.84,1.16,-8.64,35.87,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,9,OIL,Oil Gas & Consumable Fuels,13,1.59,4.79,-8.37,4.49,38.17,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-15,10,CONCOR,Services,0,9.19,7.3,2.36,-7.49,30.39,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,1,LICI,Financial Services,100,-0.03,6.64,-47.95,-47.68,77.21,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,2,TORNTPOWER,Power,99,0.41,0.87,-5.71,4.49,35.65,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,3,ONGC,Oil Gas & Consumable Fuels,83,1.27,-0.58,-14.2,6.62,29.5,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,4,MCX,Financial Services,71,1.08,-2.42,-1.25,26.2,42.94,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,5,ASTRAL,Capital Goods,38,4.55,-11.96,-15.57,-6.73,33.93,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,6,NATIONALUM,Metals & Mining,34,1.42,-3.33,-16.38,6.28,45.62,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,7,VOLTAS,Consumer Durables,21,8.23,3.49,-2.02,-6.48,35.7,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,8,PIIND,Chemicals,8,1.32,-8.55,-13.49,-18.91,32.29,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-16,9,CONCOR,Services,0,7.26,5.82,0.22,-5.44,30.16,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
