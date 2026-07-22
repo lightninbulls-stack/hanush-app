@@ -1,11 +1,10 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-21,1,JINDALSTEL,Metals & Mining,100,0.44,-8.17,-18.87,3.35,30.96,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,2,TATAPOWER,Power,53,0.99,-5.19,-12.03,3.53,24.19,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,3,TORNTPOWER,Power,50,-2.01,-0.17,-10.61,6.64,35.67,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,4,ASTRAL,Capital Goods,39,4.17,-8.24,-11.08,-1.63,33.92,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,5,COALINDIA,Oil Gas & Consumable Fuels,23,0.15,-4.44,-2.38,0.55,25.9,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,6,PIIND,Chemicals,16,5.7,-4.34,-11.7,-17.91,32.22,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,7,CONCOR,Services,9,-0.3,4.22,-1.88,-5.0,30.4,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,8,HINDZINC,Metals & Mining,8,1.23,-5.17,-9.47,-15.15,42.24,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,9,JSWSTEEL,Metals & Mining,3,1.58,-1.58,-0.56,7.58,25.5,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-21,10,BRITANNIA,Fast Moving Consumer Goods,0,3.76,5.52,-3.82,-7.37,21.04,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,1,JINDALSTEL,Metals & Mining,100,0.27,-7.69,-18.92,0.41,30.68,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,2,NTPC,Power,85,1.79,-4.51,-11.53,0.4,21.31,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,3,TORNTPOWER,Power,53,-0.56,-2.85,-11.62,6.54,35.67,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,4,ASTRAL,Capital Goods,44,5.22,-8.15,-9.59,-2.17,33.87,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,5,TATAPOWER,Power,40,-0.62,-6.75,-13.19,3.03,24.21,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,6,PIIND,Chemicals,13,2.99,-3.85,-10.71,-17.95,32.22,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,7,CONCOR,Services,8,-2.33,1.64,-4.52,-7.33,30.53,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,8,HINDZINC,Metals & Mining,6,1.45,-6.59,-9.02,-18.16,41.86,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-22,9,JSWSTEEL,Metals & Mining,0,3.26,-1.21,-0.99,7.2,25.5,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
