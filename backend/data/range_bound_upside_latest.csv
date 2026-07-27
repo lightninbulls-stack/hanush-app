@@ -1,6 +1,8 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-24,1,NTPC,Power,100,1.57,-2.76,-13.69,0.25,21.3,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-24,2,PIIND,Chemicals,24,4.09,-0.57,-11.02,-16.42,32.32,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-24,3,HINDZINC,Metals & Mining,10,2.62,-1.85,-10.16,-16.59,41.74,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-24,4,ASTRAL,Capital Goods,7,6.55,-4.46,-6.78,0.26,34.36,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-24,5,JSWSTEEL,Metals & Mining,0,0.28,0.78,-1.29,4.51,25.61,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,1,JINDALSTEL,Metals & Mining,100,3.14,0.59,-15.15,0.96,30.91,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,2,TRENT,Consumer Services,73,0.42,-8.64,-31.62,-25.53,61.13,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,3,NTPC,Power,72,1.02,-0.36,-12.7,2.17,21.32,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,4,TATACONSUM,Fast Moving Consumer Goods,52,1.42,-2.11,-5.67,-6.17,25.97,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,5,PIIND,Chemicals,14,3.21,2.15,-10.99,-14.85,32.27,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,6,HINDZINC,Metals & Mining,4,1.34,2.24,-10.0,-19.8,41.41,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-27,7,ASTRAL,Capital Goods,0,4.99,-1.42,-6.23,1.86,34.27,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
