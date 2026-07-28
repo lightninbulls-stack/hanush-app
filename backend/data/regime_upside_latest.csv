@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-27,1,KALYANKJIL,Consumer Durables,100,-0.95,49.44,39.3,23.05,59.51,Very High Vol,EMA Ensemble Upside
-2026-07-27,2,HCLTECH,Information Technology,100,6.11,17.73,7.7,-24.52,34.88,High Vol,EMA Ensemble Upside
-2026-07-27,3,LAURUSLABS,Healthcare,100,9.91,18.17,53.88,61.23,33.32,High Vol,EMA Ensemble Upside
-2026-07-27,4,BAJAJ-AUTO,Automobile and Auto Components,100,6.28,13.62,16.79,18.6,27.1,High Vol,EMA Ensemble Upside
-2026-07-27,5,SONACOMS,Automobile and Auto Components,100,0.89,16.42,27.63,61.04,34.48,High Vol,EMA Ensemble Upside
-2026-07-27,6,MANAPPURAM,Financial Services,100,6.75,12.98,24.34,14.44,35.97,Very High Vol,EMA Ensemble Upside
-2026-07-27,7,PPLPHARMA,Healthcare,100,7.37,14.53,16.06,16.86,39.59,Very High Vol,EMA Ensemble Upside
-2026-07-27,8,TVSMOTOR,Automobile and Auto Components,100,7.97,8.59,11.13,4.71,32.9,High Vol,EMA Ensemble Upside
-2026-07-27,9,FEDERALBNK,Financial Services,100,1.64,10.01,21.67,27.46,26.36,High Vol,EMA Ensemble Upside
-2026-07-27,10,LODHA,Realty,100,0.87,26.52,42.58,14.82,44.32,Very High Vol,EMA Ensemble Upside
-2026-07-27,11,UNITDSPR,Fast Moving Consumer Goods,100,6.21,7.01,6.47,11.87,27.82,High Vol,EMA Ensemble Upside
-2026-07-27,12,TECHM,Information Technology,100,-0.09,9.6,15.94,-8.34,32.69,High Vol,EMA Ensemble Upside
-2026-07-27,13,DIVISLAB,Healthcare,100,1.31,10.43,16.54,20.75,22.19,Medium Vol,EMA Ensemble Upside
-2026-07-27,14,NAUKRI,Consumer Services,100,0.24,22.01,21.25,-9.34,34.72,High Vol,EMA Ensemble Upside
-2026-07-27,15,TCS,Information Technology,100,1.98,9.59,-4.23,-27.44,32.53,High Vol,EMA Ensemble Upside
-2026-07-27,16,PERSISTENT,Information Technology,100,1.53,8.81,10.97,-18.17,40.37,Very High Vol,EMA Ensemble Upside
-2026-07-27,17,NUVAMA,Financial Services,100,3.38,9.61,42.39,31.66,41.2,Very High Vol,EMA Ensemble Upside
-2026-07-27,18,ADANIENSOL,Power,100,-1.51,12.97,20.63,87.51,46.05,Very High Vol,EMA Ensemble Upside
-2026-07-27,19,IDFCFIRSTB,Financial Services,100,3.79,7.14,26.25,2.12,38.7,Very High Vol,EMA Ensemble Upside
-2026-07-27,20,TITAN,Consumer Durables,100,2.08,10.46,7.49,14.38,27.66,High Vol,EMA Ensemble Upside
+2026-07-28,1,KALYANKJIL,Consumer Durables,100,5.43,61.0,47.07,34.75,60.39,Very High Vol,EMA Ensemble Upside
+2026-07-28,2,LAURUSLABS,Healthcare,100,10.4,17.24,56.55,69.86,33.2,High Vol,EMA Ensemble Upside
+2026-07-28,3,LODHA,Realty,100,8.54,38.51,47.98,32.89,44.97,Very High Vol,EMA Ensemble Upside
+2026-07-28,4,HCLTECH,Information Technology,100,6.38,19.61,7.36,-21.85,34.92,High Vol,EMA Ensemble Upside
+2026-07-28,5,BAJAJ-AUTO,Automobile and Auto Components,100,9.33,18.11,17.72,23.9,26.9,High Vol,EMA Ensemble Upside
+2026-07-28,6,PPLPHARMA,Healthcare,100,4.66,16.02,14.6,22.57,39.16,Very High Vol,EMA Ensemble Upside
+2026-07-28,7,TVSMOTOR,Automobile and Auto Components,100,5.31,15.53,12.41,10.45,32.99,High Vol,EMA Ensemble Upside
+2026-07-28,8,MANAPPURAM,Financial Services,100,2.7,14.52,25.35,19.68,35.49,Very High Vol,EMA Ensemble Upside
+2026-07-28,9,TCS,Information Technology,100,7.96,14.3,-2.03,-22.7,33.11,High Vol,EMA Ensemble Upside
+2026-07-28,10,UNITDSPR,Fast Moving Consumer Goods,100,8.48,12.47,8.42,14.42,27.91,High Vol,EMA Ensemble Upside
+2026-07-28,11,TECHM,Information Technology,100,3.74,14.05,17.13,-2.58,32.98,High Vol,EMA Ensemble Upside
+2026-07-28,12,COFORGE,Information Technology,100,12.85,13.05,40.22,-0.45,46.25,Very High Vol,EMA Ensemble Upside
+2026-07-28,13,NAUKRI,Consumer Services,100,2.36,25.27,23.5,-5.25,35.06,Very High Vol,EMA Ensemble Upside
+2026-07-28,14,KFINTECH,Financial Services,100,9.55,12.02,1.36,-3.38,38.5,Very High Vol,EMA Ensemble Upside
+2026-07-28,15,PERSISTENT,Information Technology,100,4.01,26.29,12.68,-14.41,40.57,Very High Vol,EMA Ensemble Upside
+2026-07-28,16,SONACOMS,Automobile and Auto Components,100,-2.7,14.86,21.12,59.88,34.52,High Vol,EMA Ensemble Upside
+2026-07-28,17,FEDERALBNK,Financial Services,100,0.34,10.25,21.49,30.74,26.11,High Vol,EMA Ensemble Upside
+2026-07-28,18,ETERNAL,Consumer Services,100,7.59,18.87,20.69,14.37,39.61,Very High Vol,EMA Ensemble Upside
+2026-07-28,19,CONCOR,Services,100,6.25,10.91,1.59,4.93,31.87,High Vol,EMA Ensemble Upside
+2026-07-28,20,IDFCFIRSTB,Financial Services,100,5.01,9.65,22.03,4.46,38.68,Very High Vol,EMA Ensemble Upside
