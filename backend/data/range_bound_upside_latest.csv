@@ -1,8 +1,10 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-28,1,JINDALSTEL,Metals & Mining,100,0.93,-1.28,-17.51,1.4,30.88,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,2,SAIL,Metals & Mining,84,1.08,-5.35,-9.96,14.06,39.26,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,3,TRENT,Consumer Services,75,1.24,-10.05,-31.22,-23.6,61.01,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,4,ICICIGI,Financial Services,68,3.68,-4.77,-4.9,-9.56,27.02,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,5,TATAELXSI,Information Technology,27,3.47,-10.01,-14.49,-33.51,34.08,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,6,ASTRAL,Capital Goods,8,3.98,7.56,-4.14,5.7,33.95,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-07-28,7,PIIND,Chemicals,0,0.92,5.73,-12.23,-14.16,32.19,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,1,PATANJALI,Fast Moving Consumer Goods,100,6.25,-13.11,-23.0,-29.28,29.47,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,2,HINDALCO,Metals & Mining,77,1.31,0.61,-10.41,2.48,32.32,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,3,JINDALSTEL,Metals & Mining,49,4.18,2.7,-13.97,4.54,31.21,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,4,TATASTEEL,Metals & Mining,45,0.4,-0.42,-12.92,1.55,29.39,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,5,SAIL,Metals & Mining,44,5.54,-1.46,-7.9,16.74,39.47,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,6,TRENT,Consumer Services,40,4.08,-8.45,-29.35,-20.17,61.08,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,7,NMDC,Metals & Mining,22,3.01,0.81,-5.56,9.17,31.8,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,8,TATAELXSI,Information Technology,15,7.83,-4.08,-11.09,-31.31,34.31,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-07-29,9,PIIND,Chemicals,0,2.09,7.78,-11.1,-11.53,32.25,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
