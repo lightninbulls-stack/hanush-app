@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-31,1,LAURUSLABS,Healthcare,100,13.43,18.86,64.97,78.69,32.45,High Vol,—
-2026-07-31,2,ADANIENSOL,Power,97,-3.34,5.68,22.59,102.46,42.41,Very High Vol,—
-2026-07-31,3,POWERINDIA,Capital Goods,88,3.56,-4.74,-4.1,94.99,45.2,Very High Vol,—
-2026-07-31,4,KALYANKJIL,Consumer Durables,87,6.81,57.85,48.42,66.83,57.38,Very High Vol,—
-2026-07-31,5,ADANIGREEN,Power,83,-0.87,-11.07,12.7,78.96,44.77,Very High Vol,—
-2026-07-31,6,SONACOMS,Automobile and Auto Components,78,7.17,16.17,26.7,68.69,34.37,High Vol,—
-2026-07-31,7,BHEL,Capital Goods,78,-2.47,1.26,15.49,67.84,39.39,Very High Vol,—
-2026-07-31,8,BHARATFORG,Automobile and Auto Components,76,2.24,2.37,16.91,56.15,32.24,High Vol,—
-2026-07-31,9,ADANIENT,Metals & Mining,74,-0.56,-5.29,24.96,61.44,38.39,Very High Vol,—
-2026-07-31,10,CGPOWER,Capital Goods,73,-0.5,-10.01,6.15,57.24,39.12,Very High Vol,—
-2026-07-31,11,OFSS,Information Technology,71,5.01,1.82,15.01,40.6,37.49,Very High Vol,—
-2026-07-31,12,PREMIERENE,Capital Goods,69,0.28,-2.66,0.4,49.64,34.1,High Vol,—
-2026-07-31,13,NYKAA,Consumer Services,68,3.28,6.18,25.93,42.05,28.87,High Vol,—
-2026-07-31,14,EXIDEIND,Automobile and Auto Components,68,1.53,7.26,24.75,38.31,35.71,Very High Vol,—
-2026-07-31,15,SOLARINDS,Chemicals,65,-0.56,-1.44,19.12,45.29,36.08,Very High Vol,—
-2026-07-31,16,DIXON,Consumer Durables,64,1.47,13.55,25.81,35.61,45.27,Very High Vol,—
-2026-07-31,17,CUMMINSIND,Capital Goods,64,-1.46,-1.07,4.8,40.42,33.08,High Vol,—
-2026-07-31,18,NUVAMA,Financial Services,64,-8.9,-0.84,35.98,35.36,41.16,Very High Vol,—
-2026-07-31,19,GODREJPROP,Realty,63,3.8,6.96,14.74,36.63,38.54,Very High Vol,—
-2026-07-31,20,MOTHERSON,Automobile and Auto Components,63,3.57,2.14,24.37,39.07,39.63,Very High Vol,—
+2026-08-31,1,LAURUSLABS,Healthcare,100,5.72,17.45,55.3,81.1,32.33,High Vol,—
+2026-08-31,2,OFSS,Information Technology,96,2.19,0.75,16.46,41.54,37.52,Very High Vol,—
+2026-08-31,3,ADANIENSOL,Power,96,-3.31,4.98,17.78,93.97,42.05,Very High Vol,—
+2026-08-31,4,BHEL,Capital Goods,90,-1.15,7.18,9.04,65.99,39.33,Very High Vol,—
+2026-08-31,5,COFORGE,Information Technology,85,15.68,20.77,53.53,6.23,46.25,Very High Vol,—
+2026-08-31,6,KALYANKJIL,Consumer Durables,85,7.69,59.14,47.11,64.81,57.4,Very High Vol,—
+2026-08-31,7,ADANIGREEN,Power,84,-0.34,-10.36,8.08,74.57,44.59,Very High Vol,—
+2026-08-31,8,SONACOMS,Automobile and Auto Components,84,8.89,18.92,36.41,60.93,33.17,High Vol,—
+2026-08-31,9,ADANIENT,Metals & Mining,80,1.03,-4.49,23.43,56.57,37.87,Very High Vol,—
+2026-08-31,10,NUVAMA,Financial Services,80,-7.87,-6.45,32.83,39.56,40.59,Very High Vol,—
+2026-08-31,11,PREMIERENE,Capital Goods,78,-1.85,-2.49,-1.39,44.25,33.79,High Vol,—
+2026-08-31,12,SOLARINDS,Chemicals,77,0.17,0.78,20.7,46.16,36.11,Very High Vol,—
+2026-08-31,13,DIVISLAB,Healthcare,74,15.79,27.05,29.69,41.76,24.8,Medium Vol,—
+2026-08-31,14,EXIDEIND,Automobile and Auto Components,73,4.15,6.75,23.85,37.57,35.75,Very High Vol,—
+2026-08-31,15,PNBHOUSING,Financial Services,72,1.07,2.41,4.59,32.06,34.71,High Vol,—
+2026-08-31,16,BSE,Financial Services,72,1.08,-6.33,-3.67,29.47,39.34,Very High Vol,—
+2026-08-31,17,DIXON,Consumer Durables,72,0.59,11.53,21.77,36.41,45.23,Very High Vol,—
+2026-08-31,18,TATATECH,Information Technology,71,7.08,6.77,29.23,17.26,37.13,Very High Vol,—
+2026-08-31,19,NYKAA,Consumer Services,71,5.55,11.15,30.22,45.84,29.2,High Vol,—
+2026-08-31,20,ANGELONE,Financial Services,70,-0.72,-14.27,-1.85,18.75,46.37,Very High Vol,—
