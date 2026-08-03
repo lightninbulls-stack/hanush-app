@@ -1,12 +1,12 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-07-31,1,BSE,Financial Services,100,2.72,-4.92,0.16,35.78,39.38,Very High Vol,Quality Factor
-2026-07-31,2,ADANIENT,Metals & Mining,93,-0.56,-5.29,24.96,61.44,38.39,Very High Vol,Quality Factor
-2026-07-31,3,SUZLON,Capital Goods,86,-8.17,-16.75,-13.62,5.05,38.22,Very High Vol,Quality Factor
-2026-07-31,5,DIXON,Consumer Durables,71,1.47,13.55,25.81,35.61,45.27,Very High Vol,Quality Factor
-2026-07-31,6,ETERNAL,Consumer Services,64,8.02,8.13,22.43,16.91,37.93,Very High Vol,Quality Factor
-2026-07-31,9,MCX,Financial Services,43,-1.38,-7.9,-9.4,17.98,42.17,Very High Vol,Quality Factor
-2026-07-31,10,TRENT,Consumer Services,36,3.99,-9.4,-27.47,-19.97,61.03,Very High Vol,Quality Factor
-2026-07-31,11,LUPIN,Healthcare,29,1.88,0.64,4.76,13.0,21.36,Medium Vol,Quality Factor
-2026-07-31,12,INOXWIND,Capital Goods,21,1.52,-13.14,-22.6,-24.55,45.09,Very High Vol,Quality Factor
-2026-07-31,13,MAXHEALTH,Healthcare,14,1.68,-2.56,10.62,10.8,27.25,High Vol,Quality Factor
-2026-07-31,14,KFINTECH,Financial Services,7,9.34,7.92,4.71,-7.93,38.34,Very High Vol,Quality Factor
+2026-08-03,1,BSE,Financial Services,100,1.08,-6.33,-3.67,29.47,39.34,Very High Vol,Quality Factor
+2026-08-03,2,ADANIENT,Metals & Mining,93,1.03,-4.49,23.43,56.57,37.87,Very High Vol,Quality Factor
+2026-08-03,3,SUZLON,Capital Goods,86,-9.5,-15.42,-12.48,5.04,38.22,Very High Vol,Quality Factor
+2026-08-03,5,DIXON,Consumer Durables,71,0.59,11.53,21.77,36.41,45.23,Very High Vol,Quality Factor
+2026-08-03,6,ETERNAL,Consumer Services,64,4.95,10.24,23.26,22.32,37.98,Very High Vol,Quality Factor
+2026-08-03,9,MCX,Financial Services,43,-4.1,-6.11,-9.3,9.27,41.45,Very High Vol,Quality Factor
+2026-08-03,10,TRENT,Consumer Services,36,3.8,-8.7,-26.66,-19.63,61.05,Very High Vol,Quality Factor
+2026-08-03,11,LUPIN,Healthcare,29,-0.71,-3.35,1.88,11.28,21.39,Medium Vol,Quality Factor
+2026-08-03,12,INOXWIND,Capital Goods,21,0.86,-10.34,-23.68,-24.66,45.08,Very High Vol,Quality Factor
+2026-08-03,13,MAXHEALTH,Healthcare,14,-1.27,-4.6,8.78,12.8,27.14,High Vol,Quality Factor
+2026-08-03,14,KFINTECH,Financial Services,7,-0.45,7.38,9.38,-6.99,38.35,Very High Vol,Quality Factor
