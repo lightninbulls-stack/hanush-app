@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-05,1,BANDHANBNK,Financial Services,100,-1.8,-16.89,-18.39,12.15,50.0,Very High Vol,EMA Ensemble Downside
-2026-08-05,2,SUZLON,Capital Goods,100,1.48,-11.46,-11.36,1.5,37.7,Very High Vol,EMA Ensemble Downside
-2026-08-05,3,NUVAMA,Financial Services,100,-8.27,-12.57,18.57,26.01,40.64,Very High Vol,EMA Ensemble Downside
-2026-08-05,4,LICI,Financial Services,100,-7.29,-9.74,-51.32,-52.13,78.03,Very High Vol,EMA Ensemble Downside
-2026-08-05,5,ANGELONE,Financial Services,100,-1.09,-10.9,-5.57,15.59,46.2,Very High Vol,EMA Ensemble Downside
-2026-08-05,6,VBL,Fast Moving Consumer Goods,100,-2.28,-9.76,-14.14,-6.43,32.98,High Vol,EMA Ensemble Downside
-2026-08-05,7,ADANIGREEN,Power,100,0.5,-9.15,2.0,60.69,44.14,Very High Vol,EMA Ensemble Downside
-2026-08-05,8,TORNTPOWER,Power,100,-7.52,-5.44,-23.67,-3.48,34.93,High Vol,EMA Ensemble Downside
-2026-08-05,9,LICHSGFIN,Financial Services,100,-7.48,-5.8,-12.04,-2.03,29.89,High Vol,EMA Ensemble Downside
-2026-08-05,10,IDEA,Telecommunication,100,-1.92,-7.58,13.27,27.36,41.23,Very High Vol,EMA Ensemble Downside
-2026-08-05,11,MCX,Financial Services,100,-4.38,-1.69,-12.6,-3.25,40.15,Very High Vol,EMA Ensemble Downside
-2026-08-05,12,ADANIPORTS,Services,100,-1.15,-7.3,-2.76,19.9,31.86,High Vol,EMA Ensemble Downside
-2026-08-05,13,HDFCBANK,Financial Services,100,-1.76,-11.37,-7.73,-21.43,27.22,High Vol,EMA Ensemble Downside
-2026-08-05,14,TIINDIA,Automobile and Auto Components,100,0.04,-6.41,-4.43,19.89,39.59,Very High Vol,EMA Ensemble Downside
-2026-08-05,15,MUTHOOTFIN,Financial Services,100,-4.17,-7.44,-18.16,-29.32,43.86,Very High Vol,EMA Ensemble Downside
-2026-08-05,16,PHOENIXLTD,Realty,100,1.05,-6.97,4.97,14.44,31.11,High Vol,EMA Ensemble Downside
-2026-08-05,17,WAAREEENER,Capital Goods,100,-1.43,-5.08,-16.37,-1.87,39.29,Very High Vol,EMA Ensemble Downside
-2026-08-05,18,BEL,Capital Goods,100,0.63,-6.95,-11.0,-12.26,24.63,Medium Vol,EMA Ensemble Downside
-2026-08-05,19,SRF,Chemicals,100,-0.16,-6.08,-2.94,-6.39,34.86,High Vol,EMA Ensemble Downside
-2026-08-05,20,DABUR,Fast Moving Consumer Goods,100,-4.54,-8.71,-11.21,-18.9,26.78,High Vol,EMA Ensemble Downside
+2026-08-07,1,NUVAMA,Financial Services,100,-8.93,-15.09,0.69,28.02,40.11,Very High Vol,EMA Ensemble Downside
+2026-08-07,2,LICI,Financial Services,100,-7.23,-10.14,-50.88,-50.88,78.02,Very High Vol,EMA Ensemble Downside
+2026-08-07,3,ANGELONE,Financial Services,100,-2.0,-14.39,-10.43,21.6,45.5,Very High Vol,EMA Ensemble Downside
+2026-08-07,4,SUZLON,Capital Goods,100,0.29,-10.34,-12.41,2.47,37.64,Very High Vol,EMA Ensemble Downside
+2026-08-07,5,BANDHANBNK,Financial Services,100,1.09,-11.93,-14.6,18.48,49.73,Very High Vol,EMA Ensemble Downside
+2026-08-07,6,LICHSGFIN,Financial Services,100,-3.6,-6.59,-13.28,1.59,28.82,High Vol,EMA Ensemble Downside
+2026-08-07,7,BLUESTARCO,Consumer Durables,100,-9.95,-6.29,-10.56,-17.64,36.46,Very High Vol,EMA Ensemble Downside
+2026-08-07,8,TORNTPOWER,Power,100,-4.42,-4.53,-21.67,1.59,34.48,High Vol,EMA Ensemble Downside
+2026-08-07,9,IDEA,Telecommunication,100,-2.15,-9.33,13.26,17.76,37.95,Very High Vol,EMA Ensemble Downside
+2026-08-07,10,ADANIGREEN,Power,100,-0.77,-7.68,1.22,62.62,44.09,Very High Vol,EMA Ensemble Downside
+2026-08-07,11,BSE,Financial Services,100,-5.19,-9.16,-11.52,27.96,39.14,Very High Vol,EMA Ensemble Downside
+2026-08-07,12,VBL,Fast Moving Consumer Goods,100,-0.07,-8.18,-13.14,-5.21,33.01,High Vol,EMA Ensemble Downside
+2026-08-07,13,PHOENIXLTD,Realty,100,0.12,-9.22,3.62,16.18,30.94,High Vol,EMA Ensemble Downside
+2026-08-07,14,UPL,Chemicals,100,-5.18,-1.52,-11.3,-17.97,38.45,Very High Vol,EMA Ensemble Downside
+2026-08-07,15,ADANIPORTS,Services,100,-0.18,-5.92,-3.8,20.7,31.81,High Vol,EMA Ensemble Downside
+2026-08-07,16,HDFCBANK,Financial Services,100,-2.29,-10.59,-6.38,-21.24,27.23,High Vol,EMA Ensemble Downside
+2026-08-07,17,MCX,Financial Services,100,-2.01,-5.29,-14.84,13.62,37.54,Very High Vol,EMA Ensemble Downside
+2026-08-07,18,MUTHOOTFIN,Financial Services,100,-7.36,-5.48,-18.1,-18.25,41.62,Very High Vol,EMA Ensemble Downside
+2026-08-07,19,POWERGRID,Power,100,-4.45,-3.47,-13.49,0.44,21.42,Medium Vol,EMA Ensemble Downside
+2026-08-07,20,DABUR,Fast Moving Consumer Goods,100,-2.72,-7.48,-15.93,-17.84,26.71,High Vol,EMA Ensemble Downside

@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-05,1,TVSMOTOR,Automobile and Auto Components,100,9.31,20.0,23.14,21.89,33.02,High Vol,EMA Ensemble Upside
-2026-08-05,2,KAYNES,Capital Goods,100,7.13,17.67,-9.46,14.57,56.76,Very High Vol,EMA Ensemble Upside
-2026-08-05,3,DIVISLAB,Healthcare,100,7.75,23.87,25.16,38.85,24.66,Medium Vol,EMA Ensemble Upside
-2026-08-05,4,COFORGE,Information Technology,100,3.62,17.2,38.78,5.89,46.24,Very High Vol,EMA Ensemble Upside
-2026-08-05,5,SONACOMS,Automobile and Auto Components,100,13.06,21.36,39.82,64.88,33.43,High Vol,EMA Ensemble Upside
-2026-08-05,6,LAURUSLABS,Healthcare,100,3.01,24.2,55.83,88.53,32.16,High Vol,EMA Ensemble Upside
-2026-08-05,7,PPLPHARMA,Healthcare,100,5.67,18.0,25.18,34.54,38.96,Very High Vol,EMA Ensemble Upside
-2026-08-05,8,ASHOKLEY,Capital Goods,100,12.05,7.82,5.48,-8.79,44.22,Very High Vol,EMA Ensemble Upside
-2026-08-05,9,BAJFINANCE,Financial Services,100,9.9,11.16,18.15,23.92,34.93,High Vol,EMA Ensemble Upside
-2026-08-05,10,HEROMOTOCO,Automobile and Auto Components,100,10.5,13.9,10.06,1.97,29.21,High Vol,EMA Ensemble Upside
-2026-08-05,11,BAJAJFINSV,Financial Services,100,8.4,10.65,13.61,7.08,27.65,High Vol,EMA Ensemble Upside
-2026-08-05,12,JUBLFOOD,Consumer Services,100,10.2,6.61,2.92,-0.7,38.61,Very High Vol,EMA Ensemble Upside
-2026-08-05,13,HCLTECH,Information Technology,100,0.42,15.56,13.53,-21.58,35.19,Very High Vol,EMA Ensemble Upside
-2026-08-05,14,PAYTM,Financial Services,100,7.44,14.69,28.67,22.34,41.11,Very High Vol,EMA Ensemble Upside
-2026-08-05,15,BAJAJ-AUTO,Automobile and Auto Components,100,4.07,16.72,14.35,24.05,27.31,High Vol,EMA Ensemble Upside
-2026-08-05,16,JIOFIN,Financial Services,100,5.0,7.77,3.77,2.93,33.96,High Vol,EMA Ensemble Upside
-2026-08-05,17,SWIGGY,Consumer Services,100,0.89,8.87,3.59,-11.52,42.93,Very High Vol,EMA Ensemble Upside
-2026-08-05,18,SIEMENS,Capital Goods,100,9.02,13.88,3.6,28.54,34.99,High Vol,EMA Ensemble Upside
-2026-08-05,19,TCS,Information Technology,100,-1.37,15.12,-0.92,-23.26,34.02,High Vol,EMA Ensemble Upside
-2026-08-05,20,NIFTYIT,Index,100,0.9,12.4,7.3,-18.29,30.62,High Vol,EMA Ensemble Upside
+2026-08-07,1,TVSMOTOR,Automobile and Auto Components,100,2.96,22.47,20.18,21.81,33.16,High Vol,EMA Ensemble Upside
+2026-08-07,2,SONACOMS,Automobile and Auto Components,100,6.32,21.96,41.21,63.77,33.98,High Vol,EMA Ensemble Upside
+2026-08-07,3,KAYNES,Capital Goods,100,1.36,12.46,-14.45,11.1,56.75,Very High Vol,EMA Ensemble Upside
+2026-08-07,4,PPLPHARMA,Healthcare,100,7.13,21.84,16.51,35.14,38.97,Very High Vol,EMA Ensemble Upside
+2026-08-07,5,TATATECH,Information Technology,100,16.74,22.65,38.33,35.14,39.98,Very High Vol,EMA Ensemble Upside
+2026-08-07,6,COFORGE,Information Technology,100,3.2,20.93,29.82,6.46,46.17,Very High Vol,EMA Ensemble Upside
+2026-08-07,7,LAURUSLABS,Healthcare,100,1.55,22.35,50.15,93.33,32.03,High Vol,EMA Ensemble Upside
+2026-08-07,8,DIVISLAB,Healthcare,100,2.72,21.46,23.31,39.02,24.64,Medium Vol,EMA Ensemble Upside
+2026-08-07,9,ASHOKLEY,Capital Goods,100,6.81,14.38,5.3,-8.69,44.15,Very High Vol,EMA Ensemble Upside
+2026-08-07,10,EXIDEIND,Automobile and Auto Components,100,8.94,15.24,35.27,52.55,36.28,Very High Vol,EMA Ensemble Upside
+2026-08-07,11,JUBLFOOD,Consumer Services,100,11.01,13.31,2.79,-2.0,38.9,Very High Vol,EMA Ensemble Upside
+2026-08-07,12,HEROMOTOCO,Automobile and Auto Components,100,6.29,16.87,7.57,1.81,29.64,High Vol,EMA Ensemble Upside
+2026-08-07,13,HINDZINC,Metals & Mining,100,11.83,14.1,-5.05,-1.16,36.93,Very High Vol,EMA Ensemble Upside
+2026-08-07,14,MOTHERSON,Automobile and Auto Components,100,11.77,18.0,27.62,47.69,41.63,Very High Vol,EMA Ensemble Upside
+2026-08-07,15,KEI,Capital Goods,100,12.02,11.83,9.81,37.26,38.11,Very High Vol,EMA Ensemble Upside
+2026-08-07,16,PAYTM,Financial Services,100,7.34,14.15,21.44,23.07,40.74,Very High Vol,EMA Ensemble Upside
+2026-08-07,17,UNOMINDA,Automobile and Auto Components,100,8.85,11.3,9.0,9.06,35.55,Very High Vol,EMA Ensemble Upside
+2026-08-07,18,KALYANKJIL,Consumer Durables,100,-1.03,36.86,42.81,65.88,58.15,Very High Vol,EMA Ensemble Upside
+2026-08-07,19,NATIONALUM,Metals & Mining,100,8.84,9.01,-5.21,3.06,41.06,Very High Vol,EMA Ensemble Upside
+2026-08-07,20,HCLTECH,Information Technology,100,0.72,17.92,13.2,-19.1,35.22,Very High Vol,EMA Ensemble Upside
