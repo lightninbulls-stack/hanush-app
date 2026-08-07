@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-31,1,LAURUSLABS,Healthcare,100,3.01,24.2,55.83,88.53,32.16,High Vol,—
-2026-08-31,2,OFSS,Information Technology,99,2.91,5.97,21.3,50.04,37.49,Very High Vol,—
-2026-08-31,3,ADANIENSOL,Power,94,-1.55,-0.55,16.68,79.63,41.58,Very High Vol,—
-2026-08-31,4,BHEL,Capital Goods,89,1.79,9.55,6.85,58.31,38.83,Very High Vol,—
-2026-08-31,5,SONACOMS,Automobile and Auto Components,86,13.06,21.36,39.82,64.88,33.43,High Vol,—
-2026-08-31,6,COFORGE,Information Technology,84,3.62,17.2,38.78,5.89,46.24,Very High Vol,—
-2026-08-31,7,ADANIGREEN,Power,81,0.5,-9.15,2.0,60.69,44.14,Very High Vol,—
-2026-08-31,8,PREMIERENE,Capital Goods,79,0.75,1.9,1.06,46.24,33.82,High Vol,—
-2026-08-31,9,ADANIENT,Metals & Mining,78,0.84,-1.84,20.06,51.05,37.82,Very High Vol,—
-2026-08-31,10,EXIDEIND,Automobile and Auto Components,77,7.2,12.67,32.78,45.55,36.0,Very High Vol,—
-2026-08-31,11,KALYANKJIL,Consumer Durables,76,-9.4,60.54,37.01,54.59,57.87,Very High Vol,—
-2026-08-31,12,SOLARINDS,Chemicals,74,1.77,0.72,16.9,38.07,33.42,High Vol,—
-2026-08-31,13,PNBHOUSING,Financial Services,74,6.18,1.07,5.3,33.29,34.97,High Vol,—
-2026-08-31,14,DIXON,Consumer Durables,74,0.25,8.07,26.65,38.43,45.31,Very High Vol,—
-2026-08-31,15,NUVAMA,Financial Services,73,-8.27,-12.57,18.57,26.01,40.64,Very High Vol,—
-2026-08-31,16,PPLPHARMA,Healthcare,71,5.67,18.0,25.18,34.54,38.96,Very High Vol,—
-2026-08-31,17,AUROPHARMA,Healthcare,71,1.43,1.91,8.72,40.22,29.1,High Vol,—
-2026-08-31,18,DIVISLAB,Healthcare,70,7.75,23.87,25.16,38.85,24.66,Medium Vol,—
-2026-08-31,19,BSE,Financial Services,70,-0.19,-4.04,-8.24,23.52,39.39,Very High Vol,—
-2026-08-31,20,PAYTM,Financial Services,69,7.44,14.69,28.67,22.34,41.11,Very High Vol,—
+2026-08-31,1,LAURUSLABS,Healthcare,100,1.55,22.35,50.15,93.33,32.03,High Vol,—
+2026-08-31,2,OFSS,Information Technology,99,5.53,6.03,26.32,52.63,37.44,Very High Vol,—
+2026-08-31,3,ADANIENSOL,Power,92,-0.93,0.72,20.43,84.28,41.43,Very High Vol,—
+2026-08-31,4,SONACOMS,Automobile and Auto Components,86,6.32,21.96,41.21,63.77,33.98,High Vol,—
+2026-08-31,5,BHEL,Capital Goods,86,-0.44,6.18,0.15,56.9,38.79,Very High Vol,—
+2026-08-31,6,COFORGE,Information Technology,84,3.2,20.93,29.82,6.46,46.17,Very High Vol,—
+2026-08-31,7,TATATECH,Information Technology,83,16.74,22.65,38.33,35.14,39.98,Very High Vol,—
+2026-08-31,8,KALYANKJIL,Consumer Durables,82,-1.03,36.86,42.81,65.88,58.15,Very High Vol,—
+2026-08-31,9,EXIDEIND,Automobile and Auto Components,81,8.94,15.24,35.27,52.55,36.28,Very High Vol,—
+2026-08-31,10,ADANIGREEN,Power,80,-0.77,-7.68,1.22,62.62,44.09,Very High Vol,—
+2026-08-31,11,PREMIERENE,Capital Goods,79,2.45,-3.86,3.52,42.63,33.74,High Vol,—
+2026-08-31,12,ADANIENT,Metals & Mining,76,0.35,-2.06,20.52,51.35,37.79,Very High Vol,—
+2026-08-31,13,PNBHOUSING,Financial Services,75,8.54,5.44,4.75,42.09,34.77,High Vol,—
+2026-08-31,14,SOLARINDS,Chemicals,75,1.41,7.31,15.8,41.3,33.23,High Vol,—
+2026-08-31,15,AUROPHARMA,Healthcare,73,4.92,4.45,11.48,41.59,28.64,High Vol,—
+2026-08-31,16,DIXON,Consumer Durables,72,1.07,5.36,31.44,37.34,45.29,Very High Vol,—
+2026-08-31,17,PPLPHARMA,Healthcare,72,7.13,21.84,16.51,35.14,38.97,Very High Vol,—
+2026-08-31,18,NUVAMA,Financial Services,70,-8.93,-15.09,0.69,28.02,40.11,Very High Vol,—
+2026-08-31,19,PAYTM,Financial Services,70,7.34,14.15,21.44,23.07,40.74,Very High Vol,—
+2026-08-31,20,MANAPPURAM,Financial Services,68,-1.37,10.32,16.06,31.26,35.11,Very High Vol,—
