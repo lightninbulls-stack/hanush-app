@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-07,1,NIFTYPHARMA,Index,100,0.03,3.45,10.08,23.17,15.48,Medium Vol,—
-2026-08-07,2,NIFTYFMCG,Index,99,0.64,0.17,-3.38,-2.35,16.48,Medium Vol,—
-2026-08-07,3,NIFTY50,Index,99,0.77,2.54,1.63,-2.06,16.74,Medium Vol,—
-2026-08-07,4,APOLLOHOSP,Healthcare,96,-0.13,1.12,10.47,29.01,18.57,Medium Vol,—
-2026-08-07,5,MARICO,Fast Moving Consumer Goods,95,-0.99,0.23,3.69,19.32,19.47,Medium Vol,—
-2026-08-07,6,ITC,Fast Moving Consumer Goods,95,1.81,1.44,-6.94,-9.09,19.88,Medium Vol,—
-2026-08-07,7,BRITANNIA,Fast Moving Consumer Goods,94,1.73,2.77,-0.18,-6.43,20.91,Medium Vol,—
-2026-08-07,8,NTPC,Power,94,-1.37,-0.35,-14.83,-2.24,20.94,Medium Vol,—
-2026-08-07,9,SUNPHARMA,Healthcare,93,-2.29,0.32,5.25,19.48,21.28,Medium Vol,—
-2026-08-07,10,LUPIN,Healthcare,93,-2.13,-5.58,-0.67,10.99,21.35,Medium Vol,—
-2026-08-07,11,POWERGRID,Power,93,-4.45,-3.47,-13.49,0.44,21.42,Medium Vol,—
-2026-08-07,12,NIFTYBANK,Index,92,0.84,0.86,4.4,-1.49,21.83,Medium Vol,—
-2026-08-07,13,NESTLEIND,Fast Moving Consumer Goods,92,2.01,5.25,3.89,17.71,21.86,Medium Vol,—
-2026-08-07,14,BHARTIARTL,Telecommunication,92,-0.61,1.49,6.84,-0.28,21.96,Medium Vol,—
-2026-08-07,15,ICICIBANK,Financial Services,92,-1.0,2.92,12.35,5.04,22.25,Medium Vol,—
-2026-08-07,16,TATAPOWER,Power,91,-0.04,1.34,-12.72,6.06,23.13,Medium Vol,—
-2026-08-07,17,CIPLA,Healthcare,91,-0.64,1.56,8.67,11.6,23.31,Medium Vol,—
-2026-08-07,18,COALINDIA,Oil Gas & Consumable Fuels,90,0.27,-3.41,-9.02,-1.95,23.58,Medium Vol,—
-2026-08-07,19,RELIANCE,Oil Gas & Consumable Fuels,90,2.06,4.3,-7.0,-4.0,23.64,Medium Vol,—
-2026-08-07,20,NIFTYMETAL,Index,90,3.7,5.49,1.06,14.08,23.64,Medium Vol,—
+2026-08-10,1,NIFTYPHARMA,Index,100,-0.69,3.14,9.55,19.28,14.95,Low Vol,—
+2026-08-10,2,NIFTY50,Index,98,-0.77,1.56,3.22,-4.45,16.34,Medium Vol,—
+2026-08-10,3,NIFTYFMCG,Index,98,-1.2,0.11,-3.6,-2.84,16.47,Medium Vol,—
+2026-08-10,4,APOLLOHOSP,Healthcare,96,1.04,0.8,10.27,25.72,18.36,Medium Vol,—
+2026-08-10,5,MARICO,Fast Moving Consumer Goods,95,-1.98,1.29,2.49,17.83,19.38,Medium Vol,—
+2026-08-10,6,ITC,Fast Moving Consumer Goods,94,-1.52,0.32,-7.59,-10.74,19.92,Medium Vol,—
+2026-08-10,7,SUNPHARMA,Healthcare,94,-0.97,0.46,3.83,14.24,20.33,Medium Vol,—
+2026-08-10,8,POWERGRID,Power,94,-5.89,-4.59,-13.12,-4.63,20.35,Medium Vol,—
+2026-08-10,9,NTPC,Power,93,-2.98,-1.19,-13.36,-5.05,20.69,Medium Vol,—
+2026-08-10,10,BRITANNIA,Fast Moving Consumer Goods,93,1.67,5.05,3.94,-4.39,21.12,Medium Vol,—
+2026-08-10,11,LUPIN,Healthcare,92,-3.89,-7.86,1.95,5.22,21.39,Medium Vol,—
+2026-08-10,12,NIFTYBANK,Index,92,-0.96,-0.62,5.96,-3.92,21.55,Medium Vol,—
+2026-08-10,13,BHARTIARTL,Telecommunication,92,-1.4,1.18,10.41,-2.72,21.87,Medium Vol,—
+2026-08-10,14,NESTLEIND,Fast Moving Consumer Goods,92,-0.09,5.04,3.15,16.87,21.89,Medium Vol,—
+2026-08-10,15,ICICIBANK,Financial Services,92,-1.93,2.18,13.06,3.03,21.94,Medium Vol,—
+2026-08-10,16,TATAPOWER,Power,90,0.0,0.18,-11.82,4.63,23.01,Medium Vol,—
+2026-08-10,17,RELIANCE,Oil Gas & Consumable Fuels,90,0.63,1.49,-4.39,-7.64,23.15,Medium Vol,—
+2026-08-10,18,CIPLA,Healthcare,90,-0.45,1.97,12.48,10.95,23.29,Medium Vol,—
+2026-08-10,19,NIFTYMETAL,Index,90,2.42,4.24,2.32,11.21,23.32,Medium Vol,—
+2026-08-10,20,COALINDIA,Oil Gas & Consumable Fuels,90,-1.2,-4.26,-11.51,-4.29,23.54,Medium Vol,—
