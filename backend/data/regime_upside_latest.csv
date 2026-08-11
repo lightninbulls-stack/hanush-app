@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-10,1,TATATECH,Information Technology,100,15.1,22.35,39.33,33.31,39.9,Very High Vol,EMA Ensemble Upside
-2026-08-10,2,PAYTM,Financial Services,100,12.35,18.06,32.38,32.22,42.89,Very High Vol,EMA Ensemble Upside
-2026-08-10,3,PPLPHARMA,Healthcare,100,7.19,20.57,16.0,32.49,38.68,Very High Vol,EMA Ensemble Upside
-2026-08-10,4,TVSMOTOR,Automobile and Auto Components,100,1.76,23.27,23.59,19.86,33.03,High Vol,EMA Ensemble Upside
-2026-08-10,5,SONACOMS,Automobile and Auto Components,100,3.5,21.53,36.89,53.24,33.02,High Vol,EMA Ensemble Upside
-2026-08-10,6,COFORGE,Information Technology,100,2.38,20.36,31.62,5.72,46.1,Very High Vol,EMA Ensemble Upside
-2026-08-10,7,MOTHERSON,Automobile and Auto Components,100,8.37,17.32,28.93,38.47,40.76,Very High Vol,EMA Ensemble Upside
-2026-08-10,8,HEROMOTOCO,Automobile and Auto Components,100,7.33,18.41,12.08,1.68,29.62,High Vol,EMA Ensemble Upside
-2026-08-10,9,JUBLFOOD,Consumer Services,100,5.32,13.0,7.49,-2.27,38.87,Very High Vol,EMA Ensemble Upside
-2026-08-10,10,LAURUSLABS,Healthcare,100,2.35,20.56,46.35,90.04,31.93,High Vol,EMA Ensemble Upside
-2026-08-10,11,EXIDEIND,Automobile and Auto Components,100,9.15,14.37,37.62,47.99,36.24,Very High Vol,EMA Ensemble Upside
-2026-08-10,12,KEI,Capital Goods,100,12.67,9.91,10.54,29.6,36.89,Very High Vol,EMA Ensemble Upside
-2026-08-10,13,DIVISLAB,Healthcare,100,-3.32,21.42,23.62,33.68,23.96,Medium Vol,EMA Ensemble Upside
-2026-08-10,14,UNOMINDA,Automobile and Auto Components,100,6.45,10.45,9.79,6.1,35.3,Very High Vol,EMA Ensemble Upside
-2026-08-10,15,HINDZINC,Metals & Mining,100,8.8,10.84,-5.4,-5.27,36.74,Very High Vol,EMA Ensemble Upside
-2026-08-10,16,KAYNES,Capital Goods,100,-1.84,11.96,-14.42,5.21,56.86,Very High Vol,EMA Ensemble Upside
-2026-08-10,17,ASHOKLEY,Capital Goods,100,-0.32,10.48,7.73,-12.94,44.04,Very High Vol,EMA Ensemble Upside
-2026-08-10,18,KALYANKJIL,Consumer Durables,100,-1.27,26.06,55.83,56.34,57.82,Very High Vol,EMA Ensemble Upside
-2026-08-10,19,NATIONALUM,Metals & Mining,100,3.71,7.85,-2.63,3.2,41.06,Very High Vol,EMA Ensemble Upside
-2026-08-10,20,SHRIRAMFIN,Financial Services,100,4.37,8.97,16.58,13.73,42.24,Very High Vol,EMA Ensemble Upside
+2026-08-11,1,PAYTM,Financial Services,100,13.84,14.94,38.03,32.09,42.89,Very High Vol,EMA Ensemble Upside
+2026-08-11,2,TATATECH,Information Technology,100,13.46,13.72,40.48,33.04,39.92,Very High Vol,EMA Ensemble Upside
+2026-08-11,3,PPLPHARMA,Healthcare,100,5.77,23.36,21.31,32.09,38.68,Very High Vol,EMA Ensemble Upside
+2026-08-11,4,MOTHERSON,Automobile and Auto Components,100,12.09,17.49,36.21,38.04,40.75,Very High Vol,EMA Ensemble Upside
+2026-08-11,5,COFORGE,Information Technology,100,3.95,18.05,37.76,12.71,45.35,Very High Vol,EMA Ensemble Upside
+2026-08-11,6,HEROMOTOCO,Automobile and Auto Components,100,5.72,18.44,15.41,0.24,29.54,High Vol,EMA Ensemble Upside
+2026-08-11,7,DIVISLAB,Healthcare,100,2.39,23.64,29.12,41.69,24.04,Medium Vol,EMA Ensemble Upside
+2026-08-11,8,TVSMOTOR,Automobile and Auto Components,100,0.92,19.67,23.56,18.04,33.12,High Vol,EMA Ensemble Upside
+2026-08-11,9,JUBLFOOD,Consumer Services,100,4.99,13.17,10.42,-5.5,38.81,Very High Vol,EMA Ensemble Upside
+2026-08-11,10,SONACOMS,Automobile and Auto Components,100,1.65,19.25,36.96,50.14,33.13,High Vol,EMA Ensemble Upside
+2026-08-11,11,LAURUSLABS,Healthcare,100,0.43,19.21,46.53,89.53,31.94,High Vol,EMA Ensemble Upside
+2026-08-11,12,EXIDEIND,Automobile and Auto Components,100,5.45,14.16,39.58,41.54,35.85,Very High Vol,EMA Ensemble Upside
+2026-08-11,13,KEI,Capital Goods,100,2.64,10.43,12.97,27.62,36.87,Very High Vol,EMA Ensemble Upside
+2026-08-11,14,NAUKRI,Consumer Services,100,7.94,14.18,46.1,14.48,35.82,Very High Vol,EMA Ensemble Upside
+2026-08-11,15,UNOMINDA,Automobile and Auto Components,100,3.91,10.65,11.66,5.83,35.31,Very High Vol,EMA Ensemble Upside
+2026-08-11,16,ASHOKLEY,Capital Goods,100,1.6,9.8,12.11,-12.99,44.04,Very High Vol,EMA Ensemble Upside
+2026-08-11,17,HINDZINC,Metals & Mining,100,4.22,10.15,-8.61,-8.23,36.7,Very High Vol,EMA Ensemble Upside
+2026-08-11,18,NATIONALUM,Metals & Mining,100,2.92,9.23,-1.54,3.49,41.08,Very High Vol,EMA Ensemble Upside
+2026-08-11,19,KALYANKJIL,Consumer Durables,100,1.83,17.93,66.45,55.53,57.81,Very High Vol,EMA Ensemble Upside
+2026-08-11,20,KAYNES,Capital Goods,100,-4.06,12.0,-8.19,-1.63,56.14,Very High Vol,EMA Ensemble Upside
