@@ -1,12 +1,6 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-10,1,HINDALCO,Metals & Mining,100,5.95,8.95,2.98,10.34,30.69,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,2,PATANJALI,Fast Moving Consumer Goods,73,-2.47,-14.21,-21.82,-29.83,29.47,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,3,NMDC,Metals & Mining,64,2.0,0.66,-1.51,4.69,30.23,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,4,KEI,Capital Goods,51,12.67,9.91,10.54,29.6,36.89,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,5,TATASTEEL,Metals & Mining,49,-0.4,-0.5,-10.3,-1.39,27.46,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,6,NATIONALUM,Metals & Mining,49,3.71,7.85,-2.63,3.2,41.06,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,7,SAIL,Metals & Mining,47,4.52,2.68,-4.58,11.72,38.81,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,8,MCX,Financial Services,33,4.44,-0.41,-13.44,13.36,37.48,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,9,TATAPOWER,Power,14,0.0,0.18,-11.82,4.63,23.01,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,10,TATACONSUM,Fast Moving Consumer Goods,12,-0.12,-0.29,-12.77,-4.04,24.67,Medium Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-10,11,BANKBARODA,Financial Services,0,0.23,-1.25,-6.84,-13.17,31.38,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-11,1,DRREDDY,Healthcare,100,2.76,-2.39,-5.12,-2.84,26.84,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-11,2,HINDALCO,Metals & Mining,66,2.85,8.51,0.74,8.72,30.67,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-11,3,NMDC,Metals & Mining,66,1.48,1.57,-1.35,-0.5,29.34,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-11,4,NATIONALUM,Metals & Mining,21,2.92,9.23,-1.54,3.49,41.08,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-11,5,KEI,Capital Goods,0,2.64,10.43,12.97,27.62,36.87,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
