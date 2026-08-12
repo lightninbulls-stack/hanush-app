@@ -1,6 +1,5 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-11,1,DRREDDY,Healthcare,100,2.76,-2.39,-5.12,-2.84,26.84,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-11,2,HINDALCO,Metals & Mining,66,2.85,8.51,0.74,8.72,30.67,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-11,3,NMDC,Metals & Mining,66,1.48,1.57,-1.35,-0.5,29.34,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-11,4,NATIONALUM,Metals & Mining,21,2.92,9.23,-1.54,3.49,41.08,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-11,5,KEI,Capital Goods,0,2.64,10.43,12.97,27.62,36.87,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-12,1,DRREDDY,Healthcare,100,2.04,-3.71,-5.16,-3.61,26.84,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-12,2,NMDC,Metals & Mining,95,0.12,1.07,-5.72,1.54,29.27,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-12,3,NATIONALUM,Metals & Mining,40,10.24,15.1,2.88,15.43,42.46,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-12,4,KEI,Capital Goods,0,3.17,12.37,16.96,29.51,36.95,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
