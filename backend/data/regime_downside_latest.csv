@@ -1,21 +1,21 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-13,1,GODREJCP,Fast Moving Consumer Goods,100,-13.03,-11.0,-9.33,-20.72,31.59,High Vol,EMA Ensemble Downside
-2026-08-13,2,BLUESTARCO,Consumer Durables,100,-3.63,-13.68,-9.19,-19.51,36.12,Very High Vol,EMA Ensemble Downside
-2026-08-13,3,PFC,Financial Services,100,-9.34,-6.58,-16.06,-9.6,31.31,High Vol,EMA Ensemble Downside
-2026-08-13,4,PAGEIND,Textiles,100,-8.81,-9.59,1.09,2.7,27.12,High Vol,EMA Ensemble Downside
-2026-08-13,5,PIIND,Chemicals,100,-10.79,-4.77,-19.63,-20.29,33.98,High Vol,EMA Ensemble Downside
-2026-08-13,6,MAXHEALTH,Healthcare,100,-5.51,-8.11,-3.45,-2.55,26.81,High Vol,EMA Ensemble Downside
-2026-08-13,7,ADANIGREEN,Power,100,-3.83,-15.2,-6.78,35.72,41.82,Very High Vol,EMA Ensemble Downside
-2026-08-13,8,INOXWIND,Capital Goods,100,-5.24,-7.35,-24.07,-30.36,44.49,Very High Vol,EMA Ensemble Downside
-2026-08-13,9,ANGELONE,Financial Services,100,-1.72,-14.97,-3.85,10.52,43.88,Very High Vol,EMA Ensemble Downside
-2026-08-13,10,SUZLON,Capital Goods,100,-1.02,-9.18,-10.96,-0.9,36.68,Very High Vol,EMA Ensemble Downside
-2026-08-13,11,LUPIN,Healthcare,100,-5.65,-9.74,-0.35,3.52,21.27,Medium Vol,EMA Ensemble Downside
-2026-08-13,12,NUVAMA,Financial Services,100,2.81,-11.17,15.36,25.92,39.45,Very High Vol,EMA Ensemble Downside
-2026-08-13,13,TORNTPOWER,Power,100,-0.54,-8.54,-9.58,-7.77,34.01,High Vol,EMA Ensemble Downside
-2026-08-13,14,LICHSGFIN,Financial Services,100,-0.59,-8.75,-10.42,-3.11,28.65,High Vol,EMA Ensemble Downside
-2026-08-13,15,POWERGRID,Power,100,-1.53,-5.02,-11.65,-8.93,20.13,Medium Vol,EMA Ensemble Downside
-2026-08-13,16,ADANIPORTS,Services,100,-2.18,-9.35,-6.51,6.92,28.96,High Vol,EMA Ensemble Downside
-2026-08-13,17,AMBER,Consumer Durables,100,-3.37,-8.6,-13.43,8.06,47.03,Very High Vol,EMA Ensemble Downside
-2026-08-13,18,UPL,Chemicals,100,-0.8,-4.88,-11.0,-23.36,37.26,Very High Vol,EMA Ensemble Downside
-2026-08-13,19,CROMPTON,Consumer Durables,100,-8.09,-4.39,-14.12,1.27,35.36,Very High Vol,EMA Ensemble Downside
-2026-08-13,20,RECLTD,Financial Services,100,-4.15,-1.48,-0.52,-6.98,31.32,High Vol,EMA Ensemble Downside
+2026-08-14,1,GODREJCP,Fast Moving Consumer Goods,100,-11.02,-11.67,-10.09,-21.99,31.52,High Vol,EMA Ensemble Downside
+2026-08-14,2,PFC,Financial Services,100,-10.48,-6.32,-15.65,-9.44,31.3,High Vol,EMA Ensemble Downside
+2026-08-14,3,BLUESTARCO,Consumer Durables,100,-0.4,-13.42,-9.05,-22.15,35.85,Very High Vol,EMA Ensemble Downside
+2026-08-14,4,PIIND,Chemicals,100,-10.25,-5.38,-20.06,-22.57,33.72,High Vol,EMA Ensemble Downside
+2026-08-14,5,PAGEIND,Textiles,100,-7.89,-9.17,-0.19,5.44,26.98,High Vol,EMA Ensemble Downside
+2026-08-14,6,MAXHEALTH,Healthcare,100,-5.74,-8.16,-3.95,-0.14,26.5,High Vol,EMA Ensemble Downside
+2026-08-14,7,ANGELONE,Financial Services,100,-1.61,-14.19,-6.37,5.8,43.78,Very High Vol,EMA Ensemble Downside
+2026-08-14,8,LUPIN,Healthcare,100,-5.44,-10.62,-1.81,1.74,21.24,Medium Vol,EMA Ensemble Downside
+2026-08-14,9,INOXWIND,Capital Goods,100,-5.55,-6.5,-22.88,-33.67,44.0,Very High Vol,EMA Ensemble Downside
+2026-08-14,10,RECLTD,Financial Services,100,-8.72,-4.18,-3.14,-6.92,31.3,High Vol,EMA Ensemble Downside
+2026-08-14,11,SUZLON,Capital Goods,100,-2.18,-9.37,-12.52,-2.26,36.71,Very High Vol,EMA Ensemble Downside
+2026-08-14,12,NUVAMA,Financial Services,100,1.67,-9.55,14.51,20.53,39.46,Very High Vol,EMA Ensemble Downside
+2026-08-14,13,ADANIGREEN,Power,100,-1.78,-12.68,-2.25,37.18,41.89,Very High Vol,EMA Ensemble Downside
+2026-08-14,14,NBCC,Construction,100,-6.48,-8.38,-4.98,-12.61,36.63,Very High Vol,EMA Ensemble Downside
+2026-08-14,15,TORNTPOWER,Power,100,-3.09,-7.86,-10.7,-8.27,34.02,High Vol,EMA Ensemble Downside
+2026-08-14,16,POWERGRID,Power,100,-2.04,-5.24,-13.01,-8.18,20.08,Medium Vol,EMA Ensemble Downside
+2026-08-14,17,LICHSGFIN,Financial Services,100,-0.84,-8.55,-8.6,-4.52,28.61,High Vol,EMA Ensemble Downside
+2026-08-14,18,SHREECEM,Construction Materials,100,-4.67,-8.17,-0.7,-8.66,26.3,High Vol,EMA Ensemble Downside
+2026-08-14,19,UPL,Chemicals,100,-1.75,-10.04,-10.95,-24.33,37.26,Very High Vol,EMA Ensemble Downside
+2026-08-14,20,GMRAIRPORT,Services,100,-5.31,-9.32,5.09,3.6,33.8,High Vol,EMA Ensemble Downside
