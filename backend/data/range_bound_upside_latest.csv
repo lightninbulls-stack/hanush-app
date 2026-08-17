@@ -1,3 +1,4 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-14,1,DRREDDY,Healthcare,100,2.39,-1.99,-10.23,-5.92,26.56,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-14,2,BANDHANBNK,Financial Services,0,-0.84,-18.59,-10.24,7.7,49.4,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-17,1,NMDC,Metals & Mining,100,0.02,2.74,-5.15,0.51,29.34,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-17,2,CUMMINSIND,Capital Goods,80,0.04,0.04,2.86,23.35,32.52,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-17,3,DRREDDY,Healthcare,0,2.87,-1.59,-10.46,-5.1,26.49,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
