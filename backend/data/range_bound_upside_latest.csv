@@ -1,3 +1,5 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-25,1,DRREDDY,Healthcare,100,1.25,3.71,-10.12,-6.78,26.53,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
-2026-08-25,2,BANDHANBNK,Financial Services,0,1.76,2.4,-13.42,1.02,49.24,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-26,1,DRREDDY,Healthcare,100,1.03,4.09,-10.39,-7.82,26.56,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-26,2,AXISBANK,Financial Services,12,1.62,2.57,-3.77,-7.49,26.49,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-26,3,BANDHANBNK,Financial Services,9,2.54,2.76,-15.71,2.38,49.2,Very High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
+2026-08-26,4,LICHSGFIN,Financial Services,0,5.51,-3.9,-5.76,0.84,29.43,High Vol,Recent 2M z-score <= -1.50 + EMA(3/8) bullish
