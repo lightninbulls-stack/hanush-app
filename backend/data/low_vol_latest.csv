@@ -1,21 +1,7 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-08-25,1,NIFTYPHARMA,Index,100,0.77,2.38,7.72,17.84,14.78,Low Vol,—
-2026-08-25,2,NIFTYFMCG,Index,98,-0.06,-3.75,-5.02,-8.97,16.06,Medium Vol,—
-2026-08-25,3,NIFTY50,Index,98,0.74,1.41,1.76,-5.75,16.19,Medium Vol,—
-2026-08-25,4,ITC,Fast Moving Consumer Goods,96,0.52,-5.06,-10.03,-18.36,18.25,Medium Vol,—
-2026-08-25,5,APOLLOHOSP,Healthcare,95,0.82,0.51,7.63,16.23,18.94,Medium Vol,—
-2026-08-25,6,MARICO,Fast Moving Consumer Goods,95,0.71,-1.3,2.11,6.48,18.97,Medium Vol,—
-2026-08-25,7,POWERGRID,Power,95,1.12,-6.18,-7.37,-9.83,19.18,Medium Vol,—
-2026-08-25,8,NTPC,Power,94,0.82,-3.12,-12.79,-7.75,20.26,Medium Vol,—
-2026-08-25,9,SUNPHARMA,Healthcare,93,2.5,-2.62,4.41,11.46,20.66,Medium Vol,—
-2026-08-25,10,BRITANNIA,Fast Moving Consumer Goods,93,-2.05,-0.04,0.83,-12.85,21.11,Medium Vol,—
-2026-08-25,11,LUPIN,Healthcare,92,-2.53,-9.73,-3.99,-2.3,21.29,Medium Vol,—
-2026-08-25,12,NIFTYBANK,Index,92,0.44,0.75,4.39,-6.56,21.44,Medium Vol,—
-2026-08-25,13,ICICIBANK,Financial Services,92,0.76,-1.59,11.23,1.03,21.82,Medium Vol,—
-2026-08-25,14,BHARTIARTL,Telecommunication,91,0.66,2.19,5.42,-3.7,22.09,Medium Vol,—
-2026-08-25,15,NESTLEIND,Fast Moving Consumer Goods,91,1.13,2.28,3.53,13.69,22.21,Medium Vol,—
-2026-08-25,16,TATAPOWER,Power,91,-2.73,-1.79,-11.96,-2.37,22.26,Medium Vol,—
-2026-08-25,17,RELIANCE,Oil Gas & Consumable Fuels,91,-0.38,2.89,-2.9,-8.62,22.66,Medium Vol,—
-2026-08-25,18,COALINDIA,Oil Gas & Consumable Fuels,91,-0.71,-5.5,-11.82,-3.35,22.77,Medium Vol,—
-2026-08-25,19,NIFTYMETAL,Index,91,2.66,7.18,-0.89,11.57,22.78,Medium Vol,—
-2026-08-25,20,ALKEM,Healthcare,91,-1.95,-4.36,-0.22,-1.76,22.82,Medium Vol,—
+2026-08-27,1,NIFTYFMCG,Index,100,-1.74,-5.35,-4.76,-9.16,15.91,Medium Vol,—
+2026-08-27,2,NIFTYMETAL,Index,50,2.79,5.82,-0.12,11.97,22.75,Medium Vol,—
+2026-08-27,3,NIFTYMEDIA,Index,38,-1.52,1.0,13.38,11.91,24.47,Medium Vol,—
+2026-08-27,4,NIFTYAUTO,Index,29,-1.43,3.8,9.66,3.72,25.61,High Vol,—
+2026-08-27,5,NIFTYPSUBANK,Index,21,-0.33,3.25,5.29,-11.15,26.7,High Vol,—
+2026-08-27,6,NIFTYREALTY,Index,0,0.18,-0.96,16.24,10.83,29.61,High Vol,—
