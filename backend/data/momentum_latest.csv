@@ -1,7 +1,7 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-09-30,1,NIFTYREALTY,Index,100,0.63,-5.96,4.75,20.05,29.48,High Vol,—
-2026-09-30,2,NIFTYMEDIA,Index,74,1.22,-4.04,1.24,18.97,24.3,Medium Vol,—
-2026-09-30,3,NIFTYMETAL,Index,52,-0.2,-0.67,-0.91,11.47,20.69,Medium Vol,—
-2026-09-30,4,NIFTYAUTO,Index,44,-0.56,-7.34,1.68,8.1,22.26,Medium Vol,—
-2026-09-30,5,NIFTYPSUBANK,Index,16,-0.45,-3.53,-5.15,-3.31,24.85,Medium Vol,—
-2026-09-30,6,NIFTYFMCG,Index,0,1.88,-4.1,-7.0,-4.58,15.47,Medium Vol,—
+2026-09-30,1,NIFTYREALTY,Index,100,5.8,-5.5,6.88,17.88,29.26,High Vol,—
+2026-09-30,2,NIFTYMEDIA,Index,77,4.71,-2.36,3.98,16.5,23.92,Medium Vol,—
+2026-09-30,3,NIFTYMETAL,Index,51,2.54,-1.38,2.54,11.74,20.68,Medium Vol,—
+2026-09-30,4,NIFTYAUTO,Index,43,1.23,-7.0,2.23,5.81,22.11,Medium Vol,—
+2026-09-30,5,NIFTYPSUBANK,Index,15,1.38,-4.05,-3.72,-4.51,24.83,Medium Vol,—
+2026-09-30,6,NIFTYFMCG,Index,0,1.85,-3.9,-6.93,-5.04,15.49,Medium Vol,—
