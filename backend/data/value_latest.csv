@@ -1,12 +1,12 @@
 Date,Rank,Symbol,Sector,Score,1W Return,1M Return,3M Return,6M Return,6M Volatility,Volatility Bucket,Notes
-2026-10-16,1,PFC,Financial Services,100,1.66,-3.68,-17.69,-27.38,,Very High Vol,Value Factor
-2026-10-16,2,RECLTD,Financial Services,93,2.6,-1.55,-13.32,-15.49,,Very High Vol,Value Factor
-2026-10-16,3,HINDZINC,Metals & Mining,86,-0.64,-4.85,4.18,-8.86,,Very High Vol,Value Factor
-2026-10-16,4,INDIGO,Services,79,-3.02,-0.98,-10.7,1.7,,Very High Vol,Value Factor
-2026-10-16,5,NATIONALUM,Metals & Mining,71,2.64,-8.92,-4.6,-25.06,,Very High Vol,Value Factor
-2026-10-16,6,IEX,Financial Services,64,2.64,-3.97,-12.42,-19.98,,Very High Vol,Value Factor
-2026-10-16,7,TCS,Information Technology,57,14.33,12.62,8.64,-4.34,,Very High Vol,Value Factor
-2026-10-16,8,INDUSTOWER,Telecommunication,50,0.64,2.05,-5.01,-7.22,,Very High Vol,Value Factor
-2026-10-16,9,INFY,Information Technology,43,13.46,9.55,5.9,-11.98,,Very High Vol,Value Factor
-2026-10-16,11,OFSS,Information Technology,29,-1.18,-9.77,-11.77,33.56,,Very High Vol,Value Factor
-2026-10-16,13,SUZLON,Capital Goods,14,11.7,-0.36,-19.22,-16.42,,Very High Vol,Value Factor
+2026-10-21,1,PFC,Financial Services,100,-3.99,-4.13,-20.84,-30.55,,Very High Vol,Value Factor
+2026-10-21,2,RECLTD,Financial Services,93,-1.47,-3.04,-16.45,-20.96,,Very High Vol,Value Factor
+2026-10-21,3,HINDZINC,Metals & Mining,86,-4.48,-11.91,-1.76,-11.06,,Very High Vol,Value Factor
+2026-10-21,4,INDIGO,Services,79,-3.31,-5.66,-12.51,-0.78,,Very High Vol,Value Factor
+2026-10-21,5,NATIONALUM,Metals & Mining,71,-2.74,-10.93,-8.95,-26.83,,Very High Vol,Value Factor
+2026-10-21,6,IEX,Financial Services,64,-2.93,-10.55,-17.0,-17.37,,Very High Vol,Value Factor
+2026-10-21,7,TCS,Information Technology,57,11.44,20.14,13.86,-1.96,,Very High Vol,Value Factor
+2026-10-21,8,INDUSTOWER,Telecommunication,50,0.07,0.82,-6.29,-6.6,,Very High Vol,Value Factor
+2026-10-21,9,INFY,Information Technology,43,9.97,11.09,8.8,-11.02,,Very High Vol,Value Factor
+2026-10-21,11,OFSS,Information Technology,29,-3.54,-13.73,-11.77,26.98,,Very High Vol,Value Factor
+2026-10-21,13,SUZLON,Capital Goods,14,-1.97,-8.67,-25.9,-24.95,,Very High Vol,Value Factor
